@@ -73,6 +73,18 @@ def _get_adapter_base_url(source: str) -> Optional[str]:
     return f"http://{source}:8000"
 
 
+def _short_entity_name(entity_id: str, attribute: str) -> str:
+    """Build a CSV-friendly column name from entity_id + attribute.
+    urn:ngsi-ld:AgriParcel:parcel_001 + temp_avg -> parcel_001.temp_avg
+    """
+    short_id = entity_id
+    if ":" in entity_id:
+        short_id = entity_id.rsplit(":", 1)[-1]
+    # Sanitize for CSV (no commas, quotes, or newlines)
+    clean = f"{short_id}.{attribute}".replace(",", "_").replace('"', "").replace("\n", "")
+    return clean
+
+
 def _parse_arrow_stream(body: bytes) -> pa.Table:
     """Read Arrow IPC stream from bytes into a single table."""
     return ipc.open_stream(body).read_all()
@@ -83,10 +95,13 @@ def _align_multi_source_to_df_sync(
     start_ts: float,
     end_ts: float,
     resolution: int,
+    column_names: list[str] | None = None,
 ) -> pl.DataFrame:
     """
     CPU-bound: parse Arrow streams, build time grid, join_asof each series (LOCF).
     Run in thread pool via asyncio.to_thread. Returns aligned Polars DataFrame.
+    column_names: optional list of meaningful names for each series (e.g. ["parcel_001.temp_avg"]).
+    Falls back to value_0, value_1, ... if not provided.
     """
     resolution = max(2, min(resolution, 10000))
     grid_ts = pl.Series(
@@ -96,17 +111,18 @@ def _align_multi_source_to_df_sync(
     grid_df = pl.DataFrame({"timestamp": grid_ts})
     result_df = grid_df
     for idx, body in enumerate(arrow_bodies):
+        col_name = column_names[idx] if column_names and idx < len(column_names) else f"value_{idx}"
         try:
             table = _parse_arrow_stream(body)
             df_series = pl.from_arrow(table)
         except Exception:
-            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(f"value_{idx}"))
+            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(col_name))
             continue
         if df_series.height == 0:
-            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(f"value_{idx}"))
+            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(col_name))
             continue
         if "timestamp" not in df_series.columns or "value" not in df_series.columns:
-            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(f"value_{idx}"))
+            result_df = result_df.with_columns(pl.lit(None).cast(pl.Float64).alias(col_name))
             continue
         df_series = df_series.sort("timestamp")
         joined = result_df.join_asof(
@@ -115,7 +131,7 @@ def _align_multi_source_to_df_sync(
             right_on="timestamp",
             strategy="backward",
         )
-        result_df = result_df.with_columns(joined.get_column("value").alias(f"value_{idx}"))
+        result_df = result_df.with_columns(joined.get_column("value").alias(col_name))
     return result_df
 
 
@@ -632,12 +648,15 @@ async def proxy_export(
 
     results.sort(key=lambda x: x[0])
     arrow_bodies = [b for _, b in results]
+    # Build meaningful column names from entity_id + attribute
+    col_names = [_short_entity_name(s["entity_id"], s["attribute"]) for s in resolved_series_export]
     df = await asyncio.to_thread(
         _align_multi_source_to_df_sync,
         arrow_bodies,
         start_ts,
         end_ts,
         resolution,
+        col_names,
     )
 
     if fmt == "csv":

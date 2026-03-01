@@ -222,7 +222,15 @@ const DataTree: React.FC<{
                               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                           }`}
                         >
-                          {attr.name}
+                          <span>{attr.name}</span>
+                          {ATTRIBUTE_UNIT[attr.name] && (
+                            <span className="text-slate-500 ml-1">({ATTRIBUTE_UNIT[attr.name]})</span>
+                          )}
+                          {attr.source && attr.source !== 'timescale' && (
+                            <span className="text-slate-600 dark:text-slate-500 ml-1 text-[10px]">
+                              [{attr.source}]
+                            </span>
+                          )}
                         </li>
                       );
                     })}

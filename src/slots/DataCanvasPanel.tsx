@@ -15,6 +15,46 @@ import type { ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 const COLORS = ['#10B981', '#8B5CF6', '#F59E0B', '#3B82F6', '#EF4444'];
 const PREDICTION_STROKE = '#F59E0B';
 
+/** Attribute-to-unit mapping for display */
+const ATTRIBUTE_UNITS: Record<string, string> = {
+  temp_avg: '°C', temp_min: '°C', temp_max: '°C', temperature: '°C',
+  humidity_avg: '%', humidity_min: '%', humidity_max: '%', humidity: '%',
+  precip_mm: 'mm', precipitation: 'mm',
+  wind_speed_avg: 'm/s', wind_speed_max: 'm/s', wind_speed: 'm/s',
+  pressure_avg: 'hPa', pressure: 'hPa',
+  solar_radiation: 'W/m²', radiation: 'W/m²',
+  soil_moisture: '%', soil_moisture_0_10cm: '%',
+  ndvi: '', ndviMean: '', evi: '', savi: '', gndvi: '', ndre: '', ndwi: '',
+  delta_t: '°C', gdd_accumulated: 'GDD',
+};
+
+interface SeriesStats {
+  min: number;
+  max: number;
+  avg: number;
+  last: number;
+  count: number;
+}
+
+function computeStats(values: (number | null | undefined)[]): SeriesStats | null {
+  const nums = (values as number[]).filter((v) => v != null && !isNaN(v));
+  if (nums.length === 0) return null;
+  const sum = nums.reduce((a, b) => a + b, 0);
+  return {
+    min: Math.min(...nums),
+    max: Math.max(...nums),
+    avg: sum / nums.length,
+    last: nums[nums.length - 1],
+    count: nums.length,
+  };
+}
+
+function formatStat(v: number): string {
+  if (Math.abs(v) >= 1000) return v.toFixed(0);
+  if (Math.abs(v) >= 10) return v.toFixed(1);
+  return v.toFixed(2);
+}
+
 export interface DataCanvasPanelProps {
   panelId: string;
   series: ChartSeriesDef[];
@@ -192,17 +232,22 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     }
     const dynamicSeries: uPlot.Series[] = [{}];
     series.forEach((s, idx) => {
+      const shortId = s.entityId.includes(':') ? s.entityId.split(':').pop() : s.entityId;
+      const unit = ATTRIBUTE_UNITS[s.attribute] || '';
       dynamicSeries.push({
         stroke: COLORS[idx % COLORS.length],
         width: 2,
         paths: uPlot.paths.linear?.(),
-        label: s.attribute,
+        label: `${shortId} · ${s.attribute}${unit ? ` (${unit})` : ''}`,
       });
     });
+    const shortTitle = series.length === 1
+      ? `${(series[0].entityId.includes(':') ? series[0].entityId.split(':').pop() : series[0].entityId)} — ${series[0].attribute}`
+      : `Multi-Serie (${series.length})`;
     return {
       width: containerWidth,
-      height: 300,
-      title: series.length === 1 ? `${series[0].entityId} — ${series[0].attribute}` : `Multi-Serie (${series.length})`,
+      height: 260,
+      title: shortTitle,
       series: dynamicSeries,
       axes: [
         { grid: { show: false } },
@@ -246,6 +291,29 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         </div>
       )}
       <div ref={containerRef} className="uplot-container" />
+      {status === 'ready' && chartData && chartData.length > 1 && (
+        <div className="flex flex-wrap gap-3 mt-1 px-1 text-[10px] text-slate-400">
+          {series.map((s, idx) => {
+            const vals = chartData[idx + 1];
+            if (!vals) return null;
+            const stats = computeStats(vals as (number | null)[]);
+            if (!stats) return null;
+            const unit = ATTRIBUTE_UNITS[s.attribute] || '';
+            const color = COLORS[idx % COLORS.length];
+            return (
+              <div key={idx} className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                <span className="text-slate-500">{s.attribute}:</span>
+                <span>min {formatStat(stats.min)}</span>
+                <span>max {formatStat(stats.max)}</span>
+                <span>avg {formatStat(stats.avg)}</span>
+                <span>last {formatStat(stats.last)}</span>
+                {unit && <span className="text-slate-600">{unit}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
