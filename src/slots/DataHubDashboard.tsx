@@ -15,7 +15,7 @@ import { DATAHUB_EVENT_TIME_SELECT } from '../hooks/useUPlotCesiumSync';
 import type { DataHubTimeRangeDetail } from '../hooks/useUPlotCesiumSync';
 import type { ChartSeriesDef, DashboardPanel, GlobalTimeContext } from '../types/dashboard';
 import {
-  getAuthToken,
+  isAuthenticated,
   getIntelligenceStreamUrl,
   submitPredictJob,
   saveWorkspace,
@@ -67,7 +67,9 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
   const [exportModalPanel, setExportModalPanel] = useState<DashboardPanel | null>(null);
   const [predictingPanelId, setPredictingPanelId] = useState<string | null>(null);
   const [loadWorkspaceOpen, setLoadWorkspaceOpen] = useState(false);
-  const [workspaceSaveError, setWorkspaceSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveModalName, setSaveModalName] = useState('');
   const predictAbortRef = useRef<AbortController | null>(null);
   const [layoutWidth, setLayoutWidth] = useState(
     () => Math.max(800, (typeof window !== 'undefined' ? window.innerWidth : 1200) - GRID_WIDTH_OFFSET)
@@ -199,11 +201,10 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
         24
       )
         .then((jobId) => {
-          const token = getAuthToken();
           const url = getIntelligenceStreamUrl(jobId);
           fetchEventSource(url, {
             signal: ac.signal,
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: 'include',
             onmessage(ev) {
               try {
                 const d = JSON.parse(ev.data) as {
@@ -265,14 +266,24 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
     setLoadWorkspaceOpen(false);
   }, []);
 
-  const handleSaveWorkspace = useCallback(async () => {
-    setWorkspaceSaveError(null);
-    const workspaceName = prompt('Nombre del Workspace:', 'Análisis Energético');
-    if (!workspaceName?.trim()) return;
+  const showBanner = useCallback((text: string, type: 'success' | 'error') => {
+    setSaveMessage({ text, type });
+    setTimeout(() => setSaveMessage(null), 3000);
+  }, []);
+
+  const handleSaveWorkspace = useCallback(() => {
+    setSaveModalName('');
+    setShowSaveModal(true);
+  }, []);
+
+  const handleConfirmSave = useCallback(async () => {
+    const workspaceName = saveModalName.trim();
+    if (!workspaceName) return;
+    setShowSaveModal(false);
     const payload: DataHubWorkspacePayload = {
       id: `urn:ngsi-ld:DataHubWorkspace:${crypto.randomUUID()}`,
       type: 'DataHubWorkspace',
-      name: { type: 'Property', value: workspaceName.trim() },
+      name: { type: 'Property', value: workspaceName },
       timeContext: { type: 'Property', value: timeContext },
       layout: {
         type: 'Property',
@@ -287,14 +298,12 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
     };
     try {
       await saveWorkspace(payload);
-      setWorkspaceSaveError(null);
-      if (typeof window !== 'undefined') window.alert('Workspace guardado correctamente en Orion-LD.');
+      showBanner('Workspace saved', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setWorkspaceSaveError(msg);
-      if (typeof window !== 'undefined') window.alert(`Error al guardar: ${msg}`);
+      showBanner(`Error saving workspace: ${msg.slice(0, 100)}`, 'error');
     }
-  }, [panels, timeContext]);
+  }, [panels, timeContext, saveModalName, showBanner]);
 
   const handleLoadWorkspace = useCallback(() => {
     setLoadWorkspaceOpen(true);
@@ -309,9 +318,16 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
         <div className="flex items-center gap-4">
           <h2 className="text-slate-200 font-semibold">Lienzo Táctico</h2>
           <span className="text-slate-500 text-sm font-mono">{panels.length} paneles activos</span>
-          {workspaceSaveError && (
-            <span className="text-red-400 text-xs" role="alert">
-              {workspaceSaveError}
+          {saveMessage && (
+            <span
+              className={`text-xs px-2 py-1 rounded ${
+                saveMessage.type === 'success'
+                  ? 'bg-emerald-900/50 text-emerald-400'
+                  : 'bg-red-900/50 text-red-400'
+              }`}
+              role="alert"
+            >
+              {saveMessage.text}
             </span>
           )}
         </div>
@@ -357,7 +373,13 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                 predictingPanelId === panel.id ? 'ring-1 ring-amber-500/80' : ''
               }`}
             >
-              <div className="panel-drag-handle cursor-move flex-1 truncate text-xs text-slate-300 font-mono min-w-0">
+              <div
+                className="panel-drag-handle cursor-move flex-1 truncate text-xs text-slate-300 font-mono min-w-0"
+                title={panel.title ??
+                  (panel.series.length === 1
+                    ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
+                    : `Multi-Serie (${panel.series.length})`)}
+              >
                 {panel.title ??
                   (panel.series.length === 1
                     ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
@@ -425,6 +447,39 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
           onSelect={applyWorkspace}
           onClose={() => setLoadWorkspaceOpen(false)}
         />
+      )}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-sm mx-4 p-4">
+            <h3 className="text-sm font-semibold text-slate-200 mb-3">Save Workspace</h3>
+            <input
+              type="text"
+              value={saveModalName}
+              onChange={(e) => setSaveModalName(e.target.value)}
+              placeholder="Workspace name"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
+              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 mb-4 placeholder-slate-500"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSaveModal(false)}
+                className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                disabled={!saveModalName.trim()}
+                className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

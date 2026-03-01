@@ -9,7 +9,7 @@ import 'uplot/dist/uPlot.min.css';
 
 import ArrowWorker from '../workers/arrow-decoder.worker?worker&inline';
 import { useUPlotCesiumSync } from '../hooks/useUPlotCesiumSync';
-import { getAuthToken, getBaseUrl } from '../services/datahubApi';
+import { getBaseUrl } from '../services/datahubApi';
 import type { ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 
 const COLORS = ['#10B981', '#8B5CF6', '#F59E0B', '#3B82F6', '#EF4444'];
@@ -76,8 +76,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
     const ac = new AbortController();
     const headers: HeadersInit = { Accept: 'application/vnd.apache.arrow.stream' };
-    const token = getAuthToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
     const base = getBaseUrl().replace(/\/$/, '');
 
     const fetchAndDecode = async () => {
@@ -95,7 +93,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           });
           const path = `/api/datahub/timeseries/entities/${encodeURIComponent(s.entityId)}/data?${params}`;
           const url = base ? `${base}${path}` : path;
-          response = await fetch(url, { headers, signal: ac.signal });
+          response = await fetch(url, { headers, signal: ac.signal, credentials: 'include' });
         } else {
           const path = '/api/datahub/timeseries/align';
           const url = base ? `${base}${path}` : path;
@@ -113,6 +111,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               })),
             }),
             signal: ac.signal,
+            credentials: 'include',
           });
         }
 
@@ -161,9 +160,10 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const hasPrediction = mergedPlotData != null && mergedPlotData.length === 3;
 
   const uPlotOptions = useMemo(() => {
+    const containerWidth = containerRef.current?.offsetWidth || 800;
     if (hasPrediction && series.length === 1) {
       return {
-        width: 800,
+        width: containerWidth,
         height: 300,
         title: `${series[0].entityId} — ${series[0].attribute}`,
         series: [
@@ -200,7 +200,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       });
     });
     return {
-      width: 800,
+      width: containerWidth,
       height: 300,
       title: series.length === 1 ? `${series[0].entityId} — ${series[0].attribute}` : `Multi-Serie (${series.length})`,
       series: dynamicSeries,
@@ -221,8 +221,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
   if (series.length === 0) {
     return (
-      <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4 flex items-center justify-center text-slate-400 font-mono">
-        [ ARRASTRA UNA SERIE AQUÍ ]
+      <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4 flex items-center justify-center text-slate-400 text-sm">
+        Drag a series here
       </div>
     );
   }
@@ -230,18 +230,19 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   return (
     <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4">
       {status === 'loading' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-emerald-500 font-mono">
-          [ DECODING ARROW IPC... ]
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-slate-400 text-sm">
+          <svg className="animate-spin h-5 w-5 mr-2 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+          Loading…
         </div>
       )}
       {status === 'error' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-red-500 font-mono">
-          [ SIGNAL LOST ]
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-red-400 text-sm">
+          Error loading data
         </div>
       )}
       {status === 'empty' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-slate-400 font-mono">
-          [ NO DATA ]
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-slate-400 text-sm">
+          No data for selected range
         </div>
       )}
       <div ref={containerRef} className="uplot-container" />

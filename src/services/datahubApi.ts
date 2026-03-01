@@ -1,6 +1,6 @@
 /**
  * DataHub BFF API client.
- * Uses same origin /api and token from host (Keycloak / __nekazariAuth).
+ * Uses same origin /api and httpOnly cookie for auth (credentials: 'include').
  */
 
 /** A single timeseries attribute on a DataHub entity. */
@@ -31,11 +31,11 @@ export interface DataHubEntitiesResponse {
   entities: DataHubEntity[];
 }
 
-/** Token for Authorization header. Never pass JWT in URL (CWE-316). */
-export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  const w = window as unknown as { keycloak?: { token?: string }; __nekazariAuth?: { token?: string } };
-  return w.keycloak?.token ?? w.__nekazariAuth?.token ?? null;
+/** Check if the user is authenticated (cookie is set by the host). */
+export function isAuthenticated(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ctx = (window as unknown as { __nekazariAuthContext?: { isAuthenticated?: boolean } }).__nekazariAuthContext;
+  return ctx?.isAuthenticated === true;
 }
 
 export function getBaseUrl(): string {
@@ -48,11 +48,9 @@ export async function fetchDataHubEntities(search?: string): Promise<DataHubEnti
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/datahub/entities' + (search ? `?search=${encodeURIComponent(search)}` : '');
   const url = base ? `${base}${path}` : path;
-  const token = getAuthToken();
   const headers: HeadersInit = { Accept: 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers, credentials: 'include' });
   if (!res.ok) throw new Error(`DataHub entities: ${res.status} ${await res.text()}`);
   return res.json();
 }
@@ -84,11 +82,9 @@ export async function fetchTimeseriesArrow(
   });
   const path = `/api/datahub/timeseries/entities/${entityId}/data?${params}`;
   const url = base ? `${base}${path}` : path;
-  const token = getAuthToken();
   const headers: HeadersInit = { Accept: 'application/vnd.apache.arrow.stream' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { headers, signal });
+  const res = await fetch(url, { headers, signal, credentials: 'include' });
   if (!res.ok) throw new Error(await res.text());
   const buffer = await res.arrayBuffer();
 
@@ -128,12 +124,10 @@ export async function fetchTimeseriesAlign(
 ): Promise<TimeseriesAlignResult> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/timeseries/align` : '/api/datahub/timeseries/align';
-  const token = getAuthToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     Accept: 'application/vnd.apache.arrow.stream',
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -145,6 +139,7 @@ export async function fetchTimeseriesAlign(
       series,
     }),
     signal,
+    credentials: 'include',
   });
   if (!res.ok) throw new Error(await res.text());
   const buffer = await res.arrayBuffer();
@@ -196,9 +191,7 @@ export async function submitPredictJob(
 ): Promise<string> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/intelligence/predict` : '/api/intelligence/predict';
-  const token = getAuthToken();
   const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -210,13 +203,14 @@ export async function submitPredictJob(
       end_time: endTime,
       prediction_horizon: predictionHorizonHours,
     }),
+    credentials: 'include',
   });
   if (!res.ok) throw new Error(`Predict: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as PredictJobResponse;
   return data.job_id;
 }
 
-/** SSE stream URL for job status. Use fetchEventSource with Authorization header (never JWT in URL). */
+/** SSE stream URL for job status. Use fetchEventSource with credentials: 'include' (never JWT in URL). */
 export function getIntelligenceStreamUrl(jobId: string): string {
   const base = getBaseUrl().replace(/\/$/, '');
   const path = `/api/intelligence/jobs/${encodeURIComponent(jobId)}/stream`;
@@ -258,11 +252,9 @@ export async function requestExport(
 ): Promise<{ format: 'csv'; blob: Blob } | { format: 'parquet'; data: ExportParquetResponse }> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/export` : '/api/datahub/export';
-  const token = getAuthToken();
   const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'text/csv, application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), credentials: 'include' });
   if (!res.ok) throw new Error(`Export: ${res.status} ${await res.text()}`);
 
   const contentType = res.headers.get('content-type') ?? '';
@@ -306,11 +298,9 @@ export interface DataHubWorkspaceStored {
 export async function saveWorkspace(payload: DataHubWorkspacePayload): Promise<void> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/workspaces` : '/api/datahub/workspaces';
-  const token = getAuthToken();
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), credentials: 'include' });
   if (!res.ok) throw new Error(await res.text());
 }
 
@@ -319,11 +309,9 @@ export async function listWorkspaces(): Promise<DataHubWorkspaceStored[]> {
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/datahub/workspaces';
   const url = base ? `${base}${path}` : path;
-  const token = getAuthToken();
   const headers: HeadersInit = { Accept: 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers, credentials: 'include' });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return Array.isArray(data) ? data : data.workspaces ?? [];

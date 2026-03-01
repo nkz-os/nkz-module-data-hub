@@ -7,7 +7,7 @@ import {
   fetchDataHubEntities,
   fetchTimeseriesArrow,
   fetchTimeseriesAlign,
-  getAuthToken,
+  isAuthenticated,
   getIntelligenceStreamUrl,
   requestExport,
   submitPredictJob,
@@ -149,9 +149,9 @@ const DataTree: React.FC<{
       </div>
       <div className="flex-1 overflow-auto p-2">
         {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
-        {error && <p className="text-sm text-red-600">{String(error)}</p>}
+        {error && <p className="text-sm text-red-600">Error loading entities</p>}
         {!isLoading && !error && entities.length === 0 && (
-          <p className="text-sm text-slate-500">No entities. Set PLATFORM_API_URL on the BFF to list from the platform.</p>
+          <p className="text-sm text-slate-500">No entities found</p>
         )}
         {!isLoading && !error && entities.length > 0 && (
           <ul className="space-y-1 text-sm">
@@ -391,7 +391,7 @@ const DataCanvas: React.FC<{
   }, [predictionResult, singleSeries, dataSingle]);
 
   if (isLoading) return <p className="text-sm text-slate-500 p-4">Loading series…</p>;
-  if (error) return <p className="text-sm text-red-600 p-4">{String(error)}</p>;
+  if (error) return <p className="text-sm text-red-600 p-4">Error loading data</p>;
   if (series.length === 0) return null;
   if (singleSeries && !dataSingle) return null;
   if (alignSeries.length >= 2 && !dataAlign) return null;
@@ -448,8 +448,7 @@ const DataHubPanelInner: React.FC = () => {
   const runPredict = useCallback(() => {
     const single = canvasSeries.length === 1 ? canvasSeries[0] : null;
     if (!single) return;
-    const token = getAuthToken();
-    if (!token) {
+    if (!isAuthenticated()) {
       setPredictStatus('auth_required');
       return;
     }
@@ -469,9 +468,9 @@ const DataHubPanelInner: React.FC = () => {
         fetchEventSource(streamUrl, {
           method: 'GET',
           headers: {
-            Authorization: `Bearer ${token}`,
             Accept: 'text/event-stream',
           },
+          credentials: 'include',
           signal: ctrl.signal,
           onmessage(ev) {
             try {
@@ -501,6 +500,14 @@ const DataHubPanelInner: React.FC = () => {
       });
   }, [canvasSeries, timeRange.start, timeRange.end]);
 
+  const PREDICT_STATUS_LABELS: Record<string, string> = {
+    auth_required: 'Authentication required',
+    stream_error: 'Prediction failed',
+    submit_error: 'Could not start prediction',
+    parse_error: 'Invalid response',
+  };
+  const isPredicting = predictStatus === 'submitting' || predictStatus === 'streaming';
+
   const runExport = useCallback(
     (format: 'csv' | 'parquet') => {
       if (canvasSeries.length === 0) return;
@@ -511,6 +518,7 @@ const DataHubPanelInner: React.FC = () => {
         resolution: RESOLUTION,
         series: canvasSeries.map((s) => ({ entity_id: s.entityId, attribute: s.attribute })),
         format,
+        aggregation: exportAggregation,
       };
       requestExport(payload)
         .then((result) => {
@@ -527,7 +535,8 @@ const DataHubPanelInner: React.FC = () => {
           }
         })
         .catch((err) => {
-          setExportStatus(err?.message ?? 'export_error');
+          const raw = err?.message ?? 'export_error';
+          setExportStatus(`Export failed: ${raw.slice(0, 100)}`);
         });
     },
     [canvasSeries, timeRange.start, timeRange.end, exportAggregation]
@@ -555,16 +564,14 @@ const DataHubPanelInner: React.FC = () => {
                   <button
                     type="button"
                     onClick={runPredict}
-                    disabled={!!predictStatus && predictStatus !== 'stream_error' && predictStatus !== 'submit_error' && predictStatus !== 'parse_error' && predictStatus !== 'auth_required'}
+                    disabled={isPredicting}
                     className="px-3 py-1.5 text-sm font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                   >
-                    {predictStatus === 'submitting' || predictStatus === 'streaming'
-                      ? 'Predicting…'
-                      : 'Predicción (IA)'}
+                    {isPredicting ? 'Predicting…' : 'Predicción (IA)'}
                   </button>
                 )}
-                {predictStatus && predictStatus !== 'submitting' && predictStatus !== 'streaming' && (
-                  <span className="text-xs text-slate-500">{predictStatus}</span>
+                {predictStatus && !isPredicting && (
+                  <span className="text-xs text-slate-500">{PREDICT_STATUS_LABELS[predictStatus] ?? predictStatus}</span>
                 )}
                 {canvasSeries.length >= 1 && (
                   <>
