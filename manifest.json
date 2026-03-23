@@ -7,7 +7,7 @@
   "short_description": "Analytical canvas and data export",
   "icon": "line-chart",
   "icon_url": "",
-  "author": { "name": "Nekazari Team", "email": "", "organization": "k8-benetis" },
+  "author": { "name": "Nekazari Team", "email": "", "organization": "nkz-os" },
   "category": "analytics",
   "module_type": "ADDON_FREE",
   "required_plan_type": "basic",
