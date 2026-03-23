@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/k8-benetis/nkz-module-data-hub/datahub-backend:latest
+          image: ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:

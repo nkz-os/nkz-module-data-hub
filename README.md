@@ -5,7 +5,7 @@
 |  |  |
 |--|--|
 | **Module ID** | `datahub` |
-| **Repository** | [k8-benetis/nkz-module-data-hub](https://github.com/k8-benetis/nkz-module-data-hub) |
+| **Repository** | [nkz-os/nkz-module-data-hub](https://github.com/nkz-os/nkz-module-data-hub) |
 | **License** | AGPL-3.0 |
 
 ---
@@ -148,8 +148,8 @@ pnpm run build:module
 1. **Build and push image** (from this repo):
 
    ```bash
-   docker build -t ghcr.io/k8-benetis/nkz-module-data-hub/datahub-backend:latest ./backend
-   docker push ghcr.io/k8-benetis/nkz-module-data-hub/datahub-backend:latest
+   docker build -t ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest ./backend
+   docker push ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest
    ```
 
 2. **Apply manifests** (namespace `nekazari`):
