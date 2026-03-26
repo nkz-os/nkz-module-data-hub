@@ -94,8 +94,8 @@ export async function fetchTimeseriesArrow(
   const valueCol = table.getChild('value');
   if (!tsCol || !valueCol) throw new Error('Missing timestamp or value column');
 
-  const timestamps = (tsCol as arrow.FloatVector).values as Float64Array;
-  const values = (valueCol as arrow.FloatVector).values as Float64Array;
+  const timestamps = tsCol.toArray() as Float64Array;
+  const values = valueCol.toArray() as Float64Array;
   return { timestamps, values };
 }
 
@@ -149,12 +149,12 @@ export async function fetchTimeseriesAlign(
   const tsCol = table.getChild('timestamp');
   if (!tsCol) throw new Error('Missing timestamp column');
 
-  const timestamps = (tsCol as arrow.FloatVector).values as Float64Array;
+  const timestamps = tsCol.toArray() as Float64Array;
   const valueArrays: Float64Array[] = [];
   for (let i = 0; ; i++) {
     const col = table.getChild(`value_${i}`);
     if (!col) break;
-    valueArrays.push((col as arrow.FloatVector).values as Float64Array);
+    valueArrays.push(col.toArray() as Float64Array);
   }
   return { timestamps, valueArrays };
 }

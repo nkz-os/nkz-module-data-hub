@@ -22,11 +22,18 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest
+          image: ghcr.io/nkz-os/nkz-module-datahub/datahub-backend:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
                 name: datahub-api-config
+          env:
+            - name: CONTEXT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: CONTEXT_URL
+                  optional: true
           ports:
             - name: http
               containerPort: 8000

@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import { X } from 'lucide-react';
 import type { DashboardPanel, GlobalTimeContext } from '../types/dashboard';
 import {
@@ -34,6 +35,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   timeContext,
   onClose,
 }) => {
+  const { t } = useTranslation('datahub');
   const [format, setFormat] = useState<'csv' | 'parquet'>('csv');
   const [aggregation, setAggregation] = useState<ExportAggregation>('1 hour');
   const [loading, setLoading] = useState(false);
@@ -80,13 +82,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-md mx-4 p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 id="export-modal-title" className="text-sm font-semibold text-slate-200">
-            Exportar datos
+            {t('exportModal.title')}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-200 p-1"
-            aria-label="Cerrar"
+            aria-label={t('exportModal.close')}
           >
             <X size={18} />
           </button>
@@ -94,32 +96,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         {!canExport ? (
           <p className="text-slate-400 text-sm mb-4">
-            Este panel no tiene series. Añade al menos una para exportar.
+            {t('exportModal.noSeries')}
           </p>
         ) : (
           <>
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Formato</label>
+                <label className="block text-xs text-slate-400 mb-1">{t('exportModal.format')}</label>
                 <select
                   value={format}
                   onChange={(e) => setFormat(e.target.value as 'csv' | 'parquet')}
                   className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
                 >
-                  <option value="csv">CSV (texto)</option>
-                  <option value="parquet">Parquet (binario)</option>
+                  <option value="csv">{t('exportModal.formatCsv')}</option>
+                  <option value="parquet">{t('exportModal.formatParquet')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Granularidad</label>
+                <label className="block text-xs text-slate-400 mb-1">{t('exportModal.granularity')}</label>
                 <select
                   value={aggregation}
                   onChange={(e) => setAggregation(e.target.value as ExportAggregation)}
                   className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
                 >
-                  <option value="raw">Raw (alta frecuencia)</option>
-                  <option value="1 hour">1 hora</option>
-                  <option value="1 day">1 día</option>
+                  <option value="raw">{t('exportModal.rawHighFreq')}</option>
+                  <option value="1 hour">{t('exportModal.oneHour')}</option>
+                  <option value="1 day">{t('exportModal.oneDay')}</option>
                 </select>
               </div>
             </div>
@@ -137,7 +139,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             onClick={onClose}
             className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
           >
-            Cancelar
+            {t('exportModal.cancel')}
           </button>
           <button
             type="button"
@@ -145,7 +147,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             disabled={!canExport || loading}
             className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Exportando…' : 'Exportar'}
+            {loading ? t('exportModal.exporting') : t('exportModal.export')}
           </button>
         </div>
       </div>

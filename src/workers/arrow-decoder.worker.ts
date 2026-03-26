@@ -81,14 +81,14 @@ function handleDecodeArrow(jobId: string, buffer: ArrayBuffer): void {
   }
 
   const valueColumns: Float64Array[] = [timestamps];
-  const transfer: ArrayBuffer[] = [timestamps.buffer];
+  const transfer: ArrayBuffer[] = [timestamps.buffer as ArrayBuffer];
   let idx = 0;
   while (true) {
     const col = table.getChild(`value_${idx}`);
     if (!col) break;
     const arr = getFloat64Values(col);
     valueColumns.push(arr);
-    transfer.push(arr.buffer);
+    transfer.push(arr.buffer as ArrayBuffer);
     idx += 1;
   }
   if (valueColumns.length < 2) {

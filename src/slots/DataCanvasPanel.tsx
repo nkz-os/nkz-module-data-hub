@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 
@@ -77,6 +78,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   resolution,
   prediction = null,
 }) => {
+  const { t } = useTranslation('datahub');
   const containerRef = useRef<HTMLDivElement>(null);
   const workerRef = useRef<Worker | null>(null);
 
@@ -209,14 +211,14 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         series: [
           {},
           {
-            label: 'Histórico',
+            label: t('canvasPanel.historic'),
             stroke: COLORS[0],
             width: 2,
             paths: uPlot.paths.linear?.(),
             spanGaps: false,
           },
           {
-            label: 'Predicción (IA)',
+            label: t('canvasPanel.predictionAI'),
             stroke: PREDICTION_STROKE,
             width: 2,
             dash: [10, 5],
@@ -243,7 +245,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     });
     const shortTitle = series.length === 1
       ? `${(series[0].entityId.includes(':') ? series[0].entityId.split(':').pop() : series[0].entityId)} — ${series[0].attribute}`
-      : `Multi-Serie (${series.length})`;
+      : t('canvasPanel.multiSeries', { count: series.length });
     return {
       width: containerWidth,
       height: 260,
@@ -254,7 +256,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         { grid: { stroke: '#334155' } },
       ],
     } as uPlot.Options;
-  }, [series, hasPrediction]);
+  }, [series, hasPrediction, t]);
 
   const chartData = hasPrediction ? mergedPlotData : plotData;
 
@@ -267,7 +269,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   if (series.length === 0) {
     return (
       <div className="relative w-full h-full bg-slate-900 border border-slate-800 rounded-lg p-4 flex items-center justify-center text-slate-400 text-sm">
-        Drag a series here
+        {t('canvasPanel.dragHere')}
       </div>
     );
   }
@@ -277,17 +279,17 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-slate-400 text-sm">
           <svg className="animate-spin h-5 w-5 mr-2 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
-          Loading…
+          {t('canvasPanel.loading')}
         </div>
       )}
       {status === 'error' && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-red-400 text-sm">
-          Error loading data
+          {t('canvasPanel.errorLoad')}
         </div>
       )}
       {status === 'empty' && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10 text-slate-400 text-sm">
-          No data for selected range
+          {t('canvasPanel.noData')}
         </div>
       )}
       <div ref={containerRef} className="uplot-container" />
@@ -304,10 +306,10 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               <div key={idx} className="flex items-center gap-1.5">
                 <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                 <span className="text-slate-500">{s.attribute}:</span>
-                <span>min {formatStat(stats.min)}</span>
-                <span>max {formatStat(stats.max)}</span>
-                <span>avg {formatStat(stats.avg)}</span>
-                <span>last {formatStat(stats.last)}</span>
+                <span>{t('canvasPanel.statMin')} {formatStat(stats.min)}</span>
+                <span>{t('canvasPanel.statMax')} {formatStat(stats.max)}</span>
+                <span>{t('canvasPanel.statAvg')} {formatStat(stats.avg)}</span>
+                <span>{t('canvasPanel.statLast')} {formatStat(stats.last)}</span>
                 {unit && <span className="text-slate-600">{unit}</span>}
               </div>
             );

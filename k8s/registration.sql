@@ -21,7 +21,7 @@ INSERT INTO marketplace_modules (
   'ADDON_FREE',
   'basic',
   'FREE',
-  '{"name": "Nekazari Team", "organization": "k8-benetis"}'::jsonb,
+  '{"name": "Nekazari Team", "organization": "nkz-os"}'::jsonb,
   '{"type": "iife", "remote_entry_url": "/modules/datahub/nkz-module.js"}'::jsonb
 ) ON CONFLICT (id) DO UPDATE SET
   display_name = EXCLUDED.display_name,

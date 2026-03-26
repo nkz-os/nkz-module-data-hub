@@ -1,5 +1,5 @@
 import type { ModuleViewerSlots } from '@nekazari/sdk';
-import DataHubPanel from './DataHubPanel';
+import DataHubQuickChart from './DataHubQuickChart';
 import { DataCanvasPanel, DataCanvasPanelMemo } from './DataCanvasPanel';
 import { DataHubDashboard } from './DataHubDashboard';
 
@@ -13,8 +13,8 @@ export const moduleSlots: ModuleViewerSlots = {
     {
       id: 'datahub-canvas',
       moduleId: MODULE_ID,
-      component: 'DataHubPanel',
-      localComponent: DataHubPanel,
+      component: 'DataHubQuickChart',
+      localComponent: DataHubQuickChart,
       priority: 50,
     },
   ],

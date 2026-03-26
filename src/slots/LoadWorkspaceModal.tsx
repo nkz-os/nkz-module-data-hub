@@ -3,6 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import { X } from 'lucide-react';
 import { listWorkspaces, type DataHubWorkspaceStored } from '../services/datahubApi';
 
@@ -12,6 +13,7 @@ export interface LoadWorkspaceModalProps {
 }
 
 export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect, onClose }) => {
+  const { t } = useTranslation('datahub');
   const [workspaces, setWorkspaces] = useState<DataHubWorkspaceStored[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,26 +45,26 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
       <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-slate-700">
           <h2 id="load-workspace-title" className="text-sm font-semibold text-slate-200">
-            Cargar Workspace
+            {t('loadWorkspace.title')}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-200 p-1"
-            aria-label="Cerrar"
+            aria-label={t('loadWorkspace.close')}
           >
             <X size={18} />
           </button>
         </div>
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           {loading && (
-            <p className="text-slate-400 text-sm">Cargando workspaces…</p>
+            <p className="text-slate-400 text-sm">{t('loadWorkspace.loading')}</p>
           )}
           {error && (
             <p className="text-red-400 text-sm" role="alert">{error}</p>
           )}
           {!loading && !error && workspaces.length === 0 && (
-            <p className="text-slate-400 text-sm">No hay workspaces guardados.</p>
+            <p className="text-slate-400 text-sm">{t('loadWorkspace.empty')}</p>
           )}
           {!loading && workspaces.length > 0 && (
             <ul className="space-y-2">
@@ -78,7 +80,7 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
                     </span>
                     {ws.layout?.value?.length != null && (
                       <span className="block text-slate-500 text-xs mt-0.5">
-                        {ws.layout.value.length} paneles
+                        {t('loadWorkspace.panelsCount', { count: ws.layout.value.length })}
                       </span>
                     )}
                   </button>
@@ -93,7 +95,7 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
             onClick={onClose}
             className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
           >
-            Cancelar
+            {t('loadWorkspace.cancel')}
           </button>
         </div>
       </div>

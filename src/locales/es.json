@@ -1,0 +1,93 @@
+{
+  "page": {
+    "title": "DataHub",
+    "subtitle": "Lienzo analítico: añade series desde el árbol, visualiza y exporta."
+  },
+  "tree": {
+    "searchPlaceholder": "Buscar entidades (ej. Parcela 4)",
+    "loading": "Cargando…",
+    "errorLoad": "Error al cargar entidades",
+    "empty": "No se han encontrado entidades"
+  },
+  "panel": {
+    "headerTitle": "DataHub — Árbol de datos",
+    "predict": "Predicción (IA)",
+    "predicting": "Prediciendo…",
+    "predictStatus": {
+      "auth_required": "Autenticación requerida",
+      "stream_error": "La predicción ha fallado",
+      "submit_error": "No se ha podido iniciar la predicción",
+      "parse_error": "Respuesta no válida"
+    },
+    "exportGranularity": "Granularidad de exportación:",
+    "aggRaw1s": "Raw (1 s)",
+    "agg1h": "1 hora",
+    "agg1d": "1 día",
+    "exportCsv": "Exportar CSV",
+    "exportParquet": "Exportar Parquet",
+    "removeSeries": "Quitar",
+    "canvasEmptyHint": "Pulsa una entidad y un atributo en el árbol para añadir series al lienzo (una o varias). Arrastra en el gráfico para hacer zoom.",
+    "exporting": "Exportando {{format}}…",
+    "exportFailed": "Exportación fallida: {{message}}",
+    "loadingSeries": "Cargando series…",
+    "errorLoadData": "Error al cargar datos"
+  },
+  "chart": {
+    "predictionAI": "Predicción (IA)",
+    "axisValue": "valor"
+  },
+  "canvasPanel": {
+    "dragHere": "Arrastra una serie aquí",
+    "loading": "Cargando…",
+    "errorLoad": "Error al cargar datos",
+    "noData": "Sin datos en el rango seleccionado",
+    "historic": "Histórico",
+    "predictionAI": "Predicción (IA)",
+    "multiSeries": "Multi-serie ({{count}})",
+    "statMin": "mín",
+    "statMax": "máx",
+    "statAvg": "media",
+    "statLast": "últ"
+  },
+  "dashboard": {
+    "tacticalCanvas": "Lienzo táctico",
+    "activePanels": "{{count}} paneles activos",
+    "saveWorkspace": "Guardar workspace",
+    "load": "Cargar",
+    "predictTitle": "Predicción IA",
+    "predictAria": "Predicción IA",
+    "exportTitle": "Exportar",
+    "exportAria": "Exportar",
+    "multiSeriesSources": "Multi-serie ({{count}} orígenes)",
+    "multiSeriesShort": "Multi-serie ({{count}})",
+    "saveModalTitle": "Guardar workspace",
+    "workspaceNamePlaceholder": "Nombre del workspace",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "workspaceSaved": "Workspace guardado",
+    "workspaceSaveError": "Error al guardar workspace: {{message}}"
+  },
+  "exportModal": {
+    "title": "Exportar datos",
+    "close": "Cerrar",
+    "noSeries": "Este panel no tiene series. Añade al menos una para exportar.",
+    "format": "Formato",
+    "formatCsv": "CSV (texto)",
+    "formatParquet": "Parquet (binario)",
+    "granularity": "Granularidad",
+    "rawHighFreq": "Raw (alta frecuencia)",
+    "oneHour": "1 hora",
+    "oneDay": "1 día",
+    "cancel": "Cancelar",
+    "export": "Exportar",
+    "exporting": "Exportando…"
+  },
+  "loadWorkspace": {
+    "title": "Cargar workspace",
+    "close": "Cerrar",
+    "loading": "Cargando workspaces…",
+    "empty": "No hay workspaces guardados.",
+    "panelsCount": "{{count}} paneles",
+    "cancel": "Cancelar"
+  }
+}

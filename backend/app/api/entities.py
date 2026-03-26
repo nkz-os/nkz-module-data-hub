@@ -16,9 +16,13 @@ PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
 # Entity types that typically have timeseries; NGSI-LD types
 ENTITY_TYPES_WITH_DATA = [
     "AgriParcel",
-    "WeatherObserved",
-    "Device",
     "AgriSensor",
+    "WeatherObserved",
+    "WeatherStation",
+    "AgriculturalTractor",
+    "LivestockAnimal",
+    "AgriculturalMachine",
+    "Device",
 ]
 
 
@@ -137,6 +141,7 @@ async def _fetch_ngsi_entities(
         headers["Authorization"] = authorization
     if x_tenant_id:
         headers["X-Tenant-ID"] = x_tenant_id
+        headers["NGSILD-Tenant"] = x_tenant_id
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.get(url, params={"type": etype}, headers=headers)
         r.raise_for_status()

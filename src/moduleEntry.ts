@@ -1,3 +1,4 @@
+import './i18n';
 import { moduleSlots } from './slots';
 import DataHubPage from './DataHubPage';
 import pkg from '../package.json';

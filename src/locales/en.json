@@ -1,0 +1,93 @@
+{
+  "page": {
+    "title": "DataHub",
+    "subtitle": "Analytical canvas: add series from the tree, visualize and export."
+  },
+  "tree": {
+    "searchPlaceholder": "Search entities (e.g. Parcel 4)",
+    "loading": "Loading…",
+    "errorLoad": "Error loading entities",
+    "empty": "No entities found"
+  },
+  "panel": {
+    "headerTitle": "DataHub — Data tree",
+    "predict": "Prediction (AI)",
+    "predicting": "Predicting…",
+    "predictStatus": {
+      "auth_required": "Authentication required",
+      "stream_error": "Prediction failed",
+      "submit_error": "Could not start prediction",
+      "parse_error": "Invalid response"
+    },
+    "exportGranularity": "Export granularity:",
+    "aggRaw1s": "Raw (1 s)",
+    "agg1h": "1 hour",
+    "agg1d": "1 day",
+    "exportCsv": "Export CSV",
+    "exportParquet": "Export Parquet",
+    "removeSeries": "Remove",
+    "canvasEmptyHint": "Click an entity and attribute in the tree to add series to the canvas (single or multi). Drag on chart to zoom.",
+    "exporting": "Exporting {{format}}…",
+    "exportFailed": "Export failed: {{message}}",
+    "loadingSeries": "Loading series…",
+    "errorLoadData": "Error loading data"
+  },
+  "chart": {
+    "predictionAI": "Prediction (AI)",
+    "axisValue": "value"
+  },
+  "canvasPanel": {
+    "dragHere": "Drag a series here",
+    "loading": "Loading…",
+    "errorLoad": "Error loading data",
+    "noData": "No data for selected range",
+    "historic": "Historical",
+    "predictionAI": "Prediction (AI)",
+    "multiSeries": "Multi-series ({{count}})",
+    "statMin": "min",
+    "statMax": "max",
+    "statAvg": "avg",
+    "statLast": "last"
+  },
+  "dashboard": {
+    "tacticalCanvas": "Tactical canvas",
+    "activePanels": "{{count}} active panels",
+    "saveWorkspace": "Save workspace",
+    "load": "Load",
+    "predictTitle": "AI prediction",
+    "predictAria": "AI prediction",
+    "exportTitle": "Export",
+    "exportAria": "Export",
+    "multiSeriesSources": "Multi-series ({{count}} sources)",
+    "multiSeriesShort": "Multi-series ({{count}})",
+    "saveModalTitle": "Save workspace",
+    "workspaceNamePlaceholder": "Workspace name",
+    "cancel": "Cancel",
+    "save": "Save",
+    "workspaceSaved": "Workspace saved",
+    "workspaceSaveError": "Error saving workspace: {{message}}"
+  },
+  "exportModal": {
+    "title": "Export data",
+    "close": "Close",
+    "noSeries": "This panel has no series. Add at least one to export.",
+    "format": "Format",
+    "formatCsv": "CSV (text)",
+    "formatParquet": "Parquet (binary)",
+    "granularity": "Granularity",
+    "rawHighFreq": "Raw (high frequency)",
+    "oneHour": "1 hour",
+    "oneDay": "1 day",
+    "cancel": "Cancel",
+    "export": "Export",
+    "exporting": "Exporting…"
+  },
+  "loadWorkspace": {
+    "title": "Load workspace",
+    "close": "Close",
+    "loading": "Loading workspaces…",
+    "empty": "No saved workspaces.",
+    "panelsCount": "{{count}} panels",
+    "cancel": "Cancel"
+  }
+}

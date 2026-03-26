@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import ReactGridLayout from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
@@ -15,11 +16,9 @@ import { DATAHUB_EVENT_TIME_SELECT } from '../hooks/useUPlotCesiumSync';
 import type { DataHubTimeRangeDetail } from '../hooks/useUPlotCesiumSync';
 import type { ChartSeriesDef, DashboardPanel, GlobalTimeContext } from '../types/dashboard';
 import {
-  isAuthenticated,
   getIntelligenceStreamUrl,
   submitPredictJob,
   saveWorkspace,
-  listWorkspaces,
   type DataHubWorkspacePayload,
   type DataHubWorkspaceStored,
   type WorkspaceLayoutPanel,
@@ -60,6 +59,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
   initialPanels = [],
   initialTimeContext,
 }) => {
+  const { t } = useTranslation('datahub');
   const [panels, setPanels] = useState<DashboardPanel[]>(() =>
     initialPanels.map((p) => normalizePanel(p as DashboardPanel & { entityId?: string; attribute?: string }))
   );
@@ -155,7 +155,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
               panel.title =
                 panel.series.length === 1
                   ? `${panel.series[0].entityId} — ${panel.series[0].attribute}`
-                  : `Multi-Serie (${panel.series.length} orígenes)`;
+                  : t('dashboard.multiSeriesSources', { count: panel.series.length });
               updated[targetPanelIndex] = panel;
             }
             return updated;
@@ -174,7 +174,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
         console.error('Drop payload error:', err);
       }
     },
-    [panels]
+    [panels, t]
   );
 
   const defaultDroppingItem: LayoutItem = {
@@ -298,12 +298,12 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
     };
     try {
       await saveWorkspace(payload);
-      showBanner('Workspace saved', 'success');
+      showBanner(t('dashboard.workspaceSaved'), 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      showBanner(`Error saving workspace: ${msg.slice(0, 100)}`, 'error');
+      showBanner(t('dashboard.workspaceSaveError', { message: msg.slice(0, 100) }), 'error');
     }
-  }, [panels, timeContext, saveModalName, showBanner]);
+  }, [panels, timeContext, saveModalName, showBanner, t]);
 
   const handleLoadWorkspace = useCallback(() => {
     setLoadWorkspaceOpen(true);
@@ -316,8 +316,8 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
     >
       <div className="dashboard-global-toolbar h-12 shrink-0 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          <h2 className="text-slate-200 font-semibold">Lienzo Táctico</h2>
-          <span className="text-slate-500 text-sm font-mono">{panels.length} paneles activos</span>
+          <h2 className="text-slate-200 font-semibold">{t('dashboard.tacticalCanvas')}</h2>
+          <span className="text-slate-500 text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
           {saveMessage && (
             <span
               className={`text-xs px-2 py-1 rounded ${
@@ -338,7 +338,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded transition-colors flex items-center gap-2"
           >
             <Save size={16} />
-            Guardar Workspace
+            {t('dashboard.saveWorkspace')}
           </button>
           <button
             type="button"
@@ -346,7 +346,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded border border-slate-700 transition-colors flex items-center gap-2"
           >
             <FolderOpen size={16} />
-            Cargar
+            {t('dashboard.load')}
           </button>
         </div>
       </div>
@@ -378,12 +378,12 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                 title={panel.title ??
                   (panel.series.length === 1
                     ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
-                    : `Multi-Serie (${panel.series.length})`)}
+                    : t('dashboard.multiSeriesShort', { count: panel.series.length }))}
               >
                 {panel.title ??
                   (panel.series.length === 1
                     ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
-                    : `Multi-Serie (${panel.series.length})`)}
+                    : t('dashboard.multiSeriesShort', { count: panel.series.length }))}
               </div>
               <div className="panel-actions flex gap-1 shrink-0 items-center">
                 {panel.series.length === 1 && (
@@ -395,8 +395,8 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                     }}
                     disabled={predictingPanelId === panel.id}
                     className="p-1.5 text-amber-500 hover:text-amber-400 disabled:opacity-70"
-                    title="Predicción IA"
-                    aria-label="Predicción IA"
+                    title={t('dashboard.predictTitle')}
+                    aria-label={t('dashboard.predictAria')}
                   >
                     {predictingPanelId === panel.id ? (
                       <Loader2 size={14} className="animate-spin" />
@@ -413,8 +413,8 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                       setExportModalPanel(panel);
                     }}
                     className="p-1.5 text-blue-400 hover:text-blue-300"
-                    title="Exportar"
-                    aria-label="Exportar"
+                    title={t('dashboard.exportTitle')}
+                    aria-label={t('dashboard.exportAria')}
                   >
                     <Download size={14} />
                   </button>
@@ -451,12 +451,12 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
           <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-sm mx-4 p-4">
-            <h3 className="text-sm font-semibold text-slate-200 mb-3">Save Workspace</h3>
+            <h3 className="text-sm font-semibold text-slate-200 mb-3">{t('dashboard.saveModalTitle')}</h3>
             <input
               type="text"
               value={saveModalName}
               onChange={(e) => setSaveModalName(e.target.value)}
-              placeholder="Workspace name"
+              placeholder={t('dashboard.workspaceNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
               className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 mb-4 placeholder-slate-500"
@@ -467,7 +467,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                 onClick={() => setShowSaveModal(false)}
                 className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
               >
-                Cancel
+                {t('dashboard.cancel')}
               </button>
               <button
                 type="button"
@@ -475,7 +475,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
                 disabled={!saveModalName.trim()}
                 className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
               >
-                Save
+                {t('dashboard.save')}
               </button>
             </div>
           </div>

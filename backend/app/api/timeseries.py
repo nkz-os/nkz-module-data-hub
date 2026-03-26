@@ -210,6 +210,10 @@ def _dataframe_to_parquet_minio_sync(df: pl.DataFrame, tenant_id: str) -> str:
         Params={"Bucket": bucket, "Key": key},
         ExpiresIn=3600,
     )
+    # Replace internal K8s hostname with external URL so browsers can resolve it
+    external_url = os.getenv("S3_EXTERNAL_URL", "").rstrip("/")
+    if external_url and endpoint:
+        url = url.replace(endpoint.rstrip("/"), external_url, 1)
     return url
 
 

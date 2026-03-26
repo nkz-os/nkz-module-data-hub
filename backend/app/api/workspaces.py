@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/datahub", tags=["datahub"])
 ORION_URL = os.getenv("ORION_URL", "").rstrip("/")
 # Fallback: if no direct Orion, use platform (api-gateway) which proxies to Orion
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
+CONTEXT_URL = os.getenv("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
 
 
 def _orion_base() -> str:
@@ -25,13 +26,12 @@ def _orion_base() -> str:
     return ""
 
 
-def _headers_orion(authorization: Optional[str], fiware_service: Optional[str]) -> dict:
+def _headers_orion(authorization: Optional[str], tenant: Optional[str]) -> dict:
     h: dict = {"Content-Type": "application/ld+json", "Accept": "application/ld+json"}
     if authorization:
         h["Authorization"] = authorization
-    if fiware_service:
-        h["Fiware-Service"] = fiware_service
-        h["Fiware-ServicePath"] = "/"
+    if tenant:
+        h["NGSILD-Tenant"] = tenant
     return h
 
 
@@ -40,12 +40,12 @@ async def post_workspace(
     request: Request,
     authorization: Optional[str] = Header(None),
     x_tenant_id: Optional[str] = Header(None),
-    fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+    ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
 ):
     """
     Create or update a DataHubWorkspace in Orion-LD.
     Frontend sends NGSI-LD payload (id, type, name, timeContext, layout).
-    Tenant is taken from Fiware-Service or X-Tenant-ID. On 409 Conflict, PATCH the entity.
+    Tenant is taken from NGSILD-Tenant or X-Tenant-ID. On 409 Conflict, PATCH the entity.
     """
     try:
         body = await request.json()
@@ -60,10 +60,10 @@ async def post_workspace(
             content={"error": "ORION_URL or PLATFORM_API_URL not configured"},
             status_code=503,
         )
-    tenant = (fiware_service or x_tenant_id or "").strip() or None
+    tenant = (ngsild_tenant or x_tenant_id or "").strip() or None
     if not tenant:
         return JSONResponse(
-            content={"error": "Fiware-Service or X-Tenant-ID required for multitenancy"},
+            content={"error": "NGSILD-Tenant or X-Tenant-ID required for multitenancy"},
             status_code=400,
         )
 
@@ -75,6 +75,10 @@ async def post_workspace(
 
     url = f"{base}/ngsi-ld/v1/entities"
     headers = _headers_orion(authorization, tenant)
+
+    # Inject @context for NGSI-LD strict compliance (Content-Type is application/ld+json)
+    if "@context" not in body:
+        body["@context"] = CONTEXT_URL
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
@@ -89,14 +93,14 @@ async def post_workspace(
             return JSONResponse(content={"id": entity_id, "status": "created"}, status_code=201)
         if r.status_code == 409:
             patch_url = f"{base}/ngsi-ld/v1/entities/{entity_id}/attrs"
-            patch_body: dict = {}
+            patch_body: dict = {"@context": CONTEXT_URL}
             if "name" in body:
                 patch_body["name"] = body["name"]
             if "timeContext" in body:
                 patch_body["timeContext"] = body["timeContext"]
             if "layout" in body:
                 patch_body["layout"] = body["layout"]
-            if not patch_body:
+            if len(patch_body) <= 1:  # only @context, nothing to patch
                 return JSONResponse(content={"id": entity_id, "status": "exists"}, status_code=200)
             try:
                 r2 = await client.patch(patch_url, json=patch_body, headers=headers)
@@ -121,11 +125,11 @@ async def post_workspace(
 async def get_workspaces(
     authorization: Optional[str] = Header(None),
     x_tenant_id: Optional[str] = Header(None),
-    fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+    ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
 ):
     """
     List DataHubWorkspace entities for the current tenant.
-    GET Orion-LD with type=DataHubWorkspace; Fiware-Service / X-Tenant-ID restricts to tenant.
+    GET Orion-LD with type=DataHubWorkspace; NGSILD-Tenant / X-Tenant-ID restricts to tenant.
     Returns a JSON array of workspace entities.
     """
     base = _orion_base()
@@ -134,10 +138,10 @@ async def get_workspaces(
             content={"error": "ORION_URL or PLATFORM_API_URL not configured"},
             status_code=503,
         )
-    tenant = (fiware_service or x_tenant_id or "").strip() or None
+    tenant = (ngsild_tenant or x_tenant_id or "").strip() or None
     if not tenant:
         return JSONResponse(
-            content={"error": "Fiware-Service or X-Tenant-ID required for multitenancy"},
+            content={"error": "NGSILD-Tenant or X-Tenant-ID required for multitenancy"},
             status_code=400,
         )
 

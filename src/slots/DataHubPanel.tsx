@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import UPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
@@ -61,7 +62,8 @@ export function renderPrediction(
   uplotInstance: UPlot,
   histTimestamps: Float64Array,
   histValues: Float64Array,
-  result: PredictionResult
+  result: PredictionResult,
+  predictionLabel: string
 ): void {
   const N_hist = histTimestamps.length;
   const predictions = result.predictions ?? [];
@@ -87,7 +89,7 @@ export function renderPrediction(
   if (seriesCount === 2) {
     uplotInstance.addSeries(
       {
-        label: 'Predicción (IA)',
+        label: predictionLabel,
         stroke: 'orange',
         dash: [10, 5],
         width: 2,
@@ -105,18 +107,18 @@ function defaultTimeRange(): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-function useDebouncedCallback<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
+function useDebouncedCallback<Args extends unknown[]>(fn: (...args: Args) => void, ms: number): (...args: Args) => void {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fnRef = useRef(fn);
   fnRef.current = fn;
   return useCallback(
-    ((...args: unknown[]) => {
+    (...args: Args) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = null;
         fnRef.current(...args);
       }, ms);
-    }) as T,
+    },
     [ms]
   );
 }
@@ -127,6 +129,7 @@ const DataTree: React.FC<{
   onSelect: (entity: DataHubEntity, attribute: string) => void;
   onAddToCanvas?: (entity: DataHubEntity, attribute: string) => void;
 }> = ({ selectedEntity, selectedAttribute, onSelect, onAddToCanvas }) => {
+  const { t } = useTranslation('datahub');
   const [search, setSearch] = useState('');
   const { data, isLoading, error } = useQuery({
     queryKey: ['datahub', 'entities', search || null],
@@ -141,17 +144,17 @@ const DataTree: React.FC<{
       <div className="p-2 border-b border-slate-200 dark:border-slate-700">
         <input
           type="search"
-          placeholder="Search entities (e.g. Parcela 4)"
+          placeholder={t('tree.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500"
         />
       </div>
       <div className="flex-1 overflow-auto p-2">
-        {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
-        {error && <p className="text-sm text-red-600">Error loading entities</p>}
+        {isLoading && <p className="text-sm text-slate-500">{t('tree.loading')}</p>}
+        {error && <p className="text-sm text-red-600">{t('tree.errorLoad')}</p>}
         {!isLoading && !error && entities.length === 0 && (
-          <p className="text-sm text-slate-500">No entities found</p>
+          <p className="text-sm text-slate-500">{t('tree.empty')}</p>
         )}
         {!isLoading && !error && entities.length > 0 && (
           <ul className="space-y-1 text-sm">
@@ -252,6 +255,7 @@ const DataCanvas: React.FC<{
   onBrushSelect?: (startIso: string, endIso: string) => void;
   predictionResult?: PredictionResult | null;
 }> = ({ series, startTime, endTime, onBrushSelect, predictionResult }) => {
+  const { t } = useTranslation('datahub');
   const chartRef = useRef<HTMLDivElement>(null);
   const uplotRef = useRef<UPlot | null>(null);
 
@@ -324,8 +328,12 @@ const DataCanvas: React.FC<{
         hooks: onBrushSelect
           ? {
               setSelect: [
-                (u, min, max) => {
-                  if (min != null && max != null && Number.isFinite(min) && Number.isFinite(max) && min < max) {
+                (uplot) => {
+                  const { left, width } = uplot.select;
+                  if (width == null || width <= 0) return;
+                  const min = uplot.posToVal(left, 'x');
+                  const max = uplot.posToVal(left + width, 'x');
+                  if (Number.isFinite(min) && Number.isFinite(max) && min < max) {
                     onBrushSelect(new Date(min * 1000).toISOString(), new Date(max * 1000).toISOString());
                   }
                 },
@@ -343,14 +351,14 @@ const DataCanvas: React.FC<{
     if (alignSeries.length >= 2 && dataAlign) {
       // One scale per unique unit of measure (e.g. °C, %) so same-magnitude series share one Y axis.
       const uniqueUnits = Array.from(
-        new Set(alignSeries.map((s) => ATTRIBUTE_UNIT[s.attribute] ?? '')).filter(Boolean)
-      );
+        new Set(alignSeries.map((s) => ATTRIBUTE_UNIT[s.attribute] ?? ''))
+      ).filter(Boolean);
       if (uniqueUnits.length === 0) uniqueUnits.push('');
       const unitToScale: Record<string, string> = {};
       uniqueUnits.forEach((u, i) => {
         unitToScale[u] = i === 0 ? 'y' : `y${i + 1}`;
       });
-      const scales: Record<string, { min?: number; max?: number }> = { x: { time: true } };
+      const scales: UPlot.Scales = { x: { time: true } };
       uniqueUnits.forEach((_, i) => (scales[unitToScale[uniqueUnits[i]]] = {}));
       const uplotSeries: UPlot.Series[] = [{}];
       alignSeries.forEach((s) => {
@@ -361,7 +369,7 @@ const DataCanvas: React.FC<{
       uniqueUnits.forEach((unit, i) => {
         axes.push({
           scale: unitToScale[unit],
-          label: unit || 'value',
+          label: unit || t('chart.axisValue'),
           side: i % 2 === 0 ? 1 : 2,
         });
       });
@@ -375,8 +383,12 @@ const DataCanvas: React.FC<{
         hooks: onBrushSelect
           ? {
               setSelect: [
-                (u, min, max) => {
-                  if (min != null && max != null && Number.isFinite(min) && Number.isFinite(max) && min < max) {
+                (uplot) => {
+                  const { left, width } = uplot.select;
+                  if (width == null || width <= 0) return;
+                  const min = uplot.posToVal(left, 'x');
+                  const max = uplot.posToVal(left + width, 'x');
+                  if (Number.isFinite(min) && Number.isFinite(max) && min < max) {
                     onBrushSelect(new Date(min * 1000).toISOString(), new Date(max * 1000).toISOString());
                   }
                 },
@@ -384,22 +396,28 @@ const DataCanvas: React.FC<{
             }
           : undefined,
       };
-      const dataRows: (Float64Array | number[])[] = [dataAlign.timestamps, ...dataAlign.valueArrays];
+      const dataRows: UPlot.AlignedData = [dataAlign.timestamps, ...dataAlign.valueArrays];
       if (!uplotRef.current) {
         uplotRef.current = new UPlot(opts, dataRows, chartRef.current);
       } else {
         uplotRef.current.setData(dataRows);
       }
     }
-  }, [singleSeries, dataSingle, alignSeries, dataAlign, onBrushSelect]);
+  }, [singleSeries, dataSingle, alignSeries, dataAlign, onBrushSelect, t]);
 
   useEffect(() => {
     if (!predictionResult || !singleSeries || !dataSingle || !uplotRef.current) return;
-    renderPrediction(uplotRef.current, dataSingle.timestamps, dataSingle.values, predictionResult);
-  }, [predictionResult, singleSeries, dataSingle]);
+    renderPrediction(
+      uplotRef.current,
+      dataSingle.timestamps,
+      dataSingle.values,
+      predictionResult,
+      t('chart.predictionAI')
+    );
+  }, [predictionResult, singleSeries, dataSingle, t]);
 
-  if (isLoading) return <p className="text-sm text-slate-500 p-4">Loading series…</p>;
-  if (error) return <p className="text-sm text-red-600 p-4">Error loading data</p>;
+  if (isLoading) return <p className="text-sm text-slate-500 p-4">{t('panel.loadingSeries')}</p>;
+  if (error) return <p className="text-sm text-red-600 p-4">{t('panel.errorLoadData')}</p>;
   if (series.length === 0) return null;
   if (singleSeries && !dataSingle) return null;
   if (alignSeries.length >= 2 && !dataAlign) return null;
@@ -410,6 +428,7 @@ const DataCanvas: React.FC<{
  * DataHub bottom-panel: Data Tree (selector) + Data Canvas (uPlot) with Arrow, resolution, Brush, multi-series align.
  */
 const DataHubPanelInner: React.FC = () => {
+  const { t } = useTranslation('datahub');
   const [selectedEntity, setSelectedEntity] = useState<DataHubEntity | null>(null);
   const [selectedAttribute, setSelectedAttribute] = useState<string | null>(null);
   const [canvasSeries, setCanvasSeries] = useState<CanvasSeriesItem[]>([]);
@@ -508,18 +527,26 @@ const DataHubPanelInner: React.FC = () => {
       });
   }, [canvasSeries, timeRange.start, timeRange.end]);
 
-  const PREDICT_STATUS_LABELS: Record<string, string> = {
-    auth_required: 'Authentication required',
-    stream_error: 'Prediction failed',
-    submit_error: 'Could not start prediction',
-    parse_error: 'Invalid response',
-  };
+  const predictStatusMessage = (() => {
+    switch (predictStatus) {
+      case 'auth_required':
+        return t('panel.predictStatus.auth_required');
+      case 'stream_error':
+        return t('panel.predictStatus.stream_error');
+      case 'submit_error':
+        return t('panel.predictStatus.submit_error');
+      case 'parse_error':
+        return t('panel.predictStatus.parse_error');
+      default:
+        return predictStatus;
+    }
+  })();
   const isPredicting = predictStatus === 'submitting' || predictStatus === 'streaming';
 
   const runExport = useCallback(
     (format: 'csv' | 'parquet') => {
       if (canvasSeries.length === 0) return;
-      setExportStatus(`Exporting ${format}…`);
+      setExportStatus(t('panel.exporting', { format: format.toUpperCase() }));
       const payload = {
         start_time: timeRange.start,
         end_time: timeRange.end,
@@ -544,16 +571,16 @@ const DataHubPanelInner: React.FC = () => {
         })
         .catch((err) => {
           const raw = err?.message ?? 'export_error';
-          setExportStatus(`Export failed: ${raw.slice(0, 100)}`);
+          setExportStatus(t('panel.exportFailed', { message: raw.slice(0, 100) }));
         });
     },
-    [canvasSeries, timeRange.start, timeRange.end, exportAggregation]
+    [canvasSeries, timeRange.start, timeRange.end, exportAggregation, t]
   );
 
   return (
     <div className="flex flex-col h-full text-slate-700 dark:text-slate-300">
       <div className="shrink-0 px-3 py-2 border-b border-slate-200 dark:border-slate-700 font-medium">
-        DataHub — Data Tree
+        {t('panel.headerTitle')}
       </div>
       <div className="flex-1 min-h-0 flex">
         <div className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-700">
@@ -575,24 +602,24 @@ const DataHubPanelInner: React.FC = () => {
                     disabled={isPredicting}
                     className="px-3 py-1.5 text-sm font-medium rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
                   >
-                    {isPredicting ? 'Predicting…' : 'Predicción (IA)'}
+                    {isPredicting ? t('panel.predicting') : t('panel.predict')}
                   </button>
                 )}
                 {predictStatus && !isPredicting && (
-                  <span className="text-xs text-slate-500">{PREDICT_STATUS_LABELS[predictStatus] ?? predictStatus}</span>
+                  <span className="text-xs text-slate-500">{predictStatusMessage}</span>
                 )}
                 {canvasSeries.length >= 1 && (
                   <>
                     <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-                      <span>Export granularity:</span>
+                      <span>{t('panel.exportGranularity')}</span>
                       <select
                         value={exportAggregation}
                         onChange={(e) => setExportAggregation(e.target.value as 'raw' | '1 hour' | '1 day')}
                         className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs py-1 px-2"
                       >
-                        <option value="raw">Raw (1 s)</option>
-                        <option value="1 hour">1 hour</option>
-                        <option value="1 day">1 day</option>
+                        <option value="raw">{t('panel.aggRaw1s')}</option>
+                        <option value="1 hour">{t('panel.agg1h')}</option>
+                        <option value="1 day">{t('panel.agg1d')}</option>
                       </select>
                     </label>
                     <button
@@ -601,7 +628,7 @@ const DataHubPanelInner: React.FC = () => {
                       disabled={!!exportStatus}
                       className="px-3 py-1.5 text-sm font-medium rounded bg-slate-600 text-white hover:bg-slate-700 disabled:opacity-50"
                     >
-                      Export CSV
+                      {t('panel.exportCsv')}
                     </button>
                     <button
                       type="button"
@@ -609,7 +636,7 @@ const DataHubPanelInner: React.FC = () => {
                       disabled={!!exportStatus}
                       className="px-3 py-1.5 text-sm font-medium rounded bg-slate-600 text-white hover:bg-slate-700 disabled:opacity-50"
                     >
-                      Export Parquet
+                      {t('panel.exportParquet')}
                     </button>
                   </>
                 )}
@@ -624,7 +651,7 @@ const DataHubPanelInner: React.FC = () => {
                     {s.label}
                     <button
                       type="button"
-                      aria-label="Remove"
+                      aria-label={t('panel.removeSeries')}
                       onClick={() => removeFromCanvas(s.entityId, s.attribute)}
                       className="hover:bg-slate-300 dark:hover:bg-slate-500 rounded px-1"
                     >
@@ -643,7 +670,7 @@ const DataHubPanelInner: React.FC = () => {
             </>
           ) : (
             <div className="flex items-center justify-center flex-1 text-slate-500 text-sm">
-              Click an entity and attribute in the tree to add series to the canvas (single or multi). Drag on chart to zoom.
+              {t('panel.canvasEmptyHint')}
             </div>
           )}
         </div>
