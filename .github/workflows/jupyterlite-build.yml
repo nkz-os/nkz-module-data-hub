@@ -58,12 +58,12 @@ jobs:
         run: |
           pip install -q awscli
           aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
-            s3 sync jupyterlite/dist/ s3://nekazari-static/jupyterlite/ \
+            s3 sync jupyterlite/dist/ s3://nekazari-frontend/jupyterlite/ \
             --delete \
             --cache-control "public, max-age=3600"
           # Set immutable cache for WASM files
           aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
-            s3 cp s3://nekazari-static/jupyterlite/ s3://nekazari-static/jupyterlite/ \
+            s3 cp s3://nekazari-frontend/jupyterlite/ s3://nekazari-frontend/jupyterlite/ \
             --recursive --exclude "*" --include "*.wasm" \
             --cache-control "public, max-age=31536000, immutable" \
             --metadata-directive REPLACE
