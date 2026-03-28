@@ -27,6 +27,7 @@ import { DataCanvasPanelMemo } from './DataCanvasPanel';
 import { ExportModal } from './ExportModal';
 import { LoadWorkspaceModal } from './LoadWorkspaceModal';
 import { IntegrationsPanel } from './IntegrationsPanel';
+import { LabPanel } from './LabPanel';
 
 function normalizePanel(panel: DashboardPanel & { entityId?: string; attribute?: string }): DashboardPanel {
   if (panel.series && panel.series.length > 0) return panel;
@@ -68,7 +69,7 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
   const [exportModalPanel, setExportModalPanel] = useState<DashboardPanel | null>(null);
   const [predictingPanelId, setPredictingPanelId] = useState<string | null>(null);
   const [loadWorkspaceOpen, setLoadWorkspaceOpen] = useState(false);
-  const [mainView, setMainView] = useState<'canvas' | 'integrations'>('canvas');
+  const [mainView, setMainView] = useState<'canvas' | 'integrations' | 'lab'>('canvas');
   const [saveMessage, setSaveMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveModalName, setSaveModalName] = useState('');
@@ -357,6 +358,17 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
             >
               {t('integrations.integrationsTab')}
             </button>
+            <button
+              type="button"
+              onClick={() => setMainView('lab')}
+              className={`px-3 py-1.5 text-xs ${
+                mainView === 'lab'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {t('lab.tab')}
+            </button>
           </div>
           <button
             type="button"
@@ -379,6 +391,10 @@ export const DataHubDashboard: React.FC<DataHubDashboardProps> = ({
       {mainView === 'integrations' ? (
         <div className="flex-1 min-h-0 overflow-auto">
           <IntegrationsPanel panels={panels} timeContext={timeContext} />
+        </div>
+      ) : mainView === 'lab' ? (
+        <div className="flex-1 min-h-0">
+          <LabPanel />
         </div>
       ) : (
       <div className="flex-1 min-h-0 p-2">

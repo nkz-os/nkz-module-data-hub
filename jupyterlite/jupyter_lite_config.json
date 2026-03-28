@@ -1,0 +1,12 @@
+{
+  "LiteBuildConfig": {
+    "contents": ["notebooks"],
+    "output_dir": "dist",
+    "piplite_urls": [],
+    "ignore_sys_prefix": true,
+    "federated_extensions": []
+  },
+  "PyodideLiteAddon": {
+    "pyodide_url": "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
+  }
+}

@@ -114,5 +114,9 @@
     "method": "Método",
     "header": "Cabecera",
     "bodyExample": "Ejemplo de cuerpo JSON (ajusta las series a tus entidades)"
+  },
+  "lab": {
+    "tab": "Laboratorio",
+    "loading": "Iniciando entorno Python (WebAssembly)..."
   }
 }

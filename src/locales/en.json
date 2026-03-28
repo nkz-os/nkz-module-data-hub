@@ -114,5 +114,9 @@
     "method": "Method",
     "header": "Header",
     "bodyExample": "Example JSON body (adjust series to your entities)"
+  },
+  "lab": {
+    "tab": "Lab",
+    "loading": "Starting Python environment (WebAssembly)..."
   }
 }

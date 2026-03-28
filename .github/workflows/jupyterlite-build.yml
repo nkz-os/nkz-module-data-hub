@@ -1,0 +1,69 @@
+name: Build JupyterLite
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'jupyterlite/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build JupyterLite distribution
+        working-directory: jupyterlite
+        run: |
+          pip install -r build_requirements.txt
+          jupyter lite build \
+            --config jupyter_lite_config.json \
+            --piplite-wheels requirements.txt \
+            --contents notebooks \
+            --output-dir dist
+
+      - name: Inject NKZ auth init script
+        working-directory: jupyterlite
+        run: |
+          if [ -f dist/lab/index.html ] && [ -f nkz_jupyter_init.js ]; then
+            INIT_SCRIPT=$(cat nkz_jupyter_init.js)
+            sed -i "s|</head>|<script>${INIT_SCRIPT}</script></head>|" dist/lab/index.html
+          fi
+
+      - name: Copy Micro-SDK to distribution
+        working-directory: jupyterlite
+        run: |
+          mkdir -p dist/files
+          cp nekazari.py dist/files/nekazari.py
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jupyterlite-dist
+          path: jupyterlite/dist/
+          retention-days: 30
+
+      # MinIO upload (requires S3 secrets configured in repo settings)
+      - name: Deploy to MinIO
+        if: github.ref == 'refs/heads/main'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          pip install -q awscli
+          aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
+            s3 sync jupyterlite/dist/ s3://nekazari-static/jupyterlite/ \
+            --delete \
+            --cache-control "public, max-age=3600"
+          # Set immutable cache for WASM files
+          aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
+            s3 cp s3://nekazari-static/jupyterlite/ s3://nekazari-static/jupyterlite/ \
+            --recursive --exclude "*" --include "*.wasm" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --metadata-directive REPLACE
