@@ -13,7 +13,8 @@
 ## Features
 
 - **Multi-source timeseries**: Query and align series from NGSI-LD (Orion), TimescaleDB (platform), and pluggable adapters.
-- **Aligned time grid**: Server-side alignment with configurable resolution (Polars `join_asof`, LOCF); responses in Apache Arrow IPC for zero-copy frontend consumption.
+- **Aligned time grid**: All-Timescale alignment runs in **TimescaleDB** via platform `POST /api/timeseries/v2/query` (BFF is a passthrough). **Polars** is used only when **merging different sources** (e.g. Timescale + another module). Responses use Apache Arrow IPC with **Float64 epoch seconds** for `timestamp` (Web Worker / uPlot contract).
+- **Platform telemetry contract** (2026-03): IoT points in Timescale are stored under `telemetry_events.payload.measurements` as a **flat JSON object** (keys = measurement names); the reader uses `->>` with a whitelist. Production index **`ix_telemetry_tenant_device_time`** `(tenant_id, device_id, observed_at DESC)` supports those queries. Details: [`docs/PLATFORM_TIMESERIES_INTEGRATION.md`](docs/PLATFORM_TIMESERIES_INTEGRATION.md).
 - **Data Canvas UI**: Entity tree, variable selection, uPlot charts, granularity selector (raw / 1h / 1d) for export.
 - **Export**: CSV (streaming) or Parquet (upload to MinIO + presigned URL). Route A: proxy to platform; Route B: multi-source gather + align in BFF.
 - **Predictions**: SSE stream to Intelligence module for AI-based forecasts.
@@ -44,7 +45,7 @@
 └───────────────┘         └─────────────────┘         └──────────────┘
 ```
 
-- **Backend (BFF)**: FastAPI service. Proxies to platform when a single source is used; performs multi-source fetch + Polars alignment and returns Arrow IPC or CSV/Parquet.
+- **Backend (BFF)**: FastAPI service. Proxies platform timeseries (v2 reader) without in-BFF joins for pure Timescale paths; uses Polars only for **multi-source** merge when needed. Returns Arrow IPC or CSV/Parquet.
 - **Frontend**: Single IIFE bundle (`dist/nkz-module.js`), slot `bottom-panel`. Uses host-provided React, `@nekazari/sdk`, `@nekazari/ui-kit`; builds with `@nekazari/module-builder`.
 
 ---
@@ -192,6 +193,8 @@ Run the SQL in `k8s/registration.sql` once per environment (or insert/update the
 
 ## References
 
+- **Platform timeseries (v2, telemetry shape, indexes)**: `docs/PLATFORM_TIMESERIES_INTEGRATION.md`
+- **Mandate (BFF vs reader, Arrow)**: `docs/MANDATE_TIMESERIES_READER_STRANGLER.md`
 - **Arrow IPC spec**: See `NKZ_DATAHUB_ARROW_SPEC.md` (in workspace) for binary format and schema (Float64 timestamp epoch seconds).
 - **Adapters**: Optional multi-source adapters and env vars — see `ADAPTER_SPEC.md` in this repo.
 

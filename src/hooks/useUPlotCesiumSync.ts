@@ -3,6 +3,8 @@
  * DataHub is agnostic: it does not access Cesium, ViewerContext, or any host globals.
  * - Emits: when the user selects a time range (brush), dispatches a CustomEvent so the Host
  *   can move its 3D viewer clock.
+ * - Emits: on cursor move (setCursor), dispatches timeHover with Unix epoch milliseconds
+ *   (X axis values from Arrow/uPlot are epoch seconds — multiplied by 1000 before dispatch).
  * - Listens: for a CustomEvent from the Host to set the chart's visible X range (e.g. when
  *   the user moves the timeline in the viewer).
  */
@@ -16,8 +18,16 @@ export interface DataHubTimeRangeDetail {
   max: number;
 }
 
+/** CustomEvent detail: single instant for crosshair sync — Unix epoch milliseconds (for `new Date(timestamp)`). */
+export interface DataHubTimeHoverDetail {
+  timestamp: number;
+}
+
 /** Event emitted by DataHub when user selects a time range (e.g. brush). Host should listen and update its clock. */
 export const DATAHUB_EVENT_TIME_SELECT = 'nekazari:datahub:timeSelect';
+
+/** Event emitted on chart cursor move; detail.timestamp is Unix ms (derived from uPlot X in seconds × 1000). */
+export const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
 
 /** Event the Host can dispatch to set the chart's visible X range. DataHub listens and calls u.setScale('x', { min, max }). */
 export const DATAHUB_EVENT_SET_TIME_RANGE = 'nekazari:datahub:setTimeRange';
@@ -69,6 +79,43 @@ export function useUPlotCesiumSync({
     }) as (self: uPlot) => void);
     opts.hooks = { ...opts.hooks, setSelect: setSelectHandlers };
 
+    const existingSetCursor = opts.hooks?.setCursor ?? [];
+    const setCursorHandlers = Array.isArray(existingSetCursor) ? [...existingSetCursor] : [existingSetCursor];
+    let hoverRafId: number | null = null;
+    let pendingHoverMs: number | null = null;
+
+    const flushTimeHover = () => {
+      hoverRafId = null;
+      if (pendingHoverMs == null || !Number.isFinite(pendingHoverMs)) return;
+      const timestamp = pendingHoverMs;
+      window.dispatchEvent(
+        new CustomEvent<DataHubTimeHoverDetail>(DATAHUB_EVENT_TIME_HOVER, {
+          detail: { timestamp },
+        })
+      );
+    };
+
+    setCursorHandlers.push(((u: uPlot) => {
+      const idx = u.cursor.idx;
+      if (idx == null || idx < 0) {
+        pendingHoverMs = null;
+        if (hoverRafId != null) {
+          cancelAnimationFrame(hoverRafId);
+          hoverRafId = null;
+        }
+        return;
+      }
+      const series0 = u.data[0];
+      if (!series0 || idx >= series0.length) return;
+      const xSeconds = series0[idx];
+      if (xSeconds == null || !Number.isFinite(xSeconds)) return;
+      pendingHoverMs = xSeconds * 1000;
+      if (hoverRafId == null) {
+        hoverRafId = requestAnimationFrame(flushTimeHover);
+      }
+    }) as (self: uPlot) => void);
+    opts.hooks = { ...opts.hooks, setCursor: setCursorHandlers };
+
     const emptyData = emptyDataForSeriesCount(opts.series?.length ?? 2);
     const u = new uPlot(opts, emptyData, container);
     uplotRef.current = u;
@@ -90,6 +137,11 @@ export function useUPlotCesiumSync({
     window.addEventListener(DATAHUB_EVENT_SET_TIME_RANGE, onSetTimeRange);
 
     return () => {
+      if (hoverRafId != null) {
+        cancelAnimationFrame(hoverRafId);
+        hoverRafId = null;
+      }
+      pendingHoverMs = null;
       ro.disconnect();
       window.removeEventListener(DATAHUB_EVENT_SET_TIME_RANGE, onSetTimeRange);
       u.destroy();

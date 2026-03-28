@@ -316,3 +316,53 @@ export async function listWorkspaces(): Promise<DataHubWorkspaceStored[]> {
   const data = await res.json();
   return Array.isArray(data) ? data : data.workspaces ?? [];
 }
+
+/** Platform PAT metadata (ADR 003). */
+export interface TenantPatMeta {
+  id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at?: string | null;
+  expires_at?: string | null;
+  created_by_sub?: string | null;
+}
+
+/** GET /api/tenant/api-keys — list PATs for current tenant (cookie auth). */
+export async function listTenantPats(): Promise<TenantPatMeta[]> {
+  const base = getBaseUrl().replace(/\/$/, '');
+  const path = '/api/tenant/api-keys';
+  const url = base ? `${base}${path}` : path;
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'include' });
+  if (!res.ok) throw new Error(`PAT list: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/** POST /api/tenant/api-keys — create PAT; returns raw token once. */
+export async function createTenantPat(body: {
+  name: string;
+  description?: string;
+  expires_at?: string;
+}): Promise<{ id: string; token: string; name: string; warning?: string }> {
+  const base = getBaseUrl().replace(/\/$/, '');
+  const path = '/api/tenant/api-keys';
+  const url = base ? `${base}${path}` : path;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PAT create: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+/** DELETE /api/tenant/api-keys/:id — revoke PAT. */
+export async function revokeTenantPat(id: string): Promise<void> {
+  const base = getBaseUrl().replace(/\/$/, '');
+  const path = `/api/tenant/api-keys/${encodeURIComponent(id)}`;
+  const url = base ? `${base}${path}` : path;
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  if (!res.ok) throw new Error(`PAT revoke: ${res.status} ${await res.text()}`);
+}

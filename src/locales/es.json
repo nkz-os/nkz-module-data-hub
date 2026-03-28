@@ -89,5 +89,30 @@
     "empty": "No hay workspaces guardados.",
     "panelsCount": "{{count}} paneles",
     "cancel": "Cancelar"
+  },
+  "integrations": {
+    "canvasTab": "Lienzo",
+    "integrationsTab": "Integraciones",
+    "title": "Integraciones (Power BI / Excel)",
+    "description": "Crea tokens personales de solo lectura para la API de series temporales de la plataforma. El valor en claro solo se muestra una vez.",
+    "createSection": "Nuevo token",
+    "namePlaceholder": "Nombre (ej. Power BI Finca Norte)",
+    "defaultTokenName": "Token exportación datos",
+    "create": "Generar token",
+    "creating": "Generando…",
+    "tokenOnce": "Copia este token ahora. No se volverá a mostrar.",
+    "copy": "Copiar",
+    "listSection": "Tus tokens",
+    "loading": "Cargando…",
+    "empty": "Aún no hay tokens.",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "revoke": "Revocar",
+    "confirmRevoke": "¿Revocar este token? Las herramientas externas dejarán de funcionar (hasta unos minutos de retraso).",
+    "powerBiTitle": "Power BI / Excel",
+    "endpoint": "Endpoint",
+    "method": "Método",
+    "header": "Cabecera",
+    "bodyExample": "Ejemplo de cuerpo JSON (ajusta las series a tus entidades)"
   }
 }

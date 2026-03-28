@@ -227,14 +227,14 @@ async def _fetch_entity_data_raw(
     resolution: int,
     headers: dict,
 ) -> bytes:
-    """Fetch one entity's timeseries as Arrow bytes from adapter /data."""
-    url = f"{base_url}/api/timeseries/entities/{entity_id}/data"
+    """Fetch one entity's timeseries as Arrow bytes from platform v2 reader (URN-aware)."""
+    path = quote(str(entity_id).strip(), safe="")
+    url = f"{base_url}/api/timeseries/v2/entities/{path}/data"
     params = {
-        "start_time": start_time,
-        "end_time": end_time,
+        "time_from": start_time,
+        "time_to": end_time,
+        "attrs": attribute,
         "resolution": resolution,
-        "attribute": attribute,
-        "format": "arrow",
     }
     r = await client.get(url, params=params, headers={**headers, "Accept": ARROW_STREAM_TYPE})
     r.raise_for_status()
@@ -247,8 +247,9 @@ async def _fetch_from_timescale(
     headers: dict,
 ) -> bytes:
     """
-    Fetch one Arrow IPC buffer for a group of timescale series.
-    Single series: GET /api/timeseries/entities/{id}/data. Multiple: POST /api/timeseries/align.
+    One Arrow IPC buffer for a group of platform (Timescale) series.
+    Single series: GET timeseries-reader /v2/entities/.../data.
+    Multiple: POST timeseries-reader /v2/query (SQL align in DB; BFF must not join in Polars).
     """
     base = PLATFORM_API_URL
     if not base:
@@ -263,12 +264,15 @@ async def _fetch_from_timescale(
                 client, base, s["entity_id"], s["attribute"],
                 start_time, end_time, resolution, headers,
             )
-        url = f"{base}/api/timeseries/align"
+        url = f"{base}/api/timeseries/v2/query"
         body = {
-            "start_time": start_time,
-            "end_time": end_time,
+            "time_from": start_time,
+            "time_to": end_time,
             "resolution": min(max(resolution, 100), 10000),
-            "series": [{"entity_id": s["entity_id"], "attribute": s["attribute"]} for s in series_group],
+            "series": [
+                {"entity_urn": s["entity_id"], "attribute": s["attribute"]}
+                for s in series_group
+            ],
         }
         r = await client.post(
             url,
@@ -365,9 +369,9 @@ async def proxy_timeseries_align(
 ):
     """
     Hybrid alignment. Body: start_time, end_time, resolution, series: [{ entity_id, attribute, source? }].
-    - Route A (single source, timescale): transparent proxy to platform POST /api/timeseries/align.
-    - Route B (multi-source or non-timescale): fetch each series from adapter /data, align in BFF with
-      Polars join_asof on a common time grid, return Arrow IPC.
+    - Route A (single source, timescale): passthrough POST to platform /api/timeseries/v2/query
+      (alignment in TimescaleDB). No Polars on this path.
+    - Route B (multi-source or non-timescale): fetch per adapter, merge with Polars only for federation.
     """
     try:
         body: Any = await request.json()
@@ -402,46 +406,47 @@ async def proxy_timeseries_align(
     sources = {s["source"] for s in series}
     single_timescale = sources == {"timescale"} and len(sources) == 1
 
-    # Route A: all series from timescale -> resolve URNs, then proxy to platform align
+    # Route A: all series from Timescale — single passthrough POST to reader v2/query (no Polars).
     if single_timescale and PLATFORM_API_URL:
         headers = _auth_headers(authorization, x_tenant_id)
-        resolved_series: list[dict] = []
-        for s in series:
-            rid = await _resolve_timeseries_entity_id(PLATFORM_API_URL, s["entity_id"], headers)
-            if rid is None:
-                return JSONResponse(
-                    content={"error": f"Entity {s['entity_id']} has no timeseries location"},
-                    status_code=404,
-                )
-            resolved_series.append({"entity_id": rid, "attribute": s["attribute"]})
-        url = f"{PLATFORM_API_URL}/api/timeseries/align"
-        req_headers = {"Content-Type": "application/json", **headers}
+        res = min(max(resolution, 100), 10000)
+        url = f"{PLATFORM_API_URL}/api/timeseries/v2/query"
         proxy_body = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "resolution": min(max(resolution, 100), 10000),
-            "series": resolved_series,
+            "time_from": start_time,
+            "time_to": end_time,
+            "resolution": res,
+            "series": [
+                {"entity_urn": s["entity_id"], "attribute": s["attribute"]}
+                for s in series
+            ],
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.post(url, json=proxy_body, headers=req_headers)
+        req_headers = {**headers, "Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE}
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                r = await client.post(url, json=proxy_body, headers=req_headers)
+        except httpx.HTTPStatusError as e:
+            return JSONResponse(
+                content={"error": e.response.text or f"Upstream {e.response.status_code}"},
+                status_code=e.response.status_code,
+            )
+        except Exception as e:
+            return JSONResponse(content={"error": f"Timeseries align failed: {e!s}"}, status_code=502)
         if r.status_code >= 400:
             try:
-                body = r.json()
+                body_err = r.json()
             except Exception:
-                body = {"error": r.text or f"Upstream {r.status_code}"}
-            return JSONResponse(content=body, status_code=r.status_code)
-        return Response(content=r.content, media_type=ARROW_STREAM_TYPE)
+                body_err = {"error": r.text or f"Upstream {r.status_code}"}
+            return JSONResponse(content=body_err, status_code=r.status_code)
+        return Response(
+            content=r.content,
+            media_type=ARROW_STREAM_TYPE,
+            headers={"Content-Length": str(len(r.content))},
+        )
 
     # Route B: Scatter-Gather by source — group by source, one Arrow buffer per source, then merge with Polars
     resolution = min(max(resolution, 100), 10000)
     headers = _auth_headers(authorization, x_tenant_id)
     resolved_series_align = list(series)
-    if PLATFORM_API_URL:
-        for i, s in enumerate(resolved_series_align):
-            if (s.get("source") or "timescale").strip().lower() == "timescale":
-                rid = await _resolve_timeseries_entity_id(PLATFORM_API_URL, s["entity_id"], headers)
-                if rid is not None:
-                    resolved_series_align[i] = {**s, "entity_id": rid}
 
     payload = {"start_time": start_time, "end_time": end_time, "resolution": resolution}
     sources_map: dict[str, list[dict]] = {}
@@ -505,15 +510,18 @@ async def proxy_timeseries_data(
         )
 
     headers = _auth_headers(authorization, x_tenant_id)
-    resolved_id = await _resolve_timeseries_entity_id(PLATFORM_API_URL, entity_id, headers)
-    if resolved_id is None:
-        return Response(content=b"", status_code=204)
-
-    url = f"{PLATFORM_API_URL}/api/timeseries/entities/{resolved_id}/data"
-    params = dict(request.query_params)
+    path = quote(str(entity_id).strip(), safe="")
+    url = f"{PLATFORM_API_URL}/api/timeseries/v2/entities/{path}/data"
+    qp = dict(request.query_params)
+    if "start_time" in qp and "time_from" not in qp:
+        qp["time_from"] = qp["start_time"]
+    if "end_time" in qp and "time_to" not in qp:
+        qp["time_to"] = qp["end_time"]
+    if "attribute" in qp and "attrs" not in qp:
+        qp["attrs"] = qp["attribute"]
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.get(url, params=params, headers=headers or None)
+        r = await client.get(url, params=qp, headers=headers or None)
         content_type = r.headers.get("content-type", "application/octet-stream")
         if r.status_code >= 400:
             try:

@@ -89,5 +89,30 @@
     "empty": "No saved workspaces.",
     "panelsCount": "{{count}} panels",
     "cancel": "Cancel"
+  },
+  "integrations": {
+    "canvasTab": "Canvas",
+    "integrationsTab": "Integrations",
+    "title": "Integrations (Power BI / Excel)",
+    "description": "Create read-only personal access tokens for the platform timeseries API. The raw token is shown only once.",
+    "createSection": "New token",
+    "namePlaceholder": "Name (e.g. Power BI North farm)",
+    "defaultTokenName": "Data export token",
+    "create": "Generate token",
+    "creating": "Generating…",
+    "tokenOnce": "Copy this token now. It will not be shown again.",
+    "copy": "Copy",
+    "listSection": "Your tokens",
+    "loading": "Loading…",
+    "empty": "No tokens yet.",
+    "active": "Active",
+    "inactive": "Inactive",
+    "revoke": "Revoke",
+    "confirmRevoke": "Revoke this token? External tools using it will stop working (up to a few minutes delay).",
+    "powerBiTitle": "Power BI / Excel",
+    "endpoint": "Endpoint",
+    "method": "Method",
+    "header": "Header",
+    "bodyExample": "Example JSON body (adjust series to your entities)"
   }
 }
