@@ -1,9 +1,8 @@
 """
-Timeseries: transparent proxy (single-source) and hybrid alignment (multi-source).
-GET /data and POST /align with conditional routing: Route A = proxy to platform;
-Route B = Scatter-Gather by source: group by source, fetch one Arrow buffer per source
-(timescale = platform align or GET; external = POST to module export-arrow), then
-merge with Polars outer join on timestamp, output value_0, value_1, ...
+Timeseries BFF: proxy to platform reader v2 (single-source) and Polars merge (multi-source).
+- GET /data → transparent proxy to reader v2/entities/<urn>/data (URN resolved by reader).
+- POST /align → single-source timescale: passthrough to v2/query; multi-source: scatter-gather + Polars.
+- POST /export → fetch Arrow via v2, format as CSV stream or Parquet (MinIO upload).
 """
 
 import asyncio
@@ -32,33 +31,6 @@ def _auth_headers(authorization: Optional[str], x_tenant_id: Optional[str]) -> d
     if x_tenant_id:
         h["X-Tenant-ID"] = x_tenant_id
     return h
-
-
-async def _resolve_timeseries_entity_id(
-    base_url: str,
-    entity_id: str,
-    headers: dict,
-) -> Optional[str]:
-    """
-    Resolve NGSI-LD URN to platform timeseries entity id (e.g. municipality_code).
-    Returns resolved id, or original entity_id for non-URNs / passthrough; None if 204/404.
-    """
-    if not base_url or not entity_id or not isinstance(entity_id, str):
-        return entity_id
-    eid = entity_id.strip()
-    if not eid.lower().startswith("urn:"):
-        return eid
-    path = quote(eid, safe="")
-    url = f"{base_url.rstrip('/')}/api/entities/{path}/timeseries-location"
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(url, headers=headers)
-    if r.status_code == 200:
-        try:
-            body = r.json()
-            return body.get("timeseries_entity_id") or eid
-        except Exception:
-            return eid
-    return None
 
 
 def _get_adapter_base_url(source: str) -> Optional[str]:
@@ -499,9 +471,8 @@ async def proxy_timeseries_data(
     x_tenant_id: Optional[str] = Header(None),
 ):
     """
-    Transparent proxy to platform GET /api/timeseries/entities/<id>/data.
-    Resolves NGSI-LD URNs to timeseries entity id (municipality_code) via platform
-    /api/entities/{id}/timeseries-location, then forwards query string and auth.
+    Transparent proxy to platform GET /api/timeseries/v2/entities/<urn>/data.
+    URN resolution is handled by the reader (Strangler Fig); BFF passes the URN directly.
     """
     if not PLATFORM_API_URL:
         return JSONResponse(
@@ -554,9 +525,11 @@ async def proxy_export(
     x_tenant_id: Optional[str] = Header(None),
 ):
     """
-    Hybrid export. Body: start_time, end_time, series: [{ entity_id, attribute, source? }], format, aggregation.
-    - Route A (single source timescale): proxy to platform POST /api/timeseries/export.
-    - Route B (multi-source): BFF fetches from adapters, align with Polars in thread, then CSV stream or Parquet to MinIO + presigned URL.
+    Export timeseries as CSV or Parquet.
+    Body: start_time, end_time, series: [{ entity_id, attribute, source? }], format, aggregation.
+    - Single-source timescale: fetch aligned Arrow via v2/query, then format in BFF.
+    - Multi-source: scatter-gather per adapter, Polars merge, then format.
+    URN resolution is handled by the reader (Strangler Fig); BFF passes URNs directly.
     """
     try:
         body: Any = await request.json()
@@ -590,38 +563,6 @@ async def proxy_export(
             source = "timescale"
         series.append({"entity_id": str(eid), "attribute": str(attr), "source": source})
 
-    sources = {s["source"] for s in series}
-    single_timescale = sources == {"timescale"} and len(sources) == 1
-
-    # Route A: single source timescale -> resolve URNs, then proxy to platform
-    if single_timescale and PLATFORM_API_URL:
-        headers = _auth_headers(authorization, x_tenant_id)
-        resolved_export: list[dict] = []
-        for s in series:
-            rid = await _resolve_timeseries_entity_id(PLATFORM_API_URL, s["entity_id"], headers)
-            if rid is None:
-                return JSONResponse(
-                    content={"error": f"Entity {s['entity_id']} has no timeseries location"},
-                    status_code=404,
-                )
-            resolved_export.append({"entity_id": rid, "attribute": s["attribute"]})
-        url = f"{PLATFORM_API_URL}/api/timeseries/export"
-        req_headers = {"Content-Type": "application/json", **headers}
-        proxy_body = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "series": resolved_export,
-            "format": fmt,
-            "aggregation": aggregation,
-        }
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            r = await client.post(url, json=proxy_body, headers=req_headers)
-            r.raise_for_status()
-        if r.headers.get("content-type", "").startswith("text/csv"):
-            return Response(content=r.content, media_type="text/csv", headers=dict(r.headers))
-        return JSONResponse(content=r.json())
-
-    # Route B: resolve URNs for timescale, then fetch, align in thread, CSV or Parquet
     try:
         from datetime import datetime
         start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
@@ -634,48 +575,73 @@ async def proxy_export(
         return JSONResponse(content={"error": "start_time must be before end_time"}, status_code=400)
     resolution = _resolution_from_aggregation(start_ts, end_ts, aggregation)
     headers = _auth_headers(authorization, x_tenant_id)
-    resolved_series_export = list(series)
-    if PLATFORM_API_URL:
-        for i, s in enumerate(resolved_series_export):
-            if (s.get("source") or "timescale").strip().lower() == "timescale":
-                rid = await _resolve_timeseries_entity_id(PLATFORM_API_URL, s["entity_id"], headers)
-                if rid is not None:
-                    resolved_series_export[i] = {**s, "entity_id": rid}
 
-    async def fetch_one_export(idx: int, s: dict) -> tuple[int, bytes]:
-        base = _get_adapter_base_url(s["source"])
-        if not base:
-            raise ValueError(f"No adapter URL for source: {s['source']}")
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            raw = await _fetch_entity_data_raw(
-                client, base, s["entity_id"], s["attribute"],
-                start_time, end_time, resolution, headers,
+    # Group by source and fetch Arrow buffers
+    sources_map: dict[str, list[dict]] = {}
+    for s in series:
+        src = (s.get("source") or "timescale").strip().lower() or "timescale"
+        sources_map.setdefault(src, []).append(s)
+
+    payload = {"start_time": start_time, "end_time": end_time, "resolution": resolution}
+    tasks: list[asyncio.Task] = []
+    task_sources: list[str] = []
+    for source, group in sources_map.items():
+        task_sources.append(source)
+        if source == "timescale":
+            tasks.append(asyncio.create_task(_fetch_from_timescale(group, payload, headers)))
+        else:
+            tasks.append(
+                asyncio.create_task(_fetch_from_external_module(source, group, payload, authorization)),
             )
-        return idx, raw
 
-    try:
-        results = await asyncio.gather(*[fetch_one_export(i, s) for i, s in enumerate(resolved_series_export)])
-    except Exception as e:
-        return JSONResponse(content={"error": f"Adapter fetch failed: {e!s}"}, status_code=502)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    arrow_bodies: list[bytes] = []
+    for source, res in zip(task_sources, results):
+        if isinstance(res, Exception):
+            return JSONResponse(
+                content={"error": f"Error fetching data from {source}: {res!s}"},
+                status_code=502,
+            )
+        arrow_bodies.append(res)
 
-    results.sort(key=lambda x: x[0])
-    arrow_bodies = [b for _, b in results]
-    # Build meaningful column names from entity_id + attribute
-    col_names = [_short_entity_name(s["entity_id"], s["attribute"]) for s in resolved_series_export]
-    df = await asyncio.to_thread(
-        _align_multi_source_to_df_sync,
-        arrow_bodies,
-        start_ts,
-        end_ts,
-        resolution,
-        col_names,
-    )
+    if not arrow_bodies:
+        return JSONResponse(content={"error": "No data retrieved from any source"}, status_code=400)
+
+    # Single Arrow buffer from one source: parse directly. Multiple: merge with Polars.
+    col_names = [_short_entity_name(s["entity_id"], s["attribute"]) for s in series]
+    if len(arrow_bodies) == 1:
+        try:
+            df = await asyncio.to_thread(lambda: pl.read_ipc(io.BytesIO(arrow_bodies[0])))
+            # Rename value_N columns to meaningful names
+            renames = {}
+            for idx, name in enumerate(col_names):
+                old = f"value_{idx}"
+                if old in df.columns:
+                    renames[old] = name
+                elif "value" in df.columns and idx == 0:
+                    renames["value"] = name
+            if renames:
+                df = df.rename(renames)
+        except Exception as e:
+            return JSONResponse(content={"error": f"Arrow parse failed: {e!s}"}, status_code=502)
+    else:
+        try:
+            aligned_df = await asyncio.to_thread(_gather_arrow_to_aligned_df, arrow_bodies)
+            # Rename value_N to meaningful names
+            renames = {}
+            for idx, name in enumerate(col_names):
+                old = f"value_{idx}"
+                if old in aligned_df.columns:
+                    renames[old] = name
+            df = aligned_df.rename(renames) if renames else aligned_df
+        except ValueError as e:
+            return JSONResponse(content={"error": str(e)}, status_code=502)
 
     if fmt == "csv":
         return StreamingResponse(
             _stream_polars_csv(df),
             media_type="text/csv",
-            headers={"Content-Disposition": 'attachment; filename="hybrid_export.csv"'},
+            headers={"Content-Disposition": 'attachment; filename="export.csv"'},
         )
     else:
         tenant_id = (x_tenant_id or "default").strip() or "default"
