@@ -45,22 +45,26 @@ jobs:
           path: jupyterlite/dist/
           retention-days: 30
 
-      # MinIO upload (requires S3 secrets configured in repo settings)
+      # MinIO upload (requires repo secrets: MINIO_ENDPOINT_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
       - name: Deploy to MinIO
         if: github.ref == 'refs/heads/main'
         env:
+          MINIO_ENDPOINT_URL: ${{ secrets.MINIO_ENDPOINT_URL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           AWS_DEFAULT_REGION: us-east-1
         run: |
+          set -euo pipefail
+          if [ -z "${MINIO_ENDPOINT_URL:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::warning::MinIO secrets missing (MINIO_ENDPOINT_URL / MINIO_ACCESS_KEY / MINIO_SECRET_KEY). Skipping deploy."
+            exit 0
+          fi
           pip install -q awscli
-          aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
-            s3 sync jupyterlite/dist/ s3://nekazari-frontend/jupyterlite/ \
+          EP="${MINIO_ENDPOINT_URL}"
+          aws --endpoint-url "${EP}" s3 sync jupyterlite/dist/ "s3://nekazari-frontend/jupyterlite/" \
             --delete \
             --cache-control "public, max-age=3600"
-          # Set immutable cache for WASM files
-          aws --endpoint-url ${{ secrets.MINIO_ENDPOINT_URL }} \
-            s3 cp s3://nekazari-frontend/jupyterlite/ s3://nekazari-frontend/jupyterlite/ \
+          aws --endpoint-url "${EP}" s3 cp "s3://nekazari-frontend/jupyterlite/" "s3://nekazari-frontend/jupyterlite/" \
             --recursive --exclude "*" --include "*.wasm" \
             --cache-control "public, max-age=31536000, immutable" \
             --metadata-directive REPLACE
