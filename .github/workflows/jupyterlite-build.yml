@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'jupyterlite/**'
+      - '.github/workflows/jupyterlite-build.yml'
   workflow_dispatch:
 
 jobs:
@@ -29,16 +30,7 @@ jobs:
 
       - name: Inject NKZ auth init script
         working-directory: jupyterlite
-        run: |
-          if [ -f dist/lab/index.html ] && [ -f nkz_jupyter_init.js ]; then
-            python3 -c "
-          import pathlib
-          html = pathlib.Path('dist/lab/index.html')
-          js = pathlib.Path('nkz_jupyter_init.js').read_text()
-          content = html.read_text()
-          html.write_text(content.replace('</head>', f'<script>{js}</script></head>', 1))
-          "
-          fi
+        run: python3 inject_nkz_init_into_lab_html.py
 
       - name: Copy Micro-SDK to distribution
         working-directory: jupyterlite

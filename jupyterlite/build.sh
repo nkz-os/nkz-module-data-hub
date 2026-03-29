@@ -17,12 +17,10 @@ jupyter lite build \
   --contents notebooks \
   --output-dir dist
 
-# Inject the NKZ auth handshake script into the built index.html
+# Inject the NKZ auth handshake script into the built index.html (no sed — see script docstring).
 if [ -f dist/lab/index.html ] && [ -f nkz_jupyter_init.js ]; then
   echo "==> Injecting nkz_jupyter_init.js into lab/index.html..."
-  INIT_SCRIPT=$(cat nkz_jupyter_init.js)
-  # Insert before </head>
-  sed -i "s|</head>|<script>${INIT_SCRIPT}</script></head>|" dist/lab/index.html
+  python3 inject_nkz_init_into_lab_html.py
 fi
 
 # Copy the Micro-SDK wheel (plain .py — Pyodide can import it from the virtual FS)
