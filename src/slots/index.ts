@@ -1,7 +1,8 @@
 import type { ModuleViewerSlots } from '@nekazari/sdk';
 import DataHubQuickChart from './DataHubQuickChart';
-import { DataCanvasPanel, DataCanvasPanelMemo } from './DataCanvasPanel';
-import { DataHubDashboard } from './DataHubDashboard';
+
+export { DataCanvasPanel, DataCanvasPanelMemo } from './DataCanvasPanel';
+export { DataHubDashboard, type DataHubDashboardHandle } from './DataHubDashboard';
 
 const MODULE_ID = 'datahub';
 
@@ -20,5 +21,3 @@ export const moduleSlots: ModuleViewerSlots = {
   ],
   'entity-tree': [],
 };
-
-export { DataCanvasPanel, DataCanvasPanelMemo, DataHubDashboard };

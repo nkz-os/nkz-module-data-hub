@@ -15,7 +15,7 @@
 - **Multi-source timeseries**: Query and align series from NGSI-LD (Orion), TimescaleDB (platform), and pluggable adapters.
 - **Aligned time grid**: All-Timescale alignment runs in **TimescaleDB** via platform `POST /api/timeseries/v2/query` (BFF is a passthrough). **Polars** is used only when **merging different sources** (e.g. Timescale + another module). Responses use Apache Arrow IPC with **Float64 epoch seconds** for `timestamp` (Web Worker / uPlot contract).
 - **Platform telemetry contract** (2026-03): IoT points in Timescale are stored under `telemetry_events.payload.measurements` as a **flat JSON object** (keys = measurement names); the reader uses `->>` with a whitelist. Production index **`ix_telemetry_tenant_device_time`** `(tenant_id, device_id, observed_at DESC)` supports those queries. Details: [`docs/PLATFORM_TIMESERIES_INTEGRATION.md`](docs/PLATFORM_TIMESERIES_INTEGRATION.md).
-- **Data Canvas UI**: Entity tree, variable selection, uPlot charts, granularity selector (raw / 1h / 1d) for export.
+- **Data Canvas UI** (`/datahub` route): Sidebar **DataTree** lists NGSI-LD entities; **click an entity** to expand attributes; **click an attribute** (or drag it) to add a **uPlot** panel on the tactical grid. Drag-and-drop onto the grid still works. Charts call the BFF with the per-attribute `source` (e.g. `timescale`, `vegetation_health`).
 - **Export**: CSV (streaming) or Parquet (upload to MinIO + presigned URL). Route A: proxy to platform; Route B: multi-source gather + align in BFF.
 - **Predictions**: SSE stream to Intelligence module for AI-based forecasts.
 
@@ -46,7 +46,7 @@
 ```
 
 - **Backend (BFF)**: FastAPI service. Proxies platform timeseries (v2 reader) without in-BFF joins for pure Timescale paths; uses Polars only for **multi-source** merge when needed. Returns Arrow IPC or CSV/Parquet.
-- **Frontend**: Single IIFE bundle (`dist/nkz-module.js`), slot `bottom-panel`. Uses host-provided React, `@nekazari/sdk`, `@nekazari/ui-kit`; builds with `@nekazari/module-builder`.
+- **Frontend**: Single IIFE bundle (`dist/nkz-module.js`), `main` route component **DataHubPage** (tree + **DataHubDashboard**), plus **DataHubQuickChart** in `bottom-panel`. Uses host-provided React, `@nekazari/sdk`, `@nekazari/ui-kit`; builds with `@nekazari/module-builder`.
 
 ---
 
@@ -71,11 +71,16 @@ nkz-module-datahub/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── src/
+│   ├── components/
+│   │   └── DataTree.tsx      # entity / attribute sidebar
 │   ├── slots/
-│   │   └── DataHubPanel.tsx  # bottom-panel slot
+│   │   ├── DataHubDashboard.tsx  # grid canvas, workspaces, lab tab
+│   │   ├── DataHubQuickChart.tsx # bottom-panel slot
+│   │   └── DataHubPanel.tsx      # legacy slot (if still referenced)
+│   ├── DataHubPage.tsx       # main route: tree + dashboard
 │   ├── services/
 │   │   └── datahubApi.ts
-│   └── moduleEntry.ts       # window.__NKZ__.register()
+│   └── moduleEntry.ts        # window.__NKZ__.register()
 ├── k8s/
 │   └── backend-deployment.yaml
 ├── manifest.json
@@ -104,7 +109,7 @@ All `/api/datahub/*` endpoints forward `Authorization` and `X-Tenant-ID` to the 
 
 | Variable | Description |
 |----------|-------------|
-| `PLATFORM_API_URL` | Base URL of the Nekazari API (e.g. `https://your-api-domain`). Required for proxy and Timescale adapter. Set per environment; do not commit. |
+| `PLATFORM_API_URL` | **Base URL of the platform API gateway** (no path suffix). Must serve both **`/ngsi-ld/v1/entities`** (Orion proxy) and **`/api/timeseries/...`** (timeseries-reader proxy). In Kubernetes use the in-cluster gateway, e.g. `http://api-gateway-service:5000`. External URL (e.g. `https://nkz.example.com`) also works but adds latency. Do not set this to `timeseries-reader` alone — entity listing will fail. |
 | `TIMESERIES_ADAPTER_<NAME>_URL` | Optional adapter base URL for non-timescale sources (e.g. `TIMESERIES_ADAPTER_CUSTOM_URL`) |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | MinIO/S3 for Parquet export (Route B). If unset, Parquet export may be disabled or fallback to platform. |
 

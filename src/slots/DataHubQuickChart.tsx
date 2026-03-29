@@ -1,7 +1,7 @@
 /**
  * DataHubQuickChart — Compact bottom-panel widget for the unified Cesium viewer.
  * Shows a single entity's timeseries chart with bidirectional Cesium time sync.
- * Lightweight: no grid, no workspace management. Uses Web Worker Arrow decode.
+ * Lightweight: no grid, no workspace, no chart-style toolbar (defaults only; full controls on module page).
  */
 
 import React, { useState, useCallback } from 'react';

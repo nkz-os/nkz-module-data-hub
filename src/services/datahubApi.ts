@@ -270,12 +270,21 @@ export async function requestExport(
 // Workspaces (Phase 5) — NGSI-LD DataHubWorkspace persist/load
 // ---------------------------------------------------------------------------
 
+/** Mirrors DashboardPanel chart options for workspace round-trip. */
+export interface WorkspaceChartAppearance {
+  mode?: 'line' | 'bars' | 'points';
+  lineWidth?: number;
+  pointRadius?: number;
+  showTrendline?: boolean;
+}
+
 export interface WorkspaceLayoutPanel {
   panelId: string;
   grid: { x: number; y: number; w: number; h: number };
   type: 'timeseries_chart';
   title?: string;
   series: Array<{ entityId: string; attribute: string; source: string }>;
+  chartAppearance?: WorkspaceChartAppearance;
 }
 
 export interface DataHubWorkspacePayload {

@@ -17,8 +17,6 @@ export const LabPanel: React.FC = () => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
 
-    // Access Keycloak ref from host auth context
-    const authCtx = (window as any).__nekazariAuthContext;
     const keycloak = (window as any).__keycloakRef?.current;
     if (!keycloak?.token) return;
 

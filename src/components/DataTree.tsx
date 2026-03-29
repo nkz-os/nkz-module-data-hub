@@ -17,7 +17,7 @@ import {
 const NON_TIMESERIES_ATTRIBUTES = new Set([
   'location', 'type', 'name', 'id', '@context', 'dateCreated', 'dateModified',
   'refParcel', 'seeAlso', 'ownedBy', 'category', 'description', 'address',
-  'area', 'landLocation',
+  'area', 'landLocation', 'ndviEnabled',
 ]);
 
 const timeseriesAttributes = (attrs: DataHubEntityAttribute[]) =>
@@ -86,19 +86,15 @@ export const DataTree: React.FC<DataTreeProps> = ({
                   role="button"
                   tabIndex={0}
                   onClick={() => {
-                    const firstAttr = timeseriesAttributes(e.attributes)[0];
-                    if (firstAttr) {
-                      onSelect(e, firstAttr.name);
-                      onAddToCanvas?.(e, firstAttr.name);
-                    }
+                    const ts = timeseriesAttributes(e.attributes);
+                    const first = ts[0];
+                    onSelect(e, first?.name ?? '');
                   }}
                   onKeyDown={(ev) => {
                     if (ev.key === 'Enter' || ev.key === ' ') {
-                      const firstAttr = timeseriesAttributes(e.attributes)[0];
-                      if (firstAttr) {
-                        onSelect(e, firstAttr.name);
-                        onAddToCanvas?.(e, firstAttr.name);
-                      }
+                      const ts = timeseriesAttributes(e.attributes);
+                      const first = ts[0];
+                      onSelect(e, first?.name ?? '');
                     }
                   }}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${

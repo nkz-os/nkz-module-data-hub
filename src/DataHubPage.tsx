@@ -1,13 +1,16 @@
 /**
  * Main view for the /datahub route.
  * Renders DataHubDashboard (grid canvas) with a DataTree sidebar.
- * Entities are dragged from the sidebar to dropping zones in the grid.
+ * Users expand an entity in the tree, click an attribute to add a chart, or drag to the grid.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataTree } from './components/DataTree';
-import { DataHubDashboard } from './slots/DataHubDashboard';
+import {
+  DataHubDashboard,
+  type DataHubDashboardHandle,
+} from './slots/DataHubDashboard';
 import type { DataHubEntity } from './services/datahubApi';
 import type { GlobalTimeContext } from './types/dashboard';
 
@@ -29,12 +32,17 @@ function defaultTimeContext(): GlobalTimeContext {
 
 const DataHubPageInner: React.FC = () => {
   const { t } = useTranslation('datahub');
+  const dashboardRef = useRef<DataHubDashboardHandle>(null);
   const [selectedEntity, setSelectedEntity] = useState<DataHubEntity | null>(null);
   const [selectedAttribute, setSelectedAttribute] = useState<string | null>(null);
 
   const handleSelect = useCallback((entity: DataHubEntity, attribute: string) => {
     setSelectedEntity(entity);
-    setSelectedAttribute(attribute);
+    setSelectedAttribute(attribute ? attribute : null);
+  }, []);
+
+  const handleAddToCanvas = useCallback((entity: DataHubEntity, attribute: string) => {
+    dashboardRef.current?.addSeriesFromTree(entity, attribute);
   }, []);
 
   return (
@@ -43,7 +51,7 @@ const DataHubPageInner: React.FC = () => {
       <aside className="w-64 shrink-0 border-r border-slate-800 bg-slate-900 flex flex-col">
         <div className="h-12 shrink-0 flex items-center px-4 border-b border-slate-800">
           <h2 className="text-sm font-semibold text-slate-300 tracking-wide uppercase">
-            {t('tree.searchPlaceholder').split('(')[0].trim()}
+            {t('tree.sidebarTitle')}
           </h2>
         </div>
         <div className="flex-1 min-h-0">
@@ -51,13 +59,14 @@ const DataHubPageInner: React.FC = () => {
             selectedEntity={selectedEntity}
             selectedAttribute={selectedAttribute}
             onSelect={handleSelect}
+            onAddToCanvas={handleAddToCanvas}
           />
         </div>
       </aside>
 
       {/* Main area: grid canvas */}
       <main className="flex-1 min-w-0">
-        <DataHubDashboard initialTimeContext={defaultTimeContext()} />
+        <DataHubDashboard ref={dashboardRef} initialTimeContext={defaultTimeContext()} />
       </main>
     </div>
   );

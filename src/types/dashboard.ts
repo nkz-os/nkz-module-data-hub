@@ -9,6 +9,26 @@ export interface ChartSeriesDef {
   source: string;
 }
 
+/** How each panel renders uPlot (line / bars / points + trend). */
+export type ChartRenderMode = 'line' | 'bars' | 'points';
+
+export interface ChartAppearance {
+  mode: ChartRenderMode;
+  /** Stroke width for lines and bar outlines (1–4). */
+  lineWidth: number;
+  /** Point marker radius; 0 hides markers on line mode. */
+  pointRadius: number;
+  /** Least-squares line through (time, value) for the first series (multi-series: first only). */
+  showTrendline: boolean;
+}
+
+export const DEFAULT_CHART_APPEARANCE: ChartAppearance = {
+  mode: 'line',
+  lineWidth: 2,
+  pointRadius: 0,
+  showTrendline: false,
+};
+
 /** Result of SSE prediction stream (epoch seconds + values) for merge in worker. */
 export interface PredictionPayload {
   timestamps: number[];
@@ -23,6 +43,8 @@ export interface DashboardPanel {
   series: ChartSeriesDef[];
   /** When set, canvas merges with historical and renders Histórico + Predicción (IA). */
   prediction?: PredictionPayload;
+  /** uPlot styling; partial merges over DEFAULT_CHART_APPEARANCE. */
+  chartAppearance?: Partial<ChartAppearance>;
 }
 
 export interface GlobalTimeContext {
