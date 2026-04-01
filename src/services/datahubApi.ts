@@ -38,10 +38,23 @@ export function isAuthenticated(): boolean {
   return ctx?.isAuthenticated === true;
 }
 
+/**
+ * API base for fetch(). When VITE_API_URL points to another host (e.g. nkz.*) but the SPA runs
+ * on nekazari.*, httpOnly cookies are not sent cross-origin — use same-origin /api/* instead
+ * (Ingress must route those prefixes on the frontend host).
+ */
 export function getBaseUrl(): string {
   if (typeof window === 'undefined') return '';
   const w = window as unknown as { __ENV__?: { VITE_API_URL?: string } };
-  return w.__ENV__?.VITE_API_URL ?? '';
+  const raw = (w.__ENV__?.VITE_API_URL ?? '').replace(/\/$/, '');
+  if (!raw) return '';
+  try {
+    const apiHost = new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname;
+    if (apiHost && apiHost !== window.location.hostname) return '';
+  } catch {
+    return '';
+  }
+  return raw;
 }
 
 export async function fetchDataHubEntities(search?: string): Promise<DataHubEntitiesResponse> {
