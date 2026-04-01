@@ -490,6 +490,9 @@ async def proxy_timeseries_data(
         qp["time_to"] = qp["end_time"]
     if "attribute" in qp and "attrs" not in qp:
         qp["attrs"] = qp["attribute"]
+    # Upstream reader rejects duplicate keys (e.g. start_time + time_from) with 400.
+    for redundant in ("start_time", "end_time", "attribute"):
+        qp.pop(redundant, None)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.get(url, params=qp, headers=headers or None)
