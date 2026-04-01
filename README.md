@@ -154,8 +154,8 @@ pnpm run build:module
 1. **Build and push image** (from this repo):
 
    ```bash
-   docker build -t ghcr.io/nkz-os/nkz-module-datahub/datahub-backend:latest ./backend
-   docker push ghcr.io/nkz-os/nkz-module-datahub/datahub-backend:latest
+   docker build -t ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest ./backend
+   docker push ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend:latest
    ```
 
 2. **Apply manifests** (namespace `nekazari`):

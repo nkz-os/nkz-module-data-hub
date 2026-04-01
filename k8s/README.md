@@ -8,7 +8,7 @@
 ## Backend image (GHCR)
 
 - CI: **`.github/workflows/build-push.yml`** builds `./backend/Dockerfile` and pushes to  
-  **`ghcr.io/nkz-os/nkz-module-datahub/datahub-backend`** (`:latest` on `main`, plus SHA tags).
+  **`ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend`** (`:latest` on `main`, plus SHA tags; path matches the Git repo so `GITHUB_TOKEN` can publish).
 - **ArgoCD only applies YAML**; it does not rebuild images. After a new image is pushed, **restart the workload** so nodes pull the new `:latest` digest:
 
   ```bash

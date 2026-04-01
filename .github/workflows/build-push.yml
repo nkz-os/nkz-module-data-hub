@@ -12,8 +12,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Repo is nkz-os/nkz-module-data-hub; GHCR package is nkz-module-datahub (see k8s manifests).
-  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/nkz-module-datahub/datahub-backend
+  # Must match github.repository so GITHUB_TOKEN can push (nested paths under another name → 403).
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/datahub-backend
 
 permissions:
   contents: read
