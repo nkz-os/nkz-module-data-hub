@@ -1,0 +1,83 @@
+# DataHub BFF — build and push to GHCR on main (and tags).
+# Image path MUST match k8s/backend-deployment.yaml (legacy package name vs repo slug).
+name: Build and Push Backend
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  # Repo is nkz-os/nkz-module-data-hub; GHCR package is nkz-module-datahub (see k8s manifests).
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/nkz-module-datahub/datahub-backend
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    name: Validate backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install and smoke import
+        run: |
+          pip install -r backend/requirements.txt
+          cd backend && python -c "from app.main import app; print('app import ok')"
+
+  build-push:
+    name: Build and push image
+    needs: [validate]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=short
+            type=semver,pattern={{version}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Backend image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "After sync, restart pods so \`:latest\` picks up the new digest:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`kubectl rollout restart deployment/datahub-api -n nekazari\`" >> "$GITHUB_STEP_SUMMARY"
