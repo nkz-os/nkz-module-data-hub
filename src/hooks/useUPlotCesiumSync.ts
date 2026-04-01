@@ -120,12 +120,19 @@ export function useUPlotCesiumSync({
     const u = new uPlot(opts, emptyData, container);
     uplotRef.current = u;
 
+    // Defer setSize to the next frame — synchronous resize inside ResizeObserver triggers
+    // Chrome's "ResizeObserver loop completed with undelivered notifications" and host window.onerror spam.
+    let resizeRaf = 0;
     const ro = new ResizeObserver(() => {
-      if (uplotRef.current && container) {
-        const w = container.offsetWidth || opts.width || 800;
-        const h = container.offsetHeight || opts.height || 300;
-        uplotRef.current.setSize({ width: w, height: h });
-      }
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        if (uplotRef.current && container) {
+          const w = container.offsetWidth || opts.width || 800;
+          const h = container.offsetHeight || opts.height || 300;
+          uplotRef.current.setSize({ width: w, height: h });
+        }
+      });
     });
     ro.observe(container);
 
@@ -137,6 +144,7 @@ export function useUPlotCesiumSync({
     window.addEventListener(DATAHUB_EVENT_SET_TIME_RANGE, onSetTimeRange);
 
     return () => {
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
       if (hoverRafId != null) {
         cancelAnimationFrame(hoverRafId);
         hoverRafId = null;
