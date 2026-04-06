@@ -17,3 +17,9 @@
   ```
 
 - **`imagePullPolicy: Always`** is set on the Deployment; a restart is still required for running pods to use the new digest when the tag string stays `latest`.
+
+## Frontend IIFE (MinIO)
+
+- CI: **`.github/workflows/build-push.yml`** builds the module bundle (`pnpm run build:module` → `dist/nkz-module.js`) and uploads an artifact.
+- **Automatic upload to MinIO** runs on `main` when repository secrets are set (same names as JupyterLite): `MINIO_ENDPOINT_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. Target: `s3://nekazari-frontend/modules/datahub/nkz-module.js`.
+- If secrets are missing, the job still passes; upload the artifact manually or use `mc cp` to `nekazari-frontend/modules/datahub/nkz-module.js`.

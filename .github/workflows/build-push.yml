@@ -1,6 +1,15 @@
-# DataHub BFF — build and push to GHCR on main (and tags).
-# Image path MUST match k8s/backend-deployment.yaml (legacy package name vs repo slug).
-name: Build and Push Backend
+# DataHub module — full pipeline on push to main:
+#   1) Validate: frontend typecheck + backend import smoke test
+#   2) Build IIFE bundle → artifact; optional deploy to MinIO (repo secrets)
+#   3) Build & push backend Docker image to GHCR
+#
+# MinIO deploy (optional): set repository secrets (same as JupyterLite workflow):
+#   MINIO_ENDPOINT_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+# Object path: s3://nekazari-frontend/modules/datahub/nkz-module.js
+#
+# After backend image push, restart pods so :latest picks up a new digest:
+#   kubectl rollout restart deployment/datahub-api -n nekazari
+name: Build and Push
 
 on:
   push:
@@ -12,8 +21,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Must match github.repository so GITHUB_TOKEN can push (nested paths under another name → 403).
   BACKEND_IMAGE: ghcr.io/${{ github.repository }}/datahub-backend
+  MINIO_BUCKET: nekazari-frontend
+  MODULE_PREFIX: modules/datahub
 
 permissions:
   contents: read
@@ -21,25 +31,97 @@ permissions:
 
 jobs:
   validate:
-    name: Validate backend
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend deps + typecheck
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run typecheck
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: backend/requirements.txt
-      - name: Install and smoke import
+
+      - name: Backend smoke test
         run: |
           pip install -r backend/requirements.txt
           cd backend && python -c "from app.main import app; print('app import ok')"
 
-  build-push:
-    name: Build and push image
+  build-iife:
+    name: Build IIFE bundle
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build module bundle
+        run: pnpm run build:module
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nkz-module-datahub
+          path: |
+            dist/nkz-module.js
+            dist/style.css
+          retention-days: 30
+
+      - name: Deploy bundle to MinIO
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          MINIO_ENDPOINT_URL: ${{ secrets.MINIO_ENDPOINT_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          set -euo pipefail
+          if [ -z "${MINIO_ENDPOINT_URL:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::notice::MinIO secrets not set (MINIO_ENDPOINT_URL / MINIO_ACCESS_KEY / MINIO_SECRET_KEY). Skipping bundle upload; download the artifact or upload manually."
+            exit 0
+          fi
+          pip install -q awscli
+          EP="${MINIO_ENDPOINT_URL}"
+          B="s3://${{ env.MINIO_BUCKET }}/${{ env.MODULE_PREFIX }}"
+          aws --endpoint-url "${EP}" s3 cp dist/nkz-module.js "${B}/nkz-module.js" \
+            --content-type "application/javascript" \
+            --cache-control "public, max-age=300"
+          aws --endpoint-url "${EP}" s3 cp dist/style.css "${B}/style.css" \
+            --content-type "text/css" \
+            --cache-control "public, max-age=300"
+
+  build-backend:
+    name: Build and push backend image
+    runs-on: ubuntu-latest
     needs: [validate]
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -79,5 +161,5 @@ jobs:
           echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "After sync, restart pods so \`:latest\` picks up the new digest:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Roll out so pods pull the new \`:latest\` digest:" >> "$GITHUB_STEP_SUMMARY"
           echo "\`kubectl rollout restart deployment/datahub-api -n nekazari\`" >> "$GITHUB_STEP_SUMMARY"
