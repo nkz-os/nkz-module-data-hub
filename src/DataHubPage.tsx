@@ -1,7 +1,7 @@
 /**
  * Main view for the /datahub route.
  * Renders DataHubDashboard (grid canvas) with a DataTree sidebar.
- * Users expand an entity in the tree, click an attribute to add a chart, or drag to the grid.
+ * Click an entity row (adds first plottable attribute) or a specific attribute, or drag to the grid.
  */
 import React, { useState, useCallback, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';

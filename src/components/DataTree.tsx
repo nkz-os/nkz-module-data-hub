@@ -89,12 +89,21 @@ export const DataTree: React.FC<DataTreeProps> = ({
                     const ts = timeseriesAttributes(e.attributes);
                     const first = ts[0];
                     onSelect(e, first?.name ?? '');
+                    // Match leaf attribute behavior: one click on the entity row adds the first
+                    // plottable attribute to the canvas (otherwise the chart stays empty).
+                    if (first) {
+                      onAddToCanvas?.(e, first.name);
+                    }
                   }}
                   onKeyDown={(ev) => {
                     if (ev.key === 'Enter' || ev.key === ' ') {
+                      ev.preventDefault();
                       const ts = timeseriesAttributes(e.attributes);
                       const first = ts[0];
                       onSelect(e, first?.name ?? '');
+                      if (first) {
+                        onAddToCanvas?.(e, first.name);
+                      }
                     }
                   }}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
