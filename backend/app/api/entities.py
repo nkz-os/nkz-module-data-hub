@@ -42,6 +42,7 @@ _NGSI_SYSTEM_KEYS = frozenset({
     "id", "type", "@context", "location", "name", "description",
     "address", "source", "provider", "dateCreated", "dateModified",
     "refAgriParcel", "refDevice", "refWeatherStation",
+    "municipalityCode",
 })
 
 
