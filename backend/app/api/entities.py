@@ -8,12 +8,14 @@ import os
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Header, Query
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/api/datahub", tags=["datahub"])
 
 logger = logging.getLogger(__name__)
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
+CONTEXT_URL = os.getenv("CONTEXT_URL", "").strip()
 
 # Entity types that typically have timeseries; NGSI-LD types
 ENTITY_TYPES_WITH_DATA = [
@@ -45,6 +47,36 @@ _NGSI_SYSTEM_KEYS = frozenset({
     "municipalityCode",
 })
 
+# timeseries-reader compatibility maps for `source=timescale`.
+# Keep these in sync with nkz/services/timeseries-reader/app.py.
+_WEATHER_VALID_COLUMNS = frozenset({
+    "temp_avg", "temp_min", "temp_max",
+    "humidity_avg", "precip_mm",
+    "solar_rad_w_m2", "eto_mm",
+    "soil_moisture_0_10cm", "wind_speed_ms",
+    "pressure_hpa", "wind_direction_deg",
+})
+_WEATHER_ATTR_MAP = {
+    "temperature": "temp_avg",
+    "relativeHumidity": "humidity_avg",
+    "windSpeed": "wind_speed_ms",
+    "windDirection": "wind_direction_deg",
+    "atmosphericPressure": "pressure_hpa",
+    "precipitation": "precip_mm",
+    "et0": "eto_mm",
+    "solarRadiation": "solar_rad_w_m2",
+    "soilMoisture": "soil_moisture_0_10cm",
+}
+_TELEMETRY_VALID_ATTRS = frozenset({
+    "soilMoisture", "soilTemperature", "airTemperature", "relativeHumidity",
+    "atmosphericPressure", "windSpeed", "windDirection", "solarRadiation",
+    "rainGauge", "illuminance", "depth", "conductance", "batteryLevel",
+    "humidity", "temperature",
+})
+_TELEMETRY_UI_ALIASES = {
+    "sensorsinsolation": "solarRadiation",
+}
+
 
 def _attr_source(attr_val: Any) -> str | None:
     """Extract the nested source from an NGSI-LD attribute value, if present.
@@ -62,6 +94,39 @@ def _attr_source(attr_val: Any) -> str | None:
     val = _get_value(raw)
     if isinstance(val, str) and val.strip():
         return val.strip().lower()
+    return None
+
+
+def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
+    """
+    Keep only attributes that the platform timeseries-reader can actually query.
+    Returns canonical attribute name to expose in DataHub tree, or None to drop it.
+    """
+    name = (attr_name or "").strip()
+    if not name:
+        return None
+
+    # Weather-capable entities (including parcels resolved to weather key in v2 reader)
+    if entity_type in {"WeatherObserved", "WeatherStation", "AgriParcel"}:
+        if name in _WEATHER_VALID_COLUMNS or name in _WEATHER_ATTR_MAP:
+            return name
+        return None
+
+    # Sensor/device entities read from telemetry_events.measurements
+    if entity_type in {"AgriSensor", "Device", "Actuator", "AgriculturalMachine", "AgriculturalTractor", "LivestockAnimal"}:
+        if name in _TELEMETRY_VALID_ATTRS:
+            return name
+        aliased = _TELEMETRY_UI_ALIASES.get(name)
+        if aliased and aliased in _TELEMETRY_VALID_ATTRS:
+            return aliased
+        return None
+
+    # Unknown type on timescale: accept only reader-known attrs.
+    if name in _TELEMETRY_VALID_ATTRS or name in _WEATHER_VALID_COLUMNS or name in _WEATHER_ATTR_MAP:
+        return name
+    aliased = _TELEMETRY_UI_ALIASES.get(name)
+    if aliased and aliased in _TELEMETRY_VALID_ATTRS:
+        return aliased
     return None
 
 
@@ -106,6 +171,7 @@ def _norm_entity(e: dict, etype: str) -> dict:
     )
 
     attributes: list[dict] = []
+    seen_attrs: set[tuple[str, str]] = set()
     for key, val in e.items():
         if key in _NGSI_SYSTEM_KEYS:
             continue
@@ -122,9 +188,21 @@ def _norm_entity(e: dict, etype: str) -> dict:
         # Skip boolean properties — they are config flags, not timeseries
         if isinstance(raw_val, bool):
             continue
+        # Keep only scalar numeric values in the tree (timeseries candidates).
+        if not isinstance(raw_val, (int, float)):
+            continue
 
         per_attr_source = _attr_source(val) or entity_source
-        attributes.append({"name": key, "source": per_attr_source})
+        canonical_name = key
+        if per_attr_source == "timescale":
+            canonical_name = _canonical_timescale_attr(etype, key) or ""
+            if not canonical_name:
+                continue
+        item = (canonical_name, per_attr_source)
+        if item in seen_attrs:
+            continue
+        seen_attrs.add(item)
+        attributes.append({"name": canonical_name, "source": per_attr_source})
 
     return {
         "id": entity_id,
@@ -143,7 +221,11 @@ async def _fetch_ngsi_entities(
 ) -> list[dict]:
     """Fetch entities by type from platform NGSI-LD."""
     url = f"{platform_base}/ngsi-ld/v1/entities"
-    headers = {"Accept": "application/ld+json"}
+    headers = {"Accept": "application/json"}
+    if CONTEXT_URL:
+        headers["Link"] = (
+            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        )
     if authorization:
         headers["Authorization"] = authorization
     if x_tenant_id:
@@ -170,11 +252,14 @@ async def get_entities(
         return {"entities": []}
 
     all_entities: list[dict] = []
+    successful_types = 0
+    failures: list[str] = []
     for etype in ENTITY_TYPES_WITH_DATA:
         try:
             raw = await _fetch_ngsi_entities(
                 PLATFORM_API_URL, etype, authorization, x_tenant_id
             )
+            successful_types += 1
             for e in raw:
                 rec = _norm_entity(e, etype)
                 if search:
@@ -183,6 +268,7 @@ async def get_entities(
                         continue
                 all_entities.append(rec)
         except Exception as ex:
+            failures.append(f"{etype}: {ex}")
             logger.warning(
                 "datahub entities: skip type %s — %s",
                 etype,
@@ -190,5 +276,12 @@ async def get_entities(
                 exc_info=logger.isEnabledFor(logging.DEBUG),
             )
             continue
-
+    if successful_types == 0 and failures:
+        return JSONResponse(
+            content={
+                "error": "No se pudo consultar Orion-LD desde DataHub",
+                "details": failures[:3],
+            },
+            status_code=502,
+        )
     return {"entities": all_entities}
