@@ -143,6 +143,9 @@
   },
   "lab": {
     "tab": "Laboratorio",
-    "loading": "Iniciando entorno Python (WebAssembly)..."
+    "loading": "Iniciando entorno Python (WebAssembly)...",
+    "comingSoonTitle": "Laboratorio científico",
+    "comingSoonDesc": "El entorno JupyterLite para análisis interactivo de datos se está preparando. Permitirá escribir notebooks Python directamente conectados a los datos de la plataforma.",
+    "comingSoonBadge": "Próximamente"
   }
 }

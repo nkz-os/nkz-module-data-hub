@@ -409,11 +409,14 @@ async def proxy_timeseries_align(
             except Exception:
                 body_err = {"error": r.text or f"Upstream {r.status_code}"}
             return JSONResponse(content=body_err, status_code=r.status_code)
-        return Response(
-            content=r.content,
-            media_type=ARROW_STREAM_TYPE,
-            headers={"Content-Length": str(len(r.content))},
-        )
+        # Convert Arrow IPC → JSON for browser
+        try:
+            json_data = await asyncio.to_thread(_arrow_bytes_to_json, r.content)
+        except Exception as e:
+            return JSONResponse(content={"error": f"Arrow decode failed: {e!s}"}, status_code=502)
+        if not json_data.get("timestamps"):
+            return Response(status_code=204)
+        return JSONResponse(content=json_data)
 
     # Route B: Scatter-Gather by source — group by source, one Arrow buffer per source, then merge with Polars
     resolution = min(max(resolution, 100), 10000)
@@ -456,11 +459,39 @@ async def proxy_timeseries_align(
     except ValueError as e:
         return JSONResponse(content={"error": str(e)}, status_code=502)
 
-    return Response(
-        content=result_bytes,
-        media_type=ARROW_STREAM_TYPE,
-        headers={"Content-Length": str(len(result_bytes))},
-    )
+    # Convert Arrow IPC → JSON for browser
+    try:
+        json_data = await asyncio.to_thread(_arrow_bytes_to_json, result_bytes)
+    except Exception as e:
+        return JSONResponse(content={"error": f"Arrow decode failed: {e!s}"}, status_code=502)
+    if not json_data.get("timestamps"):
+        return Response(status_code=204)
+    return JSONResponse(content=json_data)
+
+
+def _arrow_bytes_to_json(raw: bytes) -> dict:
+    """Convert Arrow IPC bytes to lightweight JSON {timestamps: [...], values: [...]}."""
+    table = _parse_arrow_stream(raw)
+    ts_col = table.column("timestamp")
+    timestamps = ts_col.to_pylist()
+
+    # Single value column
+    if "value" in table.column_names:
+        values = table.column("value").to_pylist()
+        return {"timestamps": timestamps, "values": values}
+
+    # Multi-value: value_0, value_1, ...
+    value_arrays: dict[str, list] = {}
+    idx = 0
+    while f"value_{idx}" in table.column_names:
+        value_arrays[f"value_{idx}"] = table.column(f"value_{idx}").to_pylist()
+        idx += 1
+    if not value_arrays and "value" not in table.column_names:
+        # Fallback: take first non-timestamp column
+        for name in table.column_names:
+            if name != "timestamp":
+                value_arrays[name] = table.column(name).to_pylist()
+    return {"timestamps": timestamps, **value_arrays}
 
 
 @router.get("/timeseries/entities/{entity_id}/data")
@@ -471,8 +502,9 @@ async def proxy_timeseries_data(
     x_tenant_id: Optional[str] = Header(None),
 ):
     """
-    Transparent proxy to platform GET /api/timeseries/v2/entities/<urn>/data.
-    URN resolution is handled by the reader (Strangler Fig); BFF passes the URN directly.
+    Fetch timeseries from platform reader and return as lightweight JSON.
+    BFF fetches Arrow IPC from the reader (efficient internal transfer) and converts
+    to JSON {timestamps: [...], values: [...]} for the browser (no heavy Arrow lib needed).
     """
     if not PLATFORM_API_URL:
         return JSONResponse(
@@ -490,20 +522,31 @@ async def proxy_timeseries_data(
         qp["time_to"] = qp["end_time"]
     if "attribute" in qp and "attrs" not in qp:
         qp["attrs"] = qp["attribute"]
-    # Upstream reader rejects duplicate keys (e.g. start_time + time_from) with 400.
-    for redundant in ("start_time", "end_time", "attribute"):
+    for redundant in ("start_time", "end_time", "attribute", "format"):
         qp.pop(redundant, None)
 
+    # Always request Arrow from reader (efficient for internal cluster transfer)
+    req_headers = {**headers, "Accept": ARROW_STREAM_TYPE}
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.get(url, params=qp, headers=headers or None)
-        content_type = r.headers.get("content-type", "application/octet-stream")
+        r = await client.get(url, params=qp, headers=req_headers)
         if r.status_code >= 400:
             try:
                 body = r.json()
             except Exception:
                 body = {"error": r.text or f"Upstream {r.status_code}"}
             return JSONResponse(content=body, status_code=r.status_code)
-        return Response(content=r.content, media_type=content_type)
+
+        # Convert Arrow IPC → JSON for lightweight browser consumption
+        try:
+            json_data = await asyncio.to_thread(_arrow_bytes_to_json, r.content)
+        except Exception as e:
+            return JSONResponse(
+                content={"error": f"Arrow decode failed: {e!s}"},
+                status_code=502,
+            )
+        if not json_data.get("timestamps"):
+            return Response(status_code=204)
+        return JSONResponse(content=json_data)
 
 
 def _resolution_from_aggregation(start_ts: float, end_ts: float, aggregation: str) -> int:

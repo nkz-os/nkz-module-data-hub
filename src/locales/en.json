@@ -143,6 +143,9 @@
   },
   "lab": {
     "tab": "Lab",
-    "loading": "Starting Python environment (WebAssembly)..."
+    "loading": "Starting Python environment (WebAssembly)...",
+    "comingSoonTitle": "Scientific Lab",
+    "comingSoonDesc": "The JupyterLite environment for interactive data analysis is being prepared. It will allow you to write Python notebooks directly connected to platform data.",
+    "comingSoonBadge": "Coming soon"
   }
 }

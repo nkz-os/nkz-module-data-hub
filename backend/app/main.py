@@ -3,6 +3,10 @@ DataHub Module Backend (BFF).
 Health, metrics, and /api/datahub/* (entities; timeseries/export to be added per plan).
 """
 
+import base64
+import json
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -11,18 +15,52 @@ from app.api.entities import router as entities_router
 from app.api.timeseries import router as timeseries_router
 from app.api.workspaces import router as workspaces_router
 
+logger = logging.getLogger(__name__)
+
+
+def _extract_tenant_from_jwt(token: str) -> str | None:
+    """Decode JWT payload (no signature verification — gateway validates) to extract tenant_id."""
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1]
+        # Fix base64 padding
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return payload.get("tenant_id") or payload.get("tenant") or None
+    except Exception:
+        return None
+
 
 class CookieAuthMiddleware(BaseHTTPMiddleware):
-    """Inject Authorization header from httpOnly cookie when Bearer header is missing."""
+    """Inject Authorization and X-Tenant-ID headers from httpOnly cookie JWT."""
 
     async def dispatch(self, request: Request, call_next):
-        if not request.headers.get("authorization"):
+        token = None
+        auth_header = request.headers.get("authorization")
+        if not auth_header:
             token = request.cookies.get("nkz_token")
             if token:
-                # MutableHeaders lets us inject the header for downstream handlers
                 request.scope["headers"] = [
                     *[(k, v) for k, v in request.scope["headers"] if k != b"authorization"],
                     (b"authorization", f"Bearer {token}".encode()),
+                ]
+        else:
+            # Extract token from existing Authorization header
+            if auth_header.lower().startswith("bearer "):
+                token = auth_header[7:]
+
+        # Inject X-Tenant-ID if not already present
+        has_tenant = any(
+            k == b"x-tenant-id" for k, _v in request.scope["headers"]
+        )
+        if not has_tenant and token:
+            tenant_id = _extract_tenant_from_jwt(token)
+            if tenant_id:
+                request.scope["headers"] = [
+                    *request.scope["headers"],
+                    (b"x-tenant-id", tenant_id.encode()),
                 ]
         return await call_next(request)
 

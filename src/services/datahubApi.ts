@@ -38,6 +38,22 @@ export function isAuthenticated(): boolean {
   return ctx?.isAuthenticated === true;
 }
 
+/** Read tenant ID from the host auth context (set by Keycloak JWT → host). */
+function getTenantId(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const ctx = (window as unknown as { __nekazariAuthContext?: { tenantId?: string } }).__nekazariAuthContext;
+  return ctx?.tenantId || undefined;
+}
+
+/** Build common headers with optional tenant ID for multi-tenancy. */
+function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
+  const tenantId = getTenantId();
+  if (tenantId) {
+    return { ...base, 'X-Tenant-ID': tenantId };
+  }
+  return base;
+}
+
 /**
  * API base for fetch(). When VITE_API_URL points to another host (e.g. nkz.*) but the SPA runs
  * on nekazari.*, httpOnly cookies are not sent cross-origin — use same-origin /api/* instead
@@ -61,72 +77,67 @@ export async function fetchDataHubEntities(search?: string): Promise<DataHubEnti
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/datahub/entities' + (search ? `?search=${encodeURIComponent(search)}` : '');
   const url = base ? `${base}${path}` : path;
-  const headers: HeadersInit = { Accept: 'application/json' };
+  const headers: HeadersInit = withTenantHeaders({ Accept: 'application/json' });
 
   const res = await fetch(url, { headers, credentials: 'include' });
   if (!res.ok) throw new Error(`DataHub entities: ${res.status} ${await res.text()}`);
   return res.json();
 }
 
-export interface TimeseriesArrowResult {
-  timestamps: Float64Array;
-  values: Float64Array;
+/** JSON timeseries result from BFF (no Arrow in browser). */
+export interface TimeseriesJsonResult {
+  timestamps: number[];
+  values: number[];
 }
 
 /**
- * Fetch timeseries as Apache Arrow IPC; returns typed arrays for uPlot.
- * Pass AbortSignal to cancel on zoom/brush (TanStack Query provides it).
+ * Fetch single-entity timeseries as JSON {timestamps, values} from BFF.
+ * BFF converts Arrow IPC → JSON server-side; browser stays lightweight.
  */
-export async function fetchTimeseriesArrow(
+export async function fetchTimeseriesJson(
   entityId: string,
   attribute: string,
   startTime: string,
   endTime: string,
   resolution: number,
   signal: AbortSignal
-): Promise<TimeseriesArrowResult> {
+): Promise<TimeseriesJsonResult> {
   const base = getBaseUrl().replace(/\/$/, '');
   const params = new URLSearchParams({
     start_time: startTime,
     end_time: endTime,
     resolution: String(resolution),
     attribute,
-    format: 'arrow',
   });
-  const path = `/api/datahub/timeseries/entities/${entityId}/data?${params}`;
+  const path = `/api/datahub/timeseries/entities/${encodeURIComponent(entityId)}/data?${params}`;
   const url = base ? `${base}${path}` : path;
-  const headers: HeadersInit = { Accept: 'application/vnd.apache.arrow.stream' };
+  const headers: HeadersInit = withTenantHeaders({ Accept: 'application/json' });
 
   const res = await fetch(url, { headers, signal, credentials: 'include' });
+  if (res.status === 204) return { timestamps: [], values: [] };
   if (!res.ok) throw new Error(await res.text());
-  const buffer = await res.arrayBuffer();
-
-  const arrow = await import('apache-arrow');
-  const table = arrow.tableFromIPC(buffer);
-  const tsCol = table.getChild('timestamp');
-  const valueCol = table.getChild('value');
-  if (!tsCol || !valueCol) throw new Error('Missing timestamp or value column');
-
-  const timestamps = tsCol.toArray() as Float64Array;
-  const values = valueCol.toArray() as Float64Array;
-  return { timestamps, values };
+  const data = await res.json();
+  return {
+    timestamps: data.timestamps ?? [],
+    values: data.values ?? data.value_0 ?? [],
+  };
 }
 
 export interface AlignSeriesSpec {
   entity_id: string;
   attribute: string;
-  /** Data source (e.g. timescale, odoo). Enables hybrid alignment when mixing sources. */
   source?: string;
 }
 
+/** JSON aligned timeseries result. */
 export interface TimeseriesAlignResult {
-  timestamps: Float64Array;
-  valueArrays: Float64Array[];
+  timestamps: number[];
+  valueArrays: number[][];
 }
 
 /**
- * Fetch aligned multi-series as Apache Arrow IPC (POST /api/timeseries/align).
- * Returns timestamp + value_0, value_1, ... as typed arrays for uPlot multi-axis.
+ * Fetch aligned multi-series as JSON from BFF.
+ * BFF handles Arrow IPC internally; browser receives plain JSON arrays.
  */
 export async function fetchTimeseriesAlign(
   series: AlignSeriesSpec[],
@@ -137,10 +148,10 @@ export async function fetchTimeseriesAlign(
 ): Promise<TimeseriesAlignResult> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/timeseries/align` : '/api/datahub/timeseries/align';
-  const headers: HeadersInit = {
+  const headers: HeadersInit = withTenantHeaders({
     'Content-Type': 'application/json',
-    Accept: 'application/vnd.apache.arrow.stream',
-  };
+    Accept: 'application/json',
+  });
 
   const res = await fetch(url, {
     method: 'POST',
@@ -154,20 +165,20 @@ export async function fetchTimeseriesAlign(
     signal,
     credentials: 'include',
   });
+  if (res.status === 204) return { timestamps: [], valueArrays: [] };
   if (!res.ok) throw new Error(await res.text());
-  const buffer = await res.arrayBuffer();
+  const data = await res.json();
 
-  const arrow = await import('apache-arrow');
-  const table = arrow.tableFromIPC(buffer);
-  const tsCol = table.getChild('timestamp');
-  if (!tsCol) throw new Error('Missing timestamp column');
-
-  const timestamps = tsCol.toArray() as Float64Array;
-  const valueArrays: Float64Array[] = [];
+  const timestamps: number[] = data.timestamps ?? [];
+  const valueArrays: number[][] = [];
   for (let i = 0; ; i++) {
-    const col = table.getChild(`value_${i}`);
+    const col = data[`value_${i}`];
     if (!col) break;
-    valueArrays.push(col.toArray() as Float64Array);
+    valueArrays.push(col);
+  }
+  // Fallback: single "values" key
+  if (valueArrays.length === 0 && data.values) {
+    valueArrays.push(data.values);
   }
   return { timestamps, valueArrays };
 }
@@ -204,7 +215,7 @@ export async function submitPredictJob(
 ): Promise<string> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/intelligence/predict` : '/api/intelligence/predict';
-  const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const headers: HeadersInit = withTenantHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' });
 
   const res = await fetch(url, {
     method: 'POST',
@@ -265,7 +276,7 @@ export async function requestExport(
 ): Promise<{ format: 'csv'; blob: Blob } | { format: 'parquet'; data: ExportParquetResponse }> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/export` : '/api/datahub/export';
-  const headers: HeadersInit = { 'Content-Type': 'application/json', Accept: 'text/csv, application/json' };
+  const headers: HeadersInit = withTenantHeaders({ 'Content-Type': 'application/json', Accept: 'text/csv, application/json' });
 
   const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), credentials: 'include' });
   if (!res.ok) throw new Error(`Export: ${res.status} ${await res.text()}`);
@@ -320,7 +331,7 @@ export interface DataHubWorkspaceStored {
 export async function saveWorkspace(payload: DataHubWorkspacePayload): Promise<void> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/datahub/workspaces` : '/api/datahub/workspaces';
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  const headers: HeadersInit = withTenantHeaders({ 'Content-Type': 'application/json' });
 
   const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), credentials: 'include' });
   if (!res.ok) throw new Error(await res.text());
@@ -331,7 +342,7 @@ export async function listWorkspaces(): Promise<DataHubWorkspaceStored[]> {
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/datahub/workspaces';
   const url = base ? `${base}${path}` : path;
-  const headers: HeadersInit = { Accept: 'application/json' };
+  const headers: HeadersInit = withTenantHeaders({ Accept: 'application/json' });
 
   const res = await fetch(url, { headers, credentials: 'include' });
   if (!res.ok) throw new Error(await res.text());
@@ -355,7 +366,7 @@ export async function listTenantPats(): Promise<TenantPatMeta[]> {
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/tenant/api-keys';
   const url = base ? `${base}${path}` : path;
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'include' });
+  const res = await fetch(url, { headers: withTenantHeaders({ Accept: 'application/json' }), credentials: 'include' });
   if (!res.ok) throw new Error(`PAT list: ${res.status} ${await res.text()}`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];
@@ -372,7 +383,7 @@ export async function createTenantPat(body: {
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: withTenantHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(body),
   });

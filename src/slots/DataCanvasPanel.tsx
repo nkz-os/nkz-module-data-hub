@@ -8,9 +8,8 @@ import { useTranslation } from '@nekazari/sdk';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 
-import ArrowWorker from '../workers/arrow-decoder.worker?worker&inline';
 import { useUPlotCesiumSync } from '../hooks/useUPlotCesiumSync';
-import { getBaseUrl } from '../services/datahubApi';
+import { fetchTimeseriesJson, fetchTimeseriesAlign } from '../services/datahubApi';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 import { mergeChartAppearance, buildTrendSeries } from '../utils/chartAppearance';
 
@@ -124,10 +123,6 @@ export interface DataCanvasPanelProps {
   onAppearanceChange?: (panelId: string, next: ChartAppearance) => void;
 }
 
-type WorkerResponse =
-  | { action: 'DECODE_ARROW_DONE'; jobId: string; uPlotData?: uPlot.AlignedData; error?: string }
-  | { action: 'MERGE_PREDICTION_DONE'; jobId: string; uPlotData: uPlot.AlignedData };
-
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   panelId,
   series,
@@ -140,7 +135,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 }) => {
   const { t } = useTranslation('datahub');
   const containerRef = useRef<HTMLDivElement>(null);
-  const workerRef = useRef<Worker | null>(null);
 
   const visual = useMemo(() => mergeChartAppearance(chartAppearance), [chartAppearance]);
 
@@ -156,95 +150,47 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [status, setStatus] = useState<'loading' | 'error' | 'ready' | 'empty'>('loading');
 
   useEffect(() => {
-    const worker = new ArrowWorker();
-    worker.onmessage = (e: MessageEvent<WorkerResponse & { uPlotData?: uPlot.AlignedData; error?: string }>) => {
-      const d = e.data;
-      if (d.error) {
-        setStatus('error');
-        return;
-      }
-      if (d.action === 'MERGE_PREDICTION_DONE' && d.uPlotData?.length === 3) {
-        setMergedPlotData(d.uPlotData);
-        return;
-      }
-      if ((d.action === 'DECODE_ARROW_DONE' || !d.action) && d.uPlotData) {
-        setPlotData(d.uPlotData);
-        setStatus('ready');
-      }
-    };
-    workerRef.current = worker;
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
     if (series.length === 0) {
       setStatus('empty');
       return;
     }
 
     const ac = new AbortController();
-    const headers: HeadersInit = { Accept: 'application/vnd.apache.arrow.stream' };
-    const base = getBaseUrl().replace(/\/$/, '');
 
-    const fetchAndDecode = async () => {
+    const fetchData = async () => {
       setStatus('loading');
       try {
-        let response: Response;
+        let uPlotData: uPlot.AlignedData;
+
         if (series.length === 1) {
           const s = series[0];
-          const params = new URLSearchParams({
-            start_time: startTime,
-            end_time: endTime,
-            resolution: String(resolution),
-            attribute: s.attribute,
-            format: 'arrow',
-          });
-          const path = `/api/datahub/timeseries/entities/${encodeURIComponent(s.entityId)}/data?${params}`;
-          const url = base ? `${base}${path}` : path;
-          response = await fetch(url, { headers, signal: ac.signal, credentials: 'include' });
+          const result = await fetchTimeseriesJson(
+            s.entityId, s.attribute, startTime, endTime, resolution, ac.signal
+          );
+          if (!result.timestamps.length) { setStatus('empty'); return; }
+          uPlotData = [result.timestamps, result.values];
         } else {
-          const path = '/api/datahub/timeseries/align';
-          const url = base ? `${base}${path}` : path;
-          response = await fetch(url, {
-            method: 'POST',
-            headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              start_time: startTime,
-              end_time: endTime,
-              resolution,
-              series: series.map((s) => ({
-                entity_id: s.entityId,
-                attribute: s.attribute,
-                source: s.source ?? 'timescale',
-              })),
-            }),
-            signal: ac.signal,
-            credentials: 'include',
-          });
+          const result = await fetchTimeseriesAlign(
+            series.map((s) => ({
+              entity_id: s.entityId,
+              attribute: s.attribute,
+              source: s.source ?? 'timescale',
+            })),
+            startTime, endTime, resolution, ac.signal
+          );
+          if (!result.timestamps.length) { setStatus('empty'); return; }
+          uPlotData = [result.timestamps, ...result.valueArrays] as uPlot.AlignedData;
         }
 
-        if (response.status === 204) {
-          setStatus('empty');
-          return;
-        }
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const arrayBuffer = await response.arrayBuffer();
-
-        workerRef.current!.postMessage(
-          { action: 'DECODE_ARROW', jobId: panelId, buffer: arrayBuffer },
-          [arrayBuffer]
-        );
+        setPlotData(uPlotData);
+        setStatus('ready');
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setStatus('error');
       }
     };
 
-    fetchAndDecode();
+    fetchData();
     return () => ac.abort();
   }, [panelId, series, startTime, endTime, resolution]);
 
@@ -254,18 +200,30 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       return;
     }
     if (series.length !== 1 || !plotData || plotData.length !== 2) return;
-    const histTimes = plotData[0];
-    const histValues = plotData[1];
+    const histTimes = plotData[0] as number[];
+    const histValues = plotData[1] as number[];
     if (histTimes.length === 0) return;
-    const jobId = `${panelId}-merge`;
-    workerRef.current?.postMessage({
-      action: 'MERGE_PREDICTION',
-      jobId,
-      histTimes,
-      histValues,
-      predTimes: prediction.timestamps,
-      predValues: prediction.values,
-    });
+    // Merge historical + prediction into 3-column matrix for uPlot
+    const N = histTimes.length;
+    const predTs = prediction.timestamps;
+    const predVals = prediction.values;
+    const M = predTs.length;
+    const totalLen = N + M;
+    const mergedTimes = new Array<number>(totalLen);
+    const mergedHist = new Array<number | null>(totalLen);
+    const mergedPred = new Array<number | null>(totalLen);
+    for (let i = 0; i < N; i++) {
+      mergedTimes[i] = histTimes[i];
+      mergedHist[i] = histValues[i];
+      mergedPred[i] = null;
+    }
+    if (N > 0) mergedPred[N - 1] = histValues[N - 1]; // anchor
+    for (let i = 0; i < M; i++) {
+      mergedTimes[N + i] = predTs[i];
+      mergedHist[N + i] = null;
+      mergedPred[N + i] = predVals[i];
+    }
+    setMergedPlotData([mergedTimes, mergedHist, mergedPred] as uPlot.AlignedData);
   }, [panelId, series.length, prediction, plotData]);
 
   const hasPrediction = mergedPlotData != null && mergedPlotData.length === 3;

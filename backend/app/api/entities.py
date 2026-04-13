@@ -181,19 +181,26 @@ def _norm_entity(e: dict, etype: str) -> dict:
         prop_type = val.get("type", "")
         if prop_type in ("Relationship", "GeoProperty"):
             continue
-        # Require a non-None value so we only expose attributes with actual data
-        raw_val = _get_value(val)
-        if raw_val is None:
-            continue
         # Skip boolean properties — they are config flags, not timeseries
+        raw_val = _get_value(val)
         if isinstance(raw_val, bool):
             continue
-        # Keep only scalar numeric values in the tree (timeseries candidates).
-        if not isinstance(raw_val, (int, float)):
-            continue
+        # Accept: numeric values, string-encoded numerics, and None (device
+        # provisioned but hasn't sent data yet — attribute exists in timeseries).
+        if raw_val is not None and not isinstance(raw_val, (int, float)):
+            # Try to parse string numerics (e.g. "23.5")
+            if isinstance(raw_val, str):
+                try:
+                    float(raw_val)
+                except (ValueError, TypeError):
+                    continue
+            else:
+                continue
 
         per_attr_source = _attr_source(val) or entity_source
         canonical_name = key
+        # Non-timescale sources (e.g. vegetation_health, carbon) are accepted
+        # directly — their adapter knows which attributes it serves.
         if per_attr_source == "timescale":
             canonical_name = _canonical_timescale_attr(etype, key) or ""
             if not canonical_name:

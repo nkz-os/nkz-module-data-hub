@@ -68,15 +68,19 @@ export function useUPlotCesiumSync({
 
     const existingSetSelect = opts.hooks?.setSelect ?? [];
     const setSelectHandlers = Array.isArray(existingSetSelect) ? [...existingSetSelect] : [existingSetSelect];
-    setSelectHandlers.push(((_u: uPlot, min: number, max: number) => {
-      if (min !== max) {
+    setSelectHandlers.push((u: uPlot) => {
+      const sel = u.select;
+      if (!sel || sel.width <= 0) return;
+      const min = u.posToVal(sel.left, 'x');
+      const max = u.posToVal(sel.left + sel.width, 'x');
+      if (min !== max && Number.isFinite(min) && Number.isFinite(max)) {
         window.dispatchEvent(
           new CustomEvent<DataHubTimeRangeDetail>(DATAHUB_EVENT_TIME_SELECT, {
             detail: { min, max },
           })
         );
       }
-    }) as (self: uPlot) => void);
+    });
     opts.hooks = { ...opts.hooks, setSelect: setSelectHandlers };
 
     const existingSetCursor = opts.hooks?.setCursor ?? [];
