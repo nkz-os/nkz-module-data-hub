@@ -392,7 +392,8 @@ async def proxy_timeseries_align(
                 for s in series
             ],
         }
-        req_headers = {**headers, "Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE}
+        # Request JSON (api-gateway strips Accept header, so Arrow negotiation fails)
+        req_headers = {**headers, "Content-Type": "application/json", "Accept": "application/json"}
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 r = await client.post(url, json=proxy_body, headers=req_headers)
@@ -409,11 +410,11 @@ async def proxy_timeseries_align(
             except Exception:
                 body_err = {"error": r.text or f"Upstream {r.status_code}"}
             return JSONResponse(content=body_err, status_code=r.status_code)
-        # Convert Arrow IPC → JSON for browser
         try:
-            json_data = await asyncio.to_thread(_arrow_bytes_to_json, r.content)
-        except Exception as e:
-            return JSONResponse(content={"error": f"Arrow decode failed: {e!s}"}, status_code=502)
+            data = r.json()
+        except Exception:
+            return JSONResponse(content={"error": "Invalid JSON from timeseries reader"}, status_code=502)
+        json_data = _reader_json_to_frontend_json(data)
         if not json_data.get("timestamps"):
             return Response(status_code=204)
         return JSONResponse(content=json_data)
@@ -487,11 +488,59 @@ def _arrow_bytes_to_json(raw: bytes) -> dict:
         value_arrays[f"value_{idx}"] = table.column(f"value_{idx}").to_pylist()
         idx += 1
     if not value_arrays and "value" not in table.column_names:
-        # Fallback: take first non-timestamp column
+        # Fallback: take first non-timestamp column and normalize it to "values"
+        # so the frontend doesn't need to know internal DB column names (temp_avg, etc.)
         for name in table.column_names:
             if name != "timestamp":
-                value_arrays[name] = table.column(name).to_pylist()
+                return {"timestamps": timestamps, "values": table.column(name).to_pylist()}
     return {"timestamps": timestamps, **value_arrays}
+
+
+def _reader_json_to_frontend_json(data: dict, single_attr: str | None = None) -> dict:
+    """Convert timeseries-reader JSON to frontend format.
+
+    Reader returns:  {timestamps: [ISO...], attributes: {attr: [vals...]}}
+    Frontend wants:  {timestamps: [epoch_secs...], values: [...]}         (single)
+                     {timestamps: [epoch_secs...], value_0: [...], ...}   (multi)
+    """
+    from datetime import datetime as _dt
+
+    raw_ts = data.get("timestamps") or []
+    attrs = data.get("attributes") or {}
+
+    # If reader returned epoch floats already (Arrow JSON mode), keep them
+    timestamps: list[float] = []
+    for t in raw_ts:
+        if isinstance(t, (int, float)):
+            timestamps.append(float(t))
+        elif isinstance(t, str):
+            try:
+                timestamps.append(_dt.fromisoformat(t.replace("Z", "+00:00")).timestamp())
+            except Exception:
+                continue
+        else:
+            continue
+
+    # Single attr requested → {timestamps, values}
+    if single_attr:
+        vals = attrs.get(single_attr)
+        if vals is None:
+            # Reader may have resolved the attr name (e.g. temperature → temp_avg)
+            for k, v in attrs.items():
+                vals = v
+                break
+        return {"timestamps": timestamps, "values": vals or []}
+
+    attr_keys = list(attrs.keys())
+    if len(attr_keys) == 1:
+        return {"timestamps": timestamps, "values": attrs[attr_keys[0]]}
+
+    # Multi-attr → value_0, value_1, ...
+    result: dict = {"timestamps": timestamps}
+    for i, key in enumerate(attr_keys):
+        col_name = key if key.startswith("value_") else f"value_{i}"
+        result[col_name] = attrs[key]
+    return result
 
 
 @router.get("/timeseries/entities/{entity_id}/data")
@@ -525,8 +574,8 @@ async def proxy_timeseries_data(
     for redundant in ("start_time", "end_time", "attribute", "format"):
         qp.pop(redundant, None)
 
-    # Always request Arrow from reader (efficient for internal cluster transfer)
-    req_headers = {**headers, "Accept": ARROW_STREAM_TYPE}
+    # Request JSON from reader (api-gateway strips Accept header, so Arrow negotiation fails).
+    req_headers = {**headers, "Accept": "application/json"}
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.get(url, params=qp, headers=req_headers)
         if r.status_code >= 400:
@@ -536,14 +585,14 @@ async def proxy_timeseries_data(
                 body = {"error": r.text or f"Upstream {r.status_code}"}
             return JSONResponse(content=body, status_code=r.status_code)
 
-        # Convert Arrow IPC → JSON for lightweight browser consumption
         try:
-            json_data = await asyncio.to_thread(_arrow_bytes_to_json, r.content)
-        except Exception as e:
+            data = r.json()
+        except Exception:
             return JSONResponse(
-                content={"error": f"Arrow decode failed: {e!s}"},
+                content={"error": "Invalid JSON response from timeseries reader"},
                 status_code=502,
             )
+        json_data = _reader_json_to_frontend_json(data, qp.get("attrs"))
         if not json_data.get("timestamps"):
             return Response(status_code=204)
         return JSONResponse(content=json_data)
