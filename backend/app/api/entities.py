@@ -72,6 +72,7 @@ _TELEMETRY_VALID_ATTRS = frozenset({
     "atmosphericPressure", "windSpeed", "windDirection", "solarRadiation",
     "rainGauge", "illuminance", "depth", "conductance", "batteryLevel",
     "humidity", "temperature",
+    "panelInclination",
 })
 _TELEMETRY_UI_ALIASES = {
     "sensorsinsolation": "solarRadiation",

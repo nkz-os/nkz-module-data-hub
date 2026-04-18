@@ -38,10 +38,6 @@ export interface UseUPlotCesiumSyncProps {
   data: uPlot.AlignedData | null;
 }
 
-function emptyDataForSeriesCount(seriesCount: number): uPlot.AlignedData {
-  return Array.from({ length: seriesCount }, () => new Float64Array(0)) as uPlot.AlignedData;
-}
-
 function isTimeRangeDetail(d: unknown): d is DataHubTimeRangeDetail {
   return (
     typeof d === 'object' &&
@@ -58,9 +54,12 @@ export function useUPlotCesiumSync({
 }: UseUPlotCesiumSyncProps): void {
   const uplotRef = useRef<uPlot | null>(null);
 
+  // Single effect: create uPlot with data (or skip if no data yet).
+  // Re-runs when options OR data change — always uses the latest data directly.
   useEffect(() => {
     const container = chartContainerRef.current;
     if (!container) return;
+    if (!data || data.length < 2) return;
 
     const opts = { ...options };
     if (!opts.width) opts.width = container.offsetWidth || 800;
@@ -120,8 +119,8 @@ export function useUPlotCesiumSync({
     }) as (self: uPlot) => void);
     opts.hooks = { ...opts.hooks, setCursor: setCursorHandlers };
 
-    const emptyData = emptyDataForSeriesCount(opts.series?.length ?? 2);
-    const u = new uPlot(opts, emptyData, container);
+    // Create uPlot WITH data directly — avoids empty-init + setData race condition
+    const u = new uPlot(opts, data, container);
     uplotRef.current = u;
 
     // Defer setSize to the next frame — synchronous resize inside ResizeObserver triggers
@@ -159,11 +158,5 @@ export function useUPlotCesiumSync({
       u.destroy();
       uplotRef.current = null;
     };
-  }, [chartContainerRef, options]);
-
-  useEffect(() => {
-    if (uplotRef.current && data && data.length >= 2) {
-      uplotRef.current.setData(data);
-    }
-  }, [data]);
+  }, [chartContainerRef, options, data]);
 }

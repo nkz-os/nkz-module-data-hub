@@ -593,7 +593,10 @@ async def proxy_timeseries_data(
                 status_code=502,
             )
         json_data = _reader_json_to_frontend_json(data, qp.get("attrs"))
-        if not json_data.get("timestamps"):
+        ts = json_data.get("timestamps") or []
+        vals = json_data.get("values") or []
+        print(f"[DBG] entity={entity_id} attr={qp.get('attrs')} ts_len={len(ts)} vals_len={len(vals)} ts_sample={ts[:2] if ts else []} vals_sample={vals[:2] if vals else []}", flush=True)
+        if not ts:
             return Response(status_code=204)
         return JSONResponse(content=json_data)
 
