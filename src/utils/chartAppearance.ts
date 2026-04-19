@@ -41,19 +41,19 @@ export function linearRegressionTau(
   return { a, b };
 }
 
-/** One y value per x from regression; NaN where x invalid. */
+/** One y value per x from regression; null where x invalid. */
 export function buildTrendSeries(
   xs: ArrayLike<number | null | undefined>,
   ys: ArrayLike<number | null | undefined>
-): Float64Array | null {
+): (number | null)[] | null {
   const coef = linearRegressionTau(xs, ys);
   if (!coef) return null;
   const { a, b } = coef;
   const len = xs.length;
-  const out = new Float64Array(len);
+  const out = new Array<number | null>(len);
   for (let i = 0; i < len; i++) {
     const x = xs[i];
-    out[i] = x != null && Number.isFinite(x) ? a + b * x : NaN;
+    out[i] = x != null && Number.isFinite(x) ? a + b * x : null;
   }
   return out;
 }
