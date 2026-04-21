@@ -38,30 +38,36 @@ class CookieAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         token = None
-        auth_header = request.headers.get("authorization")
+        # IMPORTANT: work only with request.scope headers to avoid stale Header cache
+        # after mutating request.scope["headers"].
+        raw_headers = list(request.scope.get("headers") or [])
+        auth_header = None
+        for k, v in raw_headers:
+            if k == b"authorization":
+                try:
+                    auth_header = v.decode()
+                except Exception:
+                    auth_header = None
+                break
+
         if not auth_header:
             token = request.cookies.get("nkz_token")
             if token:
-                request.scope["headers"] = [
-                    *[(k, v) for k, v in request.scope["headers"] if k != b"authorization"],
-                    (b"authorization", f"Bearer {token}".encode()),
-                ]
-        else:
+                raw_headers = [(k, v) for k, v in raw_headers if k != b"authorization"]
+                raw_headers.append((b"authorization", f"Bearer {token}".encode()))
+                request.scope["headers"] = raw_headers
+        elif auth_header.lower().startswith("bearer "):
             # Extract token from existing Authorization header
-            if auth_header.lower().startswith("bearer "):
-                token = auth_header[7:]
+            token = auth_header[7:]
 
         # Inject X-Tenant-ID if not already present
-        has_tenant = any(
-            k == b"x-tenant-id" for k, _v in request.scope["headers"]
-        )
+        has_tenant = any(k == b"x-tenant-id" for k, _v in raw_headers)
         if not has_tenant and token:
             tenant_id = _extract_tenant_from_jwt(token)
             if tenant_id:
-                request.scope["headers"] = [
-                    *request.scope["headers"],
-                    (b"x-tenant-id", tenant_id.encode()),
-                ]
+                raw_headers = list(request.scope.get("headers") or raw_headers)
+                raw_headers.append((b"x-tenant-id", tenant_id.encode()))
+                request.scope["headers"] = raw_headers
         return await call_next(request)
 
 
