@@ -22,7 +22,7 @@ const RESOLUTION = 1000;
 
 function defaultTimeContext(): GlobalTimeContext {
   const end = new Date();
-  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
   return {
     startTime: start.toISOString(),
     endTime: end.toISOString(),

@@ -43,11 +43,16 @@ import { IntegrationsPanel } from './IntegrationsPanel';
 import { LabPanel } from './LabPanel';
 
 function normalizePanel(panel: DashboardPanel & { entityId?: string; attribute?: string }): DashboardPanel {
-  if (panel.series && panel.series.length > 0) return panel;
+  if (panel.series && panel.series.length > 0) {
+    return {
+      ...panel,
+      series: panel.series.map((s) => ({ ...s, yAxis: s.yAxis ?? 'left' })),
+    };
+  }
   if (panel.entityId != null && panel.attribute != null) {
     return {
       ...panel,
-      series: [{ entityId: panel.entityId, attribute: panel.attribute, source: 'timescale' }],
+      series: [{ entityId: panel.entityId, attribute: panel.attribute, source: 'timescale', yAxis: 'left' }],
       title: panel.title ?? `${panel.entityId} — ${panel.attribute}`,
     };
   }
@@ -92,6 +97,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
   const [timeContext, setTimeContext] = useState<GlobalTimeContext>(initialTimeContext);
   const [exportModalPanel, setExportModalPanel] = useState<DashboardPanel | null>(null);
   const [predictingPanelId, setPredictingPanelId] = useState<string | null>(null);
+  const [activePanelId, setActivePanelId] = useState<string | null>(null);
   const [loadWorkspaceOpen, setLoadWorkspaceOpen] = useState(false);
   const [mainView, setMainView] = useState<'canvas' | 'integrations' | 'lab'>('canvas');
   const [saveMessage, setSaveMessage] = useState<{
@@ -113,6 +119,16 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
 
   const panelsRef = useRef(panels);
   panelsRef.current = panels;
+
+  useEffect(() => {
+    if (panels.length === 0) {
+      setActivePanelId(null);
+      return;
+    }
+    if (!activePanelId || !panels.some((p) => p.id === activePanelId)) {
+      setActivePanelId(panels[0].id);
+    }
+  }, [panels, activePanelId]);
 
   useEffect(() => {
     setDraftRangeStart(toDatetimeLocalValue(timeContext.startTime));
@@ -200,7 +216,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           setPanels((current) => {
             const updated = [...current];
             const panel = { ...updated[targetPanelIndex] };
-            panel.series = [...panel.series, { ...newSeries, source: newSeries.source ?? 'timescale' }];
+            panel.series = [...panel.series, { ...newSeries, source: newSeries.source ?? 'timescale', yAxis: 'left' }];
             panel.title =
               panel.series.length === 1
                 ? `${panel.series[0].entityId} — ${panel.series[0].attribute}`
@@ -208,15 +224,17 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             updated[targetPanelIndex] = panel;
             return updated;
           });
+          setActivePanelId(targetPanel.id);
         } else {
           const newPanel: DashboardPanel = {
             id: crypto.randomUUID(),
             grid: { x: dropX, y: dropY, w: item?.w ?? 6, h: item?.h ?? 3 },
             type: 'timeseries_chart',
             title: `${newSeries.entityId} — ${newSeries.attribute}`,
-            series: [{ ...newSeries, source: newSeries.source ?? 'timescale' }],
+            series: [{ ...newSeries, source: newSeries.source ?? 'timescale', yAxis: 'left' }],
           };
           setPanels((current) => [...current, newPanel]);
+          setActivePanelId(newPanel.id);
         }
       } catch (err) {
         console.error('Drop payload error:', err);
@@ -249,6 +267,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         series: [{ ...newSeries, source: newSeries.source ?? 'timescale' }],
       };
       setPanels([newPanel]);
+      setActivePanelId(newPanel.id);
     } catch (err) {
       console.error('Empty canvas drop error:', err);
     }
@@ -408,6 +427,17 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
     setPanels((ps) => ps.map((x) => (x.id === panelId ? { ...x, chartAppearance: next } : x)));
   }, []);
 
+  const updatePanelSeriesAxis = useCallback((panelId: string, seriesIndex: number, yAxis: 'left' | 'right') => {
+    setPanels((ps) =>
+      ps.map((panel) => {
+        if (panel.id !== panelId) return panel;
+        if (seriesIndex < 0 || seriesIndex >= panel.series.length) return panel;
+        const nextSeries = panel.series.map((s, idx) => (idx === seriesIndex ? { ...s, yAxis } : s));
+        return { ...panel, series: nextSeries };
+      })
+    );
+  }, []);
+
   const applyCustomRange = useCallback(() => {
     const s = new Date(draftRangeStart);
     const e = new Date(draftRangeEnd);
@@ -424,6 +454,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
 
   const removePanel = useCallback((panelId: string) => {
     setPanels((p) => p.filter((x) => x.id !== panelId));
+    setActivePanelId((current) => (current === panelId ? null : current));
   }, []);
 
   useImperativeHandle(
@@ -431,18 +462,38 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
     () => ({
       addSeriesFromTree: (entity: DataHubEntity, attribute: string) => {
         const current = panelsRef.current;
-        const duplicate = current.some(
-          (p) =>
-            p.series.length === 1 &&
-            p.series[0].entityId === entity.id &&
-            p.series[0].attribute === attribute
-        );
-        if (duplicate) {
-          showBanner(t('dashboard.duplicateSeries'), 'info');
-          return;
-        }
         const attrMeta = entity.attributes.find((a) => a.name === attribute);
         const source = attrMeta?.source ?? entity.source ?? 'timescale';
+        const nextSeries: ChartSeriesDef = { entityId: entity.id, attribute, source, yAxis: 'left' };
+        const targetIdx = activePanelId
+          ? current.findIndex((p) => p.id === activePanelId)
+          : -1;
+
+        if (targetIdx !== -1) {
+          const target = current[targetIdx];
+          const duplicateInTarget = target.series.some(
+            (s) => s.entityId === entity.id && s.attribute === attribute
+          );
+          if (duplicateInTarget) {
+            showBanner(t('dashboard.duplicateSeries'), 'info');
+            return;
+          }
+          const updated = [...current];
+          const mergedSeries = [...target.series, nextSeries];
+          updated[targetIdx] = {
+            ...target,
+            series: mergedSeries,
+            title:
+              mergedSeries.length === 1
+                ? `${entity.name} — ${attribute}`
+                : t('dashboard.multiSeriesSources', { count: mergedSeries.length }),
+          };
+          setPanels(updated);
+          setActivePanelId(target.id);
+          setMainView('canvas');
+          return;
+        }
+
         const nextY =
           current.length === 0 ? 0 : Math.max(...current.map((p) => p.grid.y + p.grid.h));
         const id =
@@ -454,13 +505,14 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           grid: { x: 0, y: nextY, w: 6, h: 3 },
           type: 'timeseries_chart',
           title: `${entity.name} — ${attribute}`,
-          series: [{ entityId: entity.id, attribute, source }],
+          series: [nextSeries],
         };
         setPanels([...current, newPanel]);
+        setActivePanelId(id);
         setMainView('canvas');
       },
     }),
-    [showBanner, t]
+    [showBanner, t, activePanelId]
   );
 
   return (
@@ -639,7 +691,12 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             {panels.map((panel) => (
               <div
                 key={panel.id}
-                className="flex flex-col bg-slate-900 border border-slate-800 rounded-lg overflow-hidden"
+                onMouseDown={() => setActivePanelId(panel.id)}
+                className={`flex flex-col bg-slate-900 border rounded-lg overflow-hidden ${
+                  activePanelId === panel.id
+                    ? 'border-emerald-500/70 ring-1 ring-emerald-500/30'
+                    : 'border-slate-800'
+                }`}
               >
                 <div
                   className={`panel-header flex justify-between items-center bg-slate-800 h-8 px-2 ${
@@ -716,6 +773,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     prediction={panel.prediction ?? null}
                     chartAppearance={panel.chartAppearance}
                     onAppearanceChange={updatePanelAppearance}
+                    onSeriesAxisChange={updatePanelSeriesAxis}
                   />
                 </div>
               </div>

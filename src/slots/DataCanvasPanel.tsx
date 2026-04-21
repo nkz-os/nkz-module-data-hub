@@ -9,9 +9,14 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 
 import { useUPlotCesiumSync } from '../hooks/useUPlotCesiumSync';
-import { fetchTimeseriesJson, fetchTimeseriesAlign } from '../services/datahubApi';
-import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
+import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
+import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, ChartViewMode, PredictionPayload } from '../types/dashboard';
 import { mergeChartAppearance, buildTrendSeries } from '../utils/chartAppearance';
+import type {
+  DatahubWorkerRequest,
+  DatahubWorkerReleaseRequest,
+} from '../workers/contracts/datahubWorkerV2';
+import DatahubWorkerInline from '../workers/datahubWorker.ts?worker&inline';
 
 const COLORS = ['#10B981', '#8B5CF6', '#F59E0B', '#3B82F6', '#EF4444'];
 const PREDICTION_STROKE = '#F59E0B';
@@ -36,6 +41,63 @@ interface SeriesStats {
   avg: number;
   last: number;
   count: number;
+}
+
+interface SanitizedSeriesData {
+  data: uPlot.AlignedData;
+  receivedPoints: number;
+  plottablePoints: number;
+}
+
+function clampIndex(idx: number, maxExclusive: number, fallback: number): number {
+  if (maxExclusive <= 0) return 0;
+  if (!Number.isFinite(idx)) return Math.min(Math.max(0, fallback), maxExclusive - 1);
+  return Math.min(Math.max(0, Math.floor(idx)), maxExclusive - 1);
+}
+
+function computePearsonR(
+  xs: ArrayLike<number | null | undefined>,
+  ys: ArrayLike<number | null | undefined>
+): { r: number; n: number } | null {
+  const len = Math.min(xs.length, ys.length);
+  let n = 0;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+  let sumYY = 0;
+  for (let i = 0; i < len; i++) {
+    const x = xs[i];
+    const y = ys[i];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const xv = Number(x);
+    const yv = Number(y);
+    n += 1;
+    sumX += xv;
+    sumY += yv;
+    sumXY += xv * yv;
+    sumXX += xv * xv;
+    sumYY += yv * yv;
+  }
+  if (n < 2) return null;
+  const cov = n * sumXY - sumX * sumY;
+  const varX = n * sumXX - sumX * sumX;
+  const varY = n * sumYY - sumY * sumY;
+  if (varX <= 0 || varY <= 0) return null;
+  const r = cov / Math.sqrt(varX * varY);
+  if (!Number.isFinite(r)) return null;
+  return { r: Math.max(-1, Math.min(1, r)), n };
+}
+
+function workerCacheKey(
+  source: string,
+  entityId: string,
+  attribute: string,
+  startTime: string,
+  endTime: string,
+  resolution: number
+): string {
+  return `${source}|${entityId}|${attribute}|${startTime}|${endTime}|${resolution}`;
 }
 
 function computeStats(values: (number | null | undefined)[]): SeriesStats | null {
@@ -75,6 +137,7 @@ function buildValueSeriesOpts(
   if (mode === 'bars' && uPlot.paths.bars) {
     return {
       label,
+      scale: s.yAxis === 'right' ? 'y2' : 'y',
       stroke: color,
       fill: `${color}99`,
       width: Math.max(1, lineWidth),
@@ -91,6 +154,7 @@ function buildValueSeriesOpts(
     const pr = Math.max(2, pointRadius || 5);
     return {
       label,
+      scale: s.yAxis === 'right' ? 'y2' : 'y',
       stroke: color,
       width: 0,
       paths: uPlot.paths.linear?.(),
@@ -99,6 +163,7 @@ function buildValueSeriesOpts(
   }
   return {
     label,
+    scale: s.yAxis === 'right' ? 'y2' : 'y',
     stroke: color,
     width: lineWidth,
     paths: uPlot.paths.linear?.(),
@@ -121,6 +186,7 @@ export interface DataCanvasPanelProps {
   chartAppearance?: Partial<ChartAppearance>;
   /** Stable handler recommended so memoized panel skips re-renders when unrelated state changes. */
   onAppearanceChange?: (panelId: string, next: ChartAppearance) => void;
+  onSeriesAxisChange?: (panelId: string, seriesIndex: number, yAxis: 'left' | 'right') => void;
 }
 
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
@@ -132,6 +198,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   prediction = null,
   chartAppearance,
   onAppearanceChange,
+  onSeriesAxisChange,
 }) => {
   const { t } = useTranslation('datahub');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +215,70 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [plotData, setPlotData] = useState<uPlot.AlignedData | null>(null);
   const [mergedPlotData, setMergedPlotData] = useState<uPlot.AlignedData | null>(null);
   const [status, setStatus] = useState<'loading' | 'error' | 'ready' | 'empty'>('loading');
+  const [plotDiagnostics, setPlotDiagnostics] = useState({
+    receivedPoints: 0,
+    plottablePoints: 0,
+  });
+  const workerRef = useRef<Worker | null>(null);
+  const pendingReqRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Inline worker avoids /assets URL resolution issues in module runtime (/modules/<id>/...).
+    const worker = new DatahubWorkerInline();
+    workerRef.current = worker;
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+      pendingReqRef.current = null;
+    };
+  }, []);
+
+  const processWithWorker = useCallback(
+    (
+      workerRequest: Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>
+    ): Promise<SanitizedSeriesData | null> => {
+      const worker = workerRef.current;
+      if (!worker) return Promise.resolve(null);
+      const requestId = `${panelId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      pendingReqRef.current = requestId;
+      return new Promise((resolve) => {
+        const onMessage = (event: MessageEvent<unknown>) => {
+          const msg = event.data as {
+            type?: string;
+            requestId?: string;
+            data?: Float64Array[];
+            error?: unknown;
+            stats?: { rawPointsFetched?: number; pointsPlotted?: number };
+          };
+          if (!msg || msg.type !== 'PROCESS_SERIES_RESULT') return;
+          if (msg.requestId !== requestId) return;
+          worker.removeEventListener('message', onMessage);
+          if (pendingReqRef.current !== requestId) {
+            resolve(null);
+            return;
+          }
+          if (msg.error || !msg.data || msg.data.length < 2 || !msg.data[0].length) {
+            resolve(null);
+            return;
+          }
+          resolve({
+            data: msg.data as unknown as uPlot.AlignedData,
+            receivedPoints: msg.stats?.rawPointsFetched ?? 0,
+            plottablePoints: msg.stats?.pointsPlotted ?? 0,
+          });
+        };
+        worker.addEventListener('message', onMessage);
+        const req: DatahubWorkerRequest = {
+          type: 'PROCESS_SERIES',
+          requestId,
+          contractVersion: 2,
+          ...workerRequest,
+        };
+        worker.postMessage(req);
+      });
+    },
+    [panelId]
+  );
 
   useEffect(() => {
     if (series.length === 0) {
@@ -155,44 +286,74 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       return;
     }
 
-    const ac = new AbortController();
-
     const fetchData = async () => {
       setStatus('loading');
       try {
-        let uPlotData: uPlot.AlignedData;
+        const base = getBaseUrl().replace(/\/$/, '');
+        const viewportWidth = containerRef.current?.offsetWidth || 800;
+        const commonPolicy = {
+          maxGapSeconds: 15 * 60,
+          downsampleThreshold: Math.max(1024, Math.floor(viewportWidth * 2)),
+          viewportWidthPx: viewportWidth,
+          preserveExtrema: true,
+        };
+        const sanitized = await processWithWorker({
+          mode: series.length > 1 ? 'multi' : 'single',
+          baseUrl: base || undefined,
+          headers: getDatahubRequestHeaders({ Accept: 'application/json' }),
+          startTime,
+          endTime,
+          resolution,
+          series: series.map((item) => ({
+            entityId: item.entityId,
+            attribute: item.attribute,
+            source: item.source ?? 'timescale',
+          })),
+          policy: commonPolicy,
+        });
 
-        if (series.length === 1) {
-          const s = series[0];
-          const result = await fetchTimeseriesJson(
-            s.entityId, s.attribute, startTime, endTime, resolution, ac.signal
-          );
-          if (!result.timestamps.length) { setStatus('empty'); return; }
-          uPlotData = [result.timestamps, result.values];
-        } else {
-          const result = await fetchTimeseriesAlign(
-            series.map((s) => ({
-              entity_id: s.entityId,
-              attribute: s.attribute,
-              source: s.source ?? 'timescale',
-            })),
-            startTime, endTime, resolution, ac.signal
-          );
-          if (!result.timestamps.length) { setStatus('empty'); return; }
-          uPlotData = [result.timestamps, ...result.valueArrays] as uPlot.AlignedData;
+        if (!sanitized) {
+          setPlotData(null);
+          setPlotDiagnostics({ receivedPoints: 0, plottablePoints: 0 });
+          setStatus('empty');
+          return;
         }
-
-        setPlotData(uPlotData);
+        setPlotData(sanitized.data);
+        setPlotDiagnostics({
+          receivedPoints: sanitized.receivedPoints,
+          plottablePoints: sanitized.plottablePoints,
+        });
         setStatus('ready');
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
+        setPlotData(null);
+        setPlotDiagnostics({ receivedPoints: 0, plottablePoints: 0 });
         setStatus('error');
       }
     };
 
     fetchData();
-    return () => ac.abort();
-  }, [panelId, series, startTime, endTime, resolution]);
+    return () => {
+      pendingReqRef.current = null;
+      const worker = workerRef.current;
+      if (!worker) return;
+      const keys = series.map((item) =>
+        workerCacheKey(
+          item.source ?? 'timescale',
+          item.entityId,
+          item.attribute,
+          startTime,
+          endTime,
+          resolution
+        )
+      );
+      const releaseReq: DatahubWorkerReleaseRequest = {
+        type: 'RELEASE_SERIES',
+        keys,
+      };
+      worker.postMessage(releaseReq);
+    };
+  }, [panelId, series, startTime, endTime, resolution, processWithWorker]);
 
   useEffect(() => {
     if (!prediction) {
@@ -227,13 +388,18 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   }, [panelId, series.length, prediction, plotData]);
 
   const hasPrediction = mergedPlotData != null && mergedPlotData.length === 3;
+  const trendlineEnabled = visual.showTrendline;
+  const viewMode: ChartViewMode =
+    visual.viewMode === 'correlation' && series.length >= 2 && !hasPrediction
+      ? 'correlation'
+      : 'timeseries';
 
   const effectiveMode: ChartRenderMode =
     series.length > 1 && visual.mode === 'bars' ? 'line' : visual.mode;
 
   const displayData = useMemo(() => {
     if (hasPrediction && mergedPlotData) {
-      if (!visual.showTrendline) return mergedPlotData;
+      if (!trendlineEnabled) return mergedPlotData;
       const xs = mergedPlotData[0];
       const hist = mergedPlotData[1];
       const trend = buildTrendSeries(xs, hist);
@@ -247,18 +413,110 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       return out;
     }
     if (!plotData || plotData.length < 2) return plotData;
-    if (!visual.showTrendline) return plotData;
+    if (!trendlineEnabled) return plotData;
     const xs = plotData[0];
     const y1 = plotData[1];
     const trend = buildTrendSeries(xs, y1);
     if (!trend) return plotData;
     return [...plotData, trend] as uPlot.AlignedData;
-  }, [hasPrediction, mergedPlotData, plotData, visual.showTrendline]);
+  }, [hasPrediction, mergedPlotData, plotData, trendlineEnabled]);
+
+  const correlationIndices = useMemo(() => {
+    const x = clampIndex(visual.correlationXSeries, series.length, 0);
+    const ySeed = series.length > 1 ? (x === 0 ? 1 : 0) : 0;
+    let y = clampIndex(visual.correlationYSeries, series.length, ySeed);
+    if (series.length > 1 && y === x) y = ySeed;
+    return { x, y };
+  }, [visual.correlationXSeries, visual.correlationYSeries, series.length]);
+
+  const correlationData = useMemo(() => {
+    if (viewMode !== 'correlation' || !plotData || plotData.length < 3) return null;
+    const xSeries = plotData[correlationIndices.x + 1] as ArrayLike<number | null | undefined> | undefined;
+    const ySeries = plotData[correlationIndices.y + 1] as ArrayLike<number | null | undefined> | undefined;
+    if (!xSeries || !ySeries) return null;
+    const len = Math.min(xSeries.length, ySeries.length);
+    const points: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < len; i++) {
+      const xv = xSeries[i];
+      const yv = ySeries[i];
+      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
+      points.push({ x: Number(xv), y: Number(yv) });
+    }
+    if (points.length === 0) return null;
+    points.sort((a, b) => a.x - b.x);
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    if (!trendlineEnabled) return [xs, ys] as uPlot.AlignedData;
+    const trend = buildTrendSeries(xs, ys);
+    if (!trend) return [xs, ys] as uPlot.AlignedData;
+    return [xs, ys, trend] as uPlot.AlignedData;
+  }, [viewMode, plotData, correlationIndices.x, correlationIndices.y, trendlineEnabled]);
+
+  const pearson = useMemo(() => {
+    if (viewMode !== 'correlation' || !correlationData || correlationData.length < 2) return null;
+    return computePearsonR(correlationData[0] as number[], correlationData[1] as number[]);
+  }, [viewMode, correlationData]);
 
   const uPlotOptions = useMemo(() => {
     const containerWidth = containerRef.current?.offsetWidth || 800;
+    if (viewMode === 'correlation' && correlationData && series.length >= 2) {
+      const xIdx = correlationIndices.x;
+      const yIdx = correlationIndices.y;
+      const xDef = series[xIdx];
+      const yDef = series[yIdx];
+      const xUnit = ATTRIBUTE_UNITS[xDef.attribute] || '';
+      const yUnit = ATTRIBUTE_UNITS[yDef.attribute] || '';
+      const baseLabel = `${shortEntityId(yDef.entityId)} · ${yDef.attribute}${yUnit ? ` (${yUnit})` : ''}`;
+      const correlationSeries: uPlot.Series[] = [
+        {},
+        {
+          label: baseLabel,
+          stroke: COLORS[yIdx % COLORS.length],
+          width: 0,
+          points: {
+            show: true,
+            size: Math.max(2, visual.pointRadius || 4),
+            stroke: '#f8fafc',
+            fill: COLORS[yIdx % COLORS.length],
+          },
+          paths: uPlot.paths.linear?.(),
+        },
+      ];
+      if (correlationData.length === 3) {
+        correlationSeries.push({
+          label: t('canvasPanel.trendline'),
+          stroke: TREND_STROKE,
+          width: 2,
+          dash: [4, 4],
+          paths: uPlot.paths.linear?.(),
+          spanGaps: false,
+        });
+      }
+      return {
+        width: containerWidth,
+        height: 280,
+        title: t('canvasPanel.correlationTitle', {
+          x: xDef.attribute,
+          y: yDef.attribute,
+        }),
+        series: correlationSeries,
+        scales: { x: { time: false, auto: true }, y: { auto: true } },
+        axes: [
+          {
+            grid: { show: false },
+            label: `${xDef.attribute}${xUnit ? ` (${xUnit})` : ''}`,
+          },
+          {
+            scale: 'y',
+            grid: { stroke: '#334155' },
+            label: `${yDef.attribute}${yUnit ? ` (${yUnit})` : ''}`,
+          },
+        ],
+      } as uPlot.Options;
+    }
+
     const trendAdded =
-      Boolean(visual.showTrendline && displayData) &&
+      Boolean(trendlineEnabled && displayData) &&
       ((hasPrediction && displayData!.length === 4) ||
         (!hasPrediction &&
           series.length > 0 &&
@@ -266,11 +524,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
     if (hasPrediction && series.length === 1) {
       const histOpts = buildValueSeriesOpts(0, series[0], effectiveMode, visual.lineWidth, visual.pointRadius);
+      const baseScale = series[0].yAxis === 'right' ? 'y2' : 'y';
       const seriesOpts: uPlot.Series[] = [
         {},
-        { ...histOpts, label: t('canvasPanel.historic') },
+        { ...histOpts, label: t('canvasPanel.historic'), scale: baseScale },
         {
           label: t('canvasPanel.predictionAI'),
+          scale: baseScale,
           stroke: PREDICTION_STROKE,
           width: 2,
           dash: [10, 5],
@@ -281,6 +541,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       if (trendAdded && displayData?.length === 4) {
         seriesOpts.push({
           label: t('canvasPanel.trendline'),
+          scale: baseScale,
           stroke: TREND_STROKE,
           width: 2,
           dash: [4, 4],
@@ -293,7 +554,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         height: 300,
         title: `${series[0].entityId} — ${series[0].attribute}`,
         series: seriesOpts,
-        axes: [{ grid: { show: false } }, { grid: { stroke: '#334155' } }],
+        scales: { x: { time: true }, y: { auto: true }, y2: { auto: true } },
+        axes: [
+          { grid: { show: false } },
+          { scale: 'y', grid: { stroke: '#334155' }, label: t('canvasPanel.axisLeft') },
+          { scale: 'y2', side: 3, grid: { show: false }, label: t('canvasPanel.axisRight') },
+        ],
       } as uPlot.Options;
     }
 
@@ -304,6 +570,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     if (trendAdded && displayData && displayData.length === series.length + 2) {
       dynamicSeries.push({
         label: t('canvasPanel.trendline'),
+        scale: series[0]?.yAxis === 'right' ? 'y2' : 'y',
         stroke: TREND_STROKE,
         width: 2,
         dash: [4, 4],
@@ -320,23 +587,29 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       height: 260,
       title: shortTitle,
       series: dynamicSeries,
-      axes: [{ grid: { show: false } }, { grid: { stroke: '#334155' } }],
+      scales: { x: { time: true }, y: { auto: true }, y2: { auto: true } },
+      axes: [
+        { grid: { show: false } },
+        { scale: 'y', grid: { stroke: '#334155' }, label: t('canvasPanel.axisLeft') },
+        { scale: 'y2', side: 3, grid: { show: false }, label: t('canvasPanel.axisRight') },
+      ],
     } as uPlot.Options;
-  }, [series, hasPrediction, displayData, effectiveMode, visual, t]);
+  }, [series, hasPrediction, displayData, effectiveMode, visual, t, viewMode, correlationData, correlationIndices.x, correlationIndices.y]);
 
-  const chartData = displayData;
+  const chartData = viewMode === 'correlation' ? correlationData : displayData;
 
   useUPlotCesiumSync({
     chartContainerRef: containerRef,
     options: uPlotOptions,
     data: chartData,
+    syncEvents: viewMode === 'timeseries',
   });
 
   useEffect(() => {
-    if (series.length > 1 && visual.mode === 'bars' && onAppearanceChange) {
+    if (viewMode === 'timeseries' && series.length > 1 && visual.mode === 'bars' && onAppearanceChange) {
       onAppearanceChange(panelId, { ...visual, mode: 'line' });
     }
-  }, [series.length, visual, onAppearanceChange, panelId]);
+  }, [series.length, visual, onAppearanceChange, panelId, viewMode]);
 
   if (series.length === 0) {
     return (
@@ -354,6 +627,20 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             <p className="text-[10px] text-slate-500">{t('canvasPanel.styleLockedWithPrediction')}</p>
           ) : (
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              {series.length > 1 && (
+                <>
+                  <span className="text-slate-500 uppercase tracking-wide mr-1">{t('canvasPanel.viewMode')}</span>
+                  <select
+                    value={viewMode}
+                    onChange={(e) => patchAppearance({ viewMode: e.target.value as ChartViewMode })}
+                    className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 py-0.5 max-w-[160px]"
+                    aria-label={t('canvasPanel.viewMode')}
+                  >
+                    <option value="timeseries">{t('canvasPanel.viewModeTimeseries')}</option>
+                    <option value="correlation">{t('canvasPanel.viewModeCorrelation')}</option>
+                  </select>
+                </>
+              )}
               <span className="text-slate-500 uppercase tracking-wide mr-1">{t('canvasPanel.chartStyle')}</span>
               <select
                 value={series.length > 1 && visual.mode === 'bars' ? 'line' : visual.mode}
@@ -400,6 +687,37 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 />
                 <span>{t('canvasPanel.showTrendline')}</span>
               </label>
+              {viewMode === 'correlation' && series.length > 1 && (
+                <>
+                  <span className="text-slate-500">{t('canvasPanel.correlationX')}</span>
+                  <select
+                    value={correlationIndices.x}
+                    onChange={(e) => patchAppearance({ correlationXSeries: Number(e.target.value) })}
+                    className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 py-0.5 max-w-[150px]"
+                    aria-label={t('canvasPanel.correlationX')}
+                  >
+                    {series.map((s, idx) => (
+                      <option key={`corr-x-${idx}`} value={idx}>
+                        {s.attribute}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-slate-500">{t('canvasPanel.correlationY')}</span>
+                  <select
+                    value={correlationIndices.y}
+                    onChange={(e) => patchAppearance({ correlationYSeries: Number(e.target.value) })}
+                    className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 py-0.5 max-w-[150px]"
+                    aria-label={t('canvasPanel.correlationY')}
+                  >
+                    {series.map((s, idx) => (
+                      <option key={`corr-y-${idx}`} value={idx}>
+                        {s.attribute}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {series.length > 0 && <span className="text-slate-500">{t('canvasPanel.axisPerSeriesHint')}</span>}
             </div>
           )}
         </div>
@@ -435,7 +753,29 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       <div ref={containerRef} className="uplot-container flex-1 min-h-[200px]" />
       {status === 'ready' && chartData && chartData.length > 1 && (
         <div className="flex flex-wrap gap-3 mt-1 px-1 text-[11px] text-slate-400">
-          {series.map((s, idx) => {
+          <div className="text-slate-500">
+            {t('canvasPanel.pointsInfo', {
+              plottable: plotDiagnostics.plottablePoints,
+              received: plotDiagnostics.receivedPoints,
+            })}
+          </div>
+          {viewMode === 'correlation' && series.length > 1 && (
+            <div className="text-slate-500">
+              {t('canvasPanel.correlationInfo', {
+                x: series[correlationIndices.x]?.attribute ?? '-',
+                y: series[correlationIndices.y]?.attribute ?? '-',
+              })}
+            </div>
+          )}
+          {viewMode === 'correlation' && pearson && (
+            <div className="text-slate-400">
+              {t('canvasPanel.pearsonR', {
+                r: pearson.r.toFixed(4),
+                n: pearson.n,
+              })}
+            </div>
+          )}
+          {viewMode === 'timeseries' && series.map((s, idx) => {
             const vals = chartData[idx + 1];
             if (!vals) return null;
             const stats = computeStats(vals as (number | null)[]);
@@ -459,6 +799,19 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                   {t('canvasPanel.statLast')} {formatStat(stats.last)}
                 </span>
                 {unit && <span className="text-slate-600">{unit}</span>}
+                {onSeriesAxisChange && (
+                  <select
+                    value={s.yAxis ?? 'left'}
+                    onChange={(e) =>
+                      onSeriesAxisChange(panelId, idx, e.target.value === 'right' ? 'right' : 'left')
+                    }
+                    className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1 py-0.5"
+                    aria-label={t('canvasPanel.axisSelectorAria', { series: s.attribute })}
+                  >
+                    <option value="left">{t('canvasPanel.axisLeft')}</option>
+                    <option value="right">{t('canvasPanel.axisRight')}</option>
+                  </select>
+                )}
               </div>
             );
           })}
