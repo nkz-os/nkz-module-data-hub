@@ -54,6 +54,11 @@ function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
   return base;
 }
 
+/** Exported helper for worker-driven requests. */
+export function getDatahubRequestHeaders(base: Record<string, string> = {}): Record<string, string> {
+  return withTenantHeaders(base) as Record<string, string>;
+}
+
 /**
  * API base for fetch(). When VITE_API_URL points to another host (e.g. nkz.*) but the SPA runs
  * on nekazari.*, httpOnly cookies are not sent cross-origin — use same-origin /api/* instead
@@ -84,103 +89,10 @@ export async function fetchDataHubEntities(search?: string): Promise<DataHubEnti
   return res.json();
 }
 
-/** JSON timeseries result from BFF (no Arrow in browser). */
-export interface TimeseriesJsonResult {
-  timestamps: number[];
-  values: number[];
-}
-
-/**
- * Fetch single-entity timeseries as JSON {timestamps, values} from BFF.
- * BFF converts Arrow IPC → JSON server-side; browser stays lightweight.
- */
-export async function fetchTimeseriesJson(
-  entityId: string,
-  attribute: string,
-  startTime: string,
-  endTime: string,
-  resolution: number,
-  signal: AbortSignal
-): Promise<TimeseriesJsonResult> {
-  const base = getBaseUrl().replace(/\/$/, '');
-  const params = new URLSearchParams({
-    start_time: startTime,
-    end_time: endTime,
-    resolution: String(resolution),
-    attribute,
-  });
-  const path = `/api/datahub/timeseries/entities/${encodeURIComponent(entityId)}/data?${params}`;
-  const url = base ? `${base}${path}` : path;
-  const headers: HeadersInit = withTenantHeaders({ Accept: 'application/json' });
-
-  const res = await fetch(url, { headers, signal, credentials: 'include' });
-  if (res.status === 204) return { timestamps: [], values: [] };
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return {
-    timestamps: data.timestamps ?? [],
-    values: data.values ?? data.value_0 ?? [],
-  };
-}
-
 export interface AlignSeriesSpec {
   entity_id: string;
   attribute: string;
   source?: string;
-}
-
-/** JSON aligned timeseries result. */
-export interface TimeseriesAlignResult {
-  timestamps: number[];
-  valueArrays: number[][];
-}
-
-/**
- * Fetch aligned multi-series as JSON from BFF.
- * BFF handles Arrow IPC internally; browser receives plain JSON arrays.
- */
-export async function fetchTimeseriesAlign(
-  series: AlignSeriesSpec[],
-  startTime: string,
-  endTime: string,
-  resolution: number,
-  signal: AbortSignal
-): Promise<TimeseriesAlignResult> {
-  const base = getBaseUrl().replace(/\/$/, '');
-  const url = base ? `${base}/api/datahub/timeseries/align` : '/api/datahub/timeseries/align';
-  const headers: HeadersInit = withTenantHeaders({
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  });
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      start_time: startTime,
-      end_time: endTime,
-      resolution,
-      series,
-    }),
-    signal,
-    credentials: 'include',
-  });
-  if (res.status === 204) return { timestamps: [], valueArrays: [] };
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-
-  const timestamps: number[] = data.timestamps ?? [];
-  const valueArrays: number[][] = [];
-  for (let i = 0; ; i++) {
-    const col = data[`value_${i}`];
-    if (!col) break;
-    valueArrays.push(col);
-  }
-  // Fallback: single "values" key
-  if (valueArrays.length === 0 && data.values) {
-    valueArrays.push(data.values);
-  }
-  return { timestamps, valueArrays };
 }
 
 // ---------------------------------------------------------------------------
@@ -296,10 +208,13 @@ export async function requestExport(
 
 /** Mirrors DashboardPanel chart options for workspace round-trip. */
 export interface WorkspaceChartAppearance {
+  viewMode?: 'timeseries' | 'correlation';
   mode?: 'line' | 'bars' | 'points';
   lineWidth?: number;
   pointRadius?: number;
   showTrendline?: boolean;
+  correlationXSeries?: number;
+  correlationYSeries?: number;
 }
 
 export interface WorkspaceLayoutPanel {
@@ -307,7 +222,7 @@ export interface WorkspaceLayoutPanel {
   grid: { x: number; y: number; w: number; h: number };
   type: 'timeseries_chart';
   title?: string;
-  series: Array<{ entityId: string; attribute: string; source: string }>;
+  series: Array<{ entityId: string; attribute: string; source: string; yAxis?: 'left' | 'right' }>;
   chartAppearance?: WorkspaceChartAppearance;
 }
 
