@@ -99,7 +99,40 @@ function parseSingleSeriesPayload(data: unknown): { x: Float64Array; y: Float64A
     outY[w] = y == null ? Number.NaN : y;
     w += 1;
   }
-  return { x: outX.slice(0, w), y: outY.slice(0, w) };
+  return normalizeMonotonic(outX.slice(0, w), outY.slice(0, w));
+}
+
+function normalizeMonotonic(x: Float64Array, y: Float64Array): { x: Float64Array; y: Float64Array } {
+  if (x.length <= 1) return { x, y };
+  const pairs: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < x.length; i++) {
+    const xv = x[i];
+    if (!Number.isFinite(xv)) continue;
+    pairs.push({ x: xv, y: y[i] });
+  }
+  if (pairs.length <= 1) {
+    return {
+      x: new Float64Array(pairs.map((p) => p.x)),
+      y: new Float64Array(pairs.map((p) => p.y)),
+    };
+  }
+  pairs.sort((a, b) => a.x - b.x);
+  const nx: number[] = [];
+  const ny: number[] = [];
+  let i = 0;
+  while (i < pairs.length) {
+    let j = i + 1;
+    let val = pairs[i].y;
+    while (j < pairs.length && pairs[j].x === pairs[i].x) {
+      // prefer the latest finite value for duplicated timestamps
+      if (Number.isFinite(pairs[j].y)) val = pairs[j].y;
+      j += 1;
+    }
+    nx.push(pairs[i].x);
+    ny.push(val);
+    i = j;
+  }
+  return { x: new Float64Array(nx), y: new Float64Array(ny) };
 }
 
 function injectTemporalGaps(
@@ -259,6 +292,24 @@ function downsampleSegmented(
   if (x.length === 0 || ys.length === 0 || threshold <= 0 || x.length <= threshold) {
     return { x, ys, downsampleRatio: 1 };
   }
+  // Use the first series with finite samples as reference for LTTB.
+  // If series[0] is empty/NaN-heavy, using it as reference can erase valid traces from other series.
+  let refIdx = 0;
+  let refFinite = 0;
+  for (let s = 0; s < ys.length; s++) {
+    let finite = 0;
+    const arr = ys[s];
+    for (let i = 0; i < arr.length; i++) {
+      if (Number.isFinite(arr[i])) finite += 1;
+    }
+    if (finite > refFinite) {
+      refFinite = finite;
+      refIdx = s;
+    }
+  }
+  if (refFinite < 2) {
+    return { x, ys, downsampleRatio: 1 };
+  }
   const segments = splitSegmentsByGap(x, maxGapSeconds);
   const pickGlobal = new Set<number>();
   for (const seg of segments) {
@@ -268,7 +319,7 @@ function downsampleSegmented(
       continue;
     }
     const segX = x.slice(seg.start, seg.end + 1);
-    const referenceY = ys[0].slice(seg.start, seg.end + 1);
+    const referenceY = ys[refIdx].slice(seg.start, seg.end + 1);
     const lttb = lttbIndices(segX, referenceY, threshold);
     const keep = new Set<number>(lttb.map((i) => seg.start + i));
     if (preserveExtrema) {
@@ -333,8 +384,12 @@ async function processSeries(req: DatahubWorkerRequest): Promise<DatahubWorkerRe
         bytes,
         lastAccess: Date.now(),
       };
-      seriesCache.set(key, row);
-      evictCacheIfNeeded();
+      // Do not cache empty responses (204/no points). Empty cache entries can
+      // keep stale "no data" states after transient backend/auth failures.
+      if (fetched.x.length > 0) {
+        seriesCache.set(key, row);
+        evictCacheIfNeeded();
+      }
       rawPointsFetched += fetched.x.length;
     } else {
       row.lastAccess = Date.now();

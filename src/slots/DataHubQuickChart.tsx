@@ -8,7 +8,7 @@ import React, { useState, useCallback } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataTree } from '../components/DataTree';
-import { DataCanvasPanelMemo } from './DataCanvasPanel';
+import { DataCanvasPanelMemo } from './DataCanvasPanelLite';
 import type { DataHubEntity } from '../services/datahubApi';
 import type { ChartSeriesDef } from '../types/dashboard';
 

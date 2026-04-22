@@ -36,7 +36,7 @@ import {
   type DataHubWorkspaceStored,
   type WorkspaceLayoutPanel,
 } from '../services/datahubApi';
-import { DataCanvasPanelMemo } from './DataCanvasPanel';
+import { DataCanvasPanelMemo } from './DataCanvasPanelLite';
 import { ExportModal } from './ExportModal';
 import { LoadWorkspaceModal } from './LoadWorkspaceModal';
 import { IntegrationsPanel } from './IntegrationsPanel';
@@ -692,19 +692,19 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div
                 key={panel.id}
                 onMouseDown={() => setActivePanelId(panel.id)}
-                className={`flex flex-col bg-slate-900 border rounded-lg overflow-hidden ${
+                className={`relative flex flex-col bg-transparent border-none rounded-none overflow-visible ${
                   activePanelId === panel.id
-                    ? 'border-emerald-500/70 ring-1 ring-emerald-500/30'
+                    ? 'ring-1 ring-emerald-500/25'
                     : 'border-slate-800'
                 }`}
               >
                 <div
-                  className={`panel-header flex justify-between items-center bg-slate-800 h-8 px-2 ${
-                    predictingPanelId === panel.id ? 'ring-1 ring-amber-500/80' : ''
+                  className={`panel-header panel-drag-handle flex justify-between items-center bg-slate-900/65 backdrop-blur-sm rounded-md h-7 px-2 mb-1 ${
+                    predictingPanelId === panel.id ? 'ring-1 ring-amber-500/70' : ''
                   }`}
                 >
                   <div
-                    className="panel-drag-handle cursor-move flex-1 truncate text-xs text-slate-300 font-mono min-w-0"
+                    className="cursor-move flex-1 truncate text-[11px] text-slate-300 min-w-0"
                     title={panel.title ??
                       (panel.series.length === 1
                         ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
@@ -763,7 +763,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 relative min-h-0">
+                <div className="flex-1 relative min-h-0 rounded-md overflow-hidden">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}

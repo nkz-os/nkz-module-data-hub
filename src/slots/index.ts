@@ -1,7 +1,7 @@
 import type { ModuleViewerSlots } from '@nekazari/sdk';
 import DataHubQuickChart from './DataHubQuickChart';
 
-export { DataCanvasPanel, DataCanvasPanelMemo } from './DataCanvasPanel';
+export { DataCanvasPanel, DataCanvasPanelMemo } from './DataCanvasPanelLite';
 export { DataHubDashboard, type DataHubDashboardHandle } from './DataHubDashboard';
 
 const MODULE_ID = 'datahub';
