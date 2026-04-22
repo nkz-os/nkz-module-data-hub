@@ -14,7 +14,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-22-r3';
+const BUILD = 'uplot-worker-2026-04-22-r4';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -142,7 +142,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       try {
         setStatus('loading');
         const base = getBaseUrl().replace(/\/$/, '');
-        const result = await processWithWorker({
+        const workerRequest = {
           mode: series.length > 1 ? 'multi' : 'single',
           baseUrl: base || undefined,
           headers: getDatahubRequestHeaders({ Accept: 'application/json' }),
@@ -160,7 +160,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             viewportWidthPx: 1200,
             preserveExtrema: true,
           },
-        });
+        } as Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>;
+
+        let result = await processWithWorker(workerRequest);
+        if ((!result || result.plottablePoints <= 0) && active) {
+          result = await processWithWorker({ ...workerRequest, forceRefresh: true });
+        }
         if (!active) return;
         if (!result || result.plottablePoints <= 0) {
           setPlotData(null);

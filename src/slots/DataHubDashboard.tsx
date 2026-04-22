@@ -60,6 +60,10 @@ function normalizePanel(panel: DashboardPanel & { entityId?: string; attribute?:
 }
 
 const GRID_WIDTH_OFFSET = 300;
+const PANEL_DEFAULT_W = 8;
+const PANEL_DEFAULT_H = 5;
+const PANEL_MIN_W = 4;
+const PANEL_MIN_H = 4;
 
 /** Input value for type="datetime-local" from an ISO 8601 string (local timezone). */
 function toDatetimeLocalValue(iso: string): string {
@@ -228,7 +232,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         } else {
           const newPanel: DashboardPanel = {
             id: crypto.randomUUID(),
-            grid: { x: dropX, y: dropY, w: item?.w ?? 6, h: item?.h ?? 3 },
+            grid: { x: dropX, y: dropY, w: item?.w ?? PANEL_DEFAULT_W, h: item?.h ?? PANEL_DEFAULT_H },
             type: 'timeseries_chart',
             title: `${newSeries.entityId} — ${newSeries.attribute}`,
             series: [{ ...newSeries, source: newSeries.source ?? 'timescale', yAxis: 'left' }],
@@ -261,7 +265,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           : `panel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const newPanel: DashboardPanel = {
         id,
-        grid: { x: 0, y: 0, w: 6, h: 3 },
+        grid: { x: 0, y: 0, w: PANEL_DEFAULT_W, h: PANEL_DEFAULT_H },
         type: 'timeseries_chart',
         title: `${newSeries.entityId} — ${newSeries.attribute}`,
         series: [{ ...newSeries, source: newSeries.source ?? 'timescale' }],
@@ -277,8 +281,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
     i: '__drop_placeholder__',
     x: 0,
     y: 0,
-    w: 6,
-    h: 3,
+    w: PANEL_DEFAULT_W,
+    h: PANEL_DEFAULT_H,
   };
 
   const handlePredict = useCallback(
@@ -502,7 +506,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             : `panel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const newPanel: DashboardPanel = {
           id,
-          grid: { x: 0, y: nextY, w: 6, h: 3 },
+          grid: { x: 0, y: nextY, w: PANEL_DEFAULT_W, h: PANEL_DEFAULT_H },
           type: 'timeseries_chart',
           title: `${entity.name} — ${attribute}`,
           series: [nextSeries],
@@ -678,12 +682,19 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         ) : (
           <ReactGridLayout
             className="layout flex-1"
-            layout={panels.map((p) => ({ ...p.grid, i: p.id }))}
+            layout={panels.map((p) => ({
+              ...p.grid,
+              i: p.id,
+              minW: PANEL_MIN_W,
+              minH: PANEL_MIN_H,
+            }))}
             cols={12}
-            rowHeight={100}
+            rowHeight={120}
             width={layoutWidth}
             onLayoutChange={onLayoutChange}
             draggableHandle=".panel-drag-handle"
+            isResizable={true}
+            resizeHandles={['se', 's', 'e']}
             isDroppable={true}
             onDrop={onDrop}
             droppingItem={defaultDroppingItem}
@@ -828,6 +839,15 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           </div>
         </div>
       )}
+      <style>{`
+        .react-resizable-handle {
+          opacity: 1 !important;
+        }
+        .react-resizable-handle::after {
+          border-right: 2px solid rgba(148, 163, 184, 0.9) !important;
+          border-bottom: 2px solid rgba(148, 163, 184, 0.9) !important;
+        }
+      `}</style>
     </div>
   );
 });
