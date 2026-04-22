@@ -367,6 +367,17 @@ async function fetchSingleSeries(
   return parseSingleSeriesPayload(data);
 }
 
+async function fetchSingleSeriesWithRetry(
+  req: DatahubWorkerRequest,
+  item: WorkerSeriesSpec
+): Promise<{ x: Float64Array; y: Float64Array }> {
+  const first = await fetchSingleSeries(req, item);
+  if (first.x.length > 0) return first;
+  // Intermittent empty responses have been observed for identical requests.
+  // Retry once before propagating an empty result to the panel.
+  return fetchSingleSeries(req, item);
+}
+
 async function processSeries(req: DatahubWorkerRequest): Promise<DatahubWorkerResponse> {
   const started = performance.now();
   const rows: Array<{ x: Float64Array; y: Float64Array }> = [];
@@ -375,7 +386,7 @@ async function processSeries(req: DatahubWorkerRequest): Promise<DatahubWorkerRe
     const key = cacheKey(item, req.startTime, req.endTime, req.resolution);
     let row = !req.forceRefresh ? seriesCache.get(key) : undefined;
     if (!row) {
-      const fetched = await fetchSingleSeries(req, item);
+      const fetched = await fetchSingleSeriesWithRetry(req, item);
       const bytes = fetched.x.byteLength + fetched.y.byteLength;
       row = {
         key,
