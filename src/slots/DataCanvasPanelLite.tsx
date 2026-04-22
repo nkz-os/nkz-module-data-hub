@@ -6,15 +6,13 @@ import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 import type { DatahubWorkerRequest } from '../workers/contracts/datahubWorkerV2';
 import DatahubWorkerInline from '../workers/datahubWorker.ts?worker&inline';
-import { ChartHeaderControls } from './chart/ChartHeaderControls';
 import { ChartStatusLayer } from './chart/ChartStatusLayer';
 import { ChartSurface } from './chart/ChartSurface';
-import { ChartLegend } from './chart/ChartLegend';
 import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-22-r5';
+const BUILD = 'uplot-worker-2026-04-22-r6';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -341,74 +339,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   }, [series, t, visual.lineWidth, visual.mode, visual.pointRadius]);
 
   return (
-    <div className="relative w-full h-full bg-transparent border-none rounded-none p-1.5 flex flex-col min-h-0 gap-1">
-      <ChartHeaderControls series={series} buildLabel={BUILD} />
-      <div className="mb-1 px-1.5 py-1 flex items-center gap-2 text-[11px] text-slate-200 flex-wrap rounded-xl bg-slate-900/30 border border-slate-600/20">
-        <label className="flex items-center gap-1">
-          <span className="text-slate-400">{t('canvasPanel.chartStyle')}</span>
-          <select
-            value={visual.mode === 'bars' ? 'line' : visual.mode}
-            onChange={(e) => patchAppearance({ mode: e.target.value as ChartRenderMode })}
-            className="rounded-lg border border-slate-500/40 bg-slate-900/70 text-slate-100 px-2 py-1"
-          >
-            <option value="line">{t('canvasPanel.modeLine')}</option>
-            <option value="points">{t('canvasPanel.modePoints')}</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-slate-400">{t('canvasPanel.lineWidth')}</span>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={1}
-            value={visual.lineWidth}
-            onChange={(e) => patchAppearance({ lineWidth: Number(e.target.value) })}
-            className="w-16 accent-emerald-500"
-          />
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-slate-400">{t('canvasPanel.pointSize')}</span>
-          <input
-            type="range"
-            min={0}
-            max={8}
-            step={1}
-            value={visual.pointRadius}
-            onChange={(e) => patchAppearance({ pointRadius: Number(e.target.value) })}
-            className="w-16 accent-emerald-500"
-          />
-        </label>
-        {series.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="px-2 py-1 rounded-lg border border-slate-500/40 bg-slate-900/70 text-slate-100"
-          >
-            {advancedOpen ? 'Basic' : 'Advanced'}
-          </button>
-        )}
-      </div>
-      {advancedOpen && onSeriesAxisChange && (
-        <div className="mb-1 px-1 flex items-center gap-3 text-[11px] text-slate-300 flex-wrap">
-          {series.map((s, idx) => (
-            <label key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1">
-              <span className="text-slate-500">{s.attribute}</span>
-              <select
-                value={s.yAxis ?? 'left'}
-                onChange={(e) =>
-                  onSeriesAxisChange(panelId, idx, e.target.value === 'right' ? 'right' : 'left')
-                }
-                className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 py-0.5"
-              >
-                <option value="left">{t('canvasPanel.axisLeft')}</option>
-                <option value="right">{t('canvasPanel.axisRight')}</option>
-              </select>
-            </label>
-          ))}
-        </div>
-      )}
-
+    <div className="relative w-full h-full bg-transparent border-none rounded-none p-0 flex flex-col min-h-0">
       <ChartSurface>
         <ChartStatusLayer
           status={status}
@@ -424,13 +355,79 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         />
       </ChartSurface>
 
-      <ChartLegend
-        series={series}
-        colors={COLORS}
-        plottedPoints={diag.plotted}
-        receivedPoints={diag.received}
-        viewport={viewport}
-      />
+      <div className="absolute top-1 left-1 z-20 px-1.5 py-1 flex items-center gap-2 text-[11px] text-slate-100 flex-wrap rounded-md bg-slate-950/70 backdrop-blur-sm">
+        <label className="flex items-center gap-1">
+          <span className="text-slate-300">{t('canvasPanel.chartStyle')}</span>
+          <select
+            value={visual.mode === 'bars' ? 'line' : visual.mode}
+            onChange={(e) => patchAppearance({ mode: e.target.value as ChartRenderMode })}
+            className="rounded border border-slate-500/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
+          >
+            <option value="line">{t('canvasPanel.modeLine')}</option>
+            <option value="points">{t('canvasPanel.modePoints')}</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-slate-300">{t('canvasPanel.lineWidth')}</span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            step={1}
+            value={visual.lineWidth}
+            onChange={(e) => patchAppearance({ lineWidth: Number(e.target.value) })}
+            className="w-16 accent-emerald-500"
+          />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-slate-300">{t('canvasPanel.pointSize')}</span>
+          <input
+            type="range"
+            min={0}
+            max={8}
+            step={1}
+            value={visual.pointRadius}
+            onChange={(e) => patchAppearance({ pointRadius: Number(e.target.value) })}
+            className="w-16 accent-emerald-500"
+          />
+        </label>
+        {series.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((v) => !v)}
+            className="px-1.5 py-0.5 rounded border border-slate-500/50 bg-slate-900 text-slate-100"
+          >
+            {advancedOpen ? 'Basic' : 'Advanced'}
+          </button>
+        )}
+      </div>
+
+      <div className="absolute bottom-1 left-1 z-20 flex items-center gap-2 rounded-md bg-slate-950/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-slate-200">
+        <span>{series.length === 1 ? series[0].attribute : `series:${series.length}`}</span>
+        <span>points {diag.plotted}/{diag.received}</span>
+        <span>viewport {viewport.width}x{viewport.height}</span>
+        <span className="text-slate-400">{BUILD}</span>
+      </div>
+
+      {advancedOpen && onSeriesAxisChange && (
+        <div className="absolute top-10 left-1 z-20 px-1.5 py-1 flex items-center gap-3 text-[11px] text-slate-100 flex-wrap rounded-md bg-slate-950/70 backdrop-blur-sm">
+          {series.map((s, idx) => (
+            <label key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1">
+              <span className="text-slate-300">{s.attribute}</span>
+              <select
+                value={s.yAxis ?? 'left'}
+                onChange={(e) =>
+                  onSeriesAxisChange(panelId, idx, e.target.value === 'right' ? 'right' : 'left')
+                }
+                className="rounded border border-slate-500/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
+              >
+                <option value="left">{t('canvasPanel.axisLeft')}</option>
+                <option value="right">{t('canvasPanel.axisRight')}</option>
+              </select>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

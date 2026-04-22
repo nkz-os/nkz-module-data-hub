@@ -45,6 +45,6 @@ export function ChartRenderHost({
     return () => ro.disconnect();
   }, [onViewportChange]);
 
-  return <div ref={containerRef} className="uplot-container h-full min-h-[280px] rounded-lg overflow-hidden bg-slate-950" />;
+  return <div ref={containerRef} className="uplot-container absolute inset-0 h-full min-h-0 rounded-none overflow-visible bg-transparent" />;
 }
 
