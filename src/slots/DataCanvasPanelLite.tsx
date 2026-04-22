@@ -14,7 +14,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-21-r2';
+const BUILD = 'uplot-worker-2026-04-22-r3';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -235,22 +235,22 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   }, [series, t, visual.lineWidth, visual.mode, visual.pointRadius]);
 
   return (
-    <div className="relative w-full h-full bg-transparent border-none rounded-none p-0.5 flex flex-col min-h-0">
+    <div className="relative w-full h-full bg-transparent border-none rounded-none p-1.5 flex flex-col min-h-0 gap-1">
       <ChartHeaderControls series={series} buildLabel={BUILD} />
-      <div className="mb-1 px-1 flex items-center gap-2 text-[11px] text-slate-300 flex-wrap">
+      <div className="mb-1 px-1.5 py-1 flex items-center gap-2 text-[11px] text-slate-200 flex-wrap rounded-xl bg-slate-900/30 border border-slate-600/20">
         <label className="flex items-center gap-1">
-          <span className="text-slate-500">{t('canvasPanel.chartStyle')}</span>
+          <span className="text-slate-400">{t('canvasPanel.chartStyle')}</span>
           <select
             value={visual.mode === 'bars' ? 'line' : visual.mode}
             onChange={(e) => patchAppearance({ mode: e.target.value as ChartRenderMode })}
-            className="rounded border border-slate-600 bg-slate-800 text-slate-200 px-1.5 py-0.5"
+            className="rounded-lg border border-slate-500/40 bg-slate-900/70 text-slate-100 px-2 py-1"
           >
             <option value="line">{t('canvasPanel.modeLine')}</option>
             <option value="points">{t('canvasPanel.modePoints')}</option>
           </select>
         </label>
         <label className="flex items-center gap-1">
-          <span className="text-slate-500">{t('canvasPanel.lineWidth')}</span>
+          <span className="text-slate-400">{t('canvasPanel.lineWidth')}</span>
           <input
             type="range"
             min={1}
@@ -262,7 +262,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           />
         </label>
         <label className="flex items-center gap-1">
-          <span className="text-slate-500">{t('canvasPanel.pointSize')}</span>
+          <span className="text-slate-400">{t('canvasPanel.pointSize')}</span>
           <input
             type="range"
             min={0}
@@ -277,7 +277,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           <button
             type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
-            className="px-2 py-0.5 rounded border border-slate-600 bg-slate-800 text-slate-200"
+            className="px-2 py-1 rounded-lg border border-slate-500/40 bg-slate-900/70 text-slate-100"
           >
             {advancedOpen ? 'Basic' : 'Advanced'}
           </button>

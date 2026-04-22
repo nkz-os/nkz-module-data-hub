@@ -17,19 +17,19 @@ export function ChartLegend({
   viewport,
 }: ChartLegendProps) {
   return (
-    <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-400 flex-wrap px-1">
+    <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-300 flex-wrap px-1">
       {series.map((s, i) => (
-        <div key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1.5">
+        <div key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/40 border border-slate-600/20">
           <span
             className="inline-block w-2.5 h-2.5 rounded-full"
             style={{ backgroundColor: colors[i % colors.length] }}
           />
-          <span className="text-slate-300">{s.attribute}</span>
+          <span className="text-slate-200">{s.attribute}</span>
         </div>
       ))}
-      <span className="text-slate-500">points {plottedPoints}/{receivedPoints}</span>
+      <span className="text-slate-400">points {plottedPoints}/{receivedPoints}</span>
       {viewport ? (
-        <span className="text-slate-600">viewport {viewport.width}x{viewport.height}</span>
+        <span className="text-slate-500">viewport {viewport.width}x{viewport.height}</span>
       ) : null}
     </div>
   );

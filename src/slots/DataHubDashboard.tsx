@@ -692,19 +692,19 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div
                 key={panel.id}
                 onMouseDown={() => setActivePanelId(panel.id)}
-                className={`relative flex flex-col bg-transparent border-none rounded-none overflow-visible ${
+                className={`relative flex flex-col bg-gradient-to-b from-slate-900/20 to-transparent border border-slate-700/20 rounded-xl overflow-hidden p-2 ${
                   activePanelId === panel.id
-                    ? 'ring-1 ring-emerald-500/25'
-                    : 'border-slate-800'
+                    ? 'ring-1 ring-emerald-400/35 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_16px_34px_rgba(2,6,23,0.35)]'
+                    : 'shadow-[0_10px_26px_rgba(2,6,23,0.22)]'
                 }`}
               >
                 <div
-                  className={`panel-header panel-drag-handle flex justify-between items-center bg-slate-900/65 backdrop-blur-sm rounded-md h-7 px-2 mb-1 ${
+                  className={`panel-header panel-drag-handle flex justify-between items-center bg-slate-900/45 backdrop-blur-sm rounded-lg h-8 px-2 mb-2 border border-slate-600/20 ${
                     predictingPanelId === panel.id ? 'ring-1 ring-amber-500/70' : ''
                   }`}
                 >
                   <div
-                    className="cursor-move flex-1 truncate text-[11px] text-slate-300 min-w-0"
+                    className="cursor-move flex-1 truncate text-[11px] text-slate-200 min-w-0"
                     title={panel.title ??
                       (panel.series.length === 1
                         ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
@@ -763,7 +763,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 relative min-h-0 rounded-md overflow-hidden">
+                <div className="flex-1 relative min-h-0 rounded-xl overflow-hidden">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}

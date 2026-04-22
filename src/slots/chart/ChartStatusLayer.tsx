@@ -16,10 +16,10 @@ export function ChartStatusLayer({
   if (status === 'ready') return null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center text-sm z-10 bg-slate-900/70 rounded-md">
-      {status === 'loading' && <span className="text-slate-300">{loadingText}</span>}
-      {status === 'empty' && <span className="text-slate-300">{emptyText}</span>}
-      {status === 'error' && <span className="text-red-400">{errorText}</span>}
+    <div className="absolute inset-0 flex items-center justify-center text-sm z-10 rounded-xl bg-slate-950/45 backdrop-blur-sm">
+      {status === 'loading' && <span className="text-slate-200 px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/30">{loadingText}</span>}
+      {status === 'empty' && <span className="text-slate-200 px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/30">{emptyText}</span>}
+      {status === 'error' && <span className="text-red-300 px-3 py-1.5 rounded-full bg-red-950/40 border border-red-500/30">{errorText}</span>}
     </div>
   );
 }
