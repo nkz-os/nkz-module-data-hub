@@ -14,7 +14,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-22-r4';
+const BUILD = 'uplot-worker-2026-04-22-r5';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -32,6 +32,67 @@ interface WorkerResult {
   data: uPlot.AlignedData;
   receivedPoints: number;
   plottablePoints: number;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const n = Number.parseFloat(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function toEpochSeconds(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (/^\d+(\.\d+)?$/.test(t)) {
+      const n = Number.parseFloat(t);
+      return Number.isFinite(n) ? n : null;
+    }
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) ? ms / 1000 : null;
+  }
+  return null;
+}
+
+function parseSeriesPayload(payload: unknown): { x: number[]; y: number[] } {
+  const obj = (payload ?? {}) as Record<string, unknown>;
+  const timestamps = Array.isArray(obj.timestamps) ? obj.timestamps : [];
+  const values = Array.isArray(obj.values)
+    ? obj.values
+    : Array.isArray(obj.value_0)
+      ? obj.value_0
+      : [];
+  const len = Math.min(timestamps.length, values.length);
+  const x: number[] = [];
+  const y: number[] = [];
+  for (let i = 0; i < len; i++) {
+    const xv = toEpochSeconds(timestamps[i]);
+    if (xv == null) continue;
+    x.push(xv);
+    const yv = toFiniteNumber(values[i]);
+    y.push(yv == null ? Number.NaN : yv);
+  }
+  return { x, y };
+}
+
+function outerJoinSeries(rows: Array<{ x: number[]; y: number[] }>): uPlot.AlignedData {
+  const all = new Set<number>();
+  rows.forEach((r) => r.x.forEach((v) => all.add(v)));
+  const x = Array.from(all.values()).sort((a, b) => a - b);
+  const index = new Map<number, number>();
+  x.forEach((v, i) => index.set(v, i));
+  const ys = rows.map(() => Array.from({ length: x.length }, () => Number.NaN));
+  rows.forEach((r, sIdx) => {
+    for (let i = 0; i < r.x.length; i++) {
+      const dst = index.get(r.x[i]);
+      if (dst == null) continue;
+      ys[sIdx][dst] = r.y[i];
+    }
+  });
+  return [x, ...ys] as uPlot.AlignedData;
 }
 
 function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
@@ -131,6 +192,43 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [panelId]
   );
 
+  const processDirectFallback = useCallback(
+    async (base: string): Promise<WorkerResult | null> => {
+      const headers = getDatahubRequestHeaders({ Accept: 'application/json' });
+      const rows: Array<{ x: number[]; y: number[] }> = [];
+      let receivedPoints = 0;
+      for (const s of series) {
+        const params = new URLSearchParams({
+          start_time: startTime,
+          end_time: endTime,
+          resolution: String(resolution),
+          attribute: s.attribute,
+        });
+        const path = `/api/datahub/timeseries/entities/${encodeURIComponent(s.entityId)}/data?${params}`;
+        const url = base ? `${base}${path}` : path;
+        const resp = await fetch(url, { headers, credentials: 'include' });
+        if (resp.status === 204) {
+          rows.push({ x: [], y: [] });
+          continue;
+        }
+        if (!resp.ok) return null;
+        const payload = await resp.json();
+        const parsed = parseSeriesPayload(payload);
+        receivedPoints += parsed.x.length;
+        rows.push(parsed);
+      }
+      const data = outerJoinSeries(rows);
+      let plotted = 0;
+      for (let i = 1; i < data.length; i++) {
+        const arr = data[i] as number[];
+        for (let j = 0; j < arr.length; j++) if (Number.isFinite(arr[j])) plotted += 1;
+      }
+      if ((data[0] as number[]).length === 0) return null;
+      return { data, receivedPoints, plottablePoints: plotted };
+    },
+    [endTime, resolution, series, startTime]
+  );
+
   useEffect(() => {
     if (series.length === 0) {
       setPlotData(null);
@@ -165,6 +263,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         let result = await processWithWorker(workerRequest);
         if ((!result || result.plottablePoints <= 0) && active) {
           result = await processWithWorker({ ...workerRequest, forceRefresh: true });
+        }
+        if ((!result || result.plottablePoints <= 0) && active) {
+          result = await processDirectFallback(base);
         }
         if (!active) return;
         if (!result || result.plottablePoints <= 0) {
