@@ -25,8 +25,10 @@ def _extract_tenant_from_jwt(token: str) -> str | None:
         if len(parts) < 2:
             return None
         payload_b64 = parts[1]
-        # Fix base64 padding
-        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        # Fix base64 padding. If already multiple of 4, do not append padding.
+        missing = (-len(payload_b64)) % 4
+        if missing:
+            payload_b64 += "=" * missing
         payload = json.loads(base64.urlsafe_b64decode(payload_b64))
         return payload.get("tenant_id") or payload.get("tenant") or None
     except Exception:

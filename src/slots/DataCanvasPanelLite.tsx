@@ -429,7 +429,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       active = false;
       pendingReqRef.current = null;
     };
-  }, [series, startTime, endTime, resolution, processWithWorker]);
+  }, [series, startTime, endTime, resolution, processWithWorker, processDirectFallback]);
 
   const patchAppearance = useCallback(
     (partial: Partial<ChartAppearance>) => {
