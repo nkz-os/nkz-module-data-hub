@@ -14,6 +14,36 @@ export interface ChartSeriesDef {
 export type ChartRenderMode = 'line' | 'bars' | 'points';
 export type ChartViewMode = 'timeseries' | 'correlation';
 
+/** Y-axis scale strategy. Phase 5 (B3 + C2). */
+export type YScaleMode = 'auto' | 'fit-visible' | 'focus' | 'manual';
+
+/** Rolling average window (Phase 7). 'off' disables overlay. */
+export type RollingAvgWindow = 'off' | '1h' | '24h' | '7d';
+
+/** Per-series user override (Phase 4 series rail). Identified by `${entityId}|${attribute}|${source}`. */
+export interface SeriesConfig {
+  /** Hide the series from the chart without removing it from the panel. */
+  visible?: boolean;
+  /** Hex colour overriding the default palette assignment. */
+  colorOverride?: string;
+  /** Explicit axis assignment; null/undefined → auto-distribute by magnitude. */
+  yAxis?: 'left' | 'right';
+}
+
+/** Threshold line displayed across the chart (Phase 8). */
+export interface ThresholdLine {
+  /** Y value where the line is drawn. */
+  value: number;
+  /** Hex colour. */
+  color: string;
+  /** Visible label rendered next to the line. */
+  label: string;
+  /** Which axis the value is on. */
+  axis: 'left' | 'right';
+  /** 'solid' | 'dash' | 'dot'. */
+  style?: 'solid' | 'dash' | 'dot';
+}
+
 export interface ChartAppearance {
   viewMode: ChartViewMode;
   mode: ChartRenderMode;
@@ -27,6 +57,16 @@ export interface ChartAppearance {
   correlationXSeries: number;
   /** Correlation mode: index in panel series used as Y axis. */
   correlationYSeries: number;
+  /** Y-scale strategy (Phase 5). */
+  yScaleMode: YScaleMode;
+  /** Manual Y range when yScaleMode === 'manual'. Per-axis. */
+  yScaleManual?: { left?: { min: number; max: number }; right?: { min: number; max: number } };
+  /** Per-series UI overrides keyed by `${entityId}|${attribute}|${source}`. */
+  seriesConfig?: Record<string, SeriesConfig>;
+  /** User-defined threshold lines (overlays platform defaults from attribute → threshold dictionary). */
+  thresholds?: ThresholdLine[];
+  /** Rolling-average overlay window (Phase 7). */
+  rollingAverage?: RollingAvgWindow;
 }
 
 export const DEFAULT_CHART_APPEARANCE: ChartAppearance = {
@@ -37,6 +77,8 @@ export const DEFAULT_CHART_APPEARANCE: ChartAppearance = {
   showTrendline: false,
   correlationXSeries: 0,
   correlationYSeries: 1,
+  yScaleMode: 'auto',
+  rollingAverage: 'off',
 };
 
 /** Result of SSE prediction stream (epoch seconds + values) for merge in worker. */

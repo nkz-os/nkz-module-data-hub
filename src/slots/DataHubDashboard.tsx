@@ -36,7 +36,7 @@ import {
   type DataHubWorkspaceStored,
   type WorkspaceLayoutPanel,
 } from '../services/datahubApi';
-import { DataCanvasPanelMemo } from './DataCanvasPanelLite';
+import { DataCanvasPanelMemo } from './panel/DataCanvasPanel';
 import { ExportModal } from './ExportModal';
 import { LoadWorkspaceModal } from './LoadWorkspaceModal';
 import { IntegrationsPanel } from './IntegrationsPanel';

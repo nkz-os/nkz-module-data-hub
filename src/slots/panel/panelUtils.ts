@@ -1,0 +1,210 @@
+/**
+ * Shared utilities for the panel: unit dictionary, color palette, axis assignment,
+ * Y-range computation. Single home so chart, rail, footer and tooltip all agree.
+ */
+
+import type { ChartSeriesDef, YScaleMode } from '../../types/dashboard';
+import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
+
+export const SERIES_PALETTE = [
+  '#34d399', // emerald-400
+  '#c084fc', // purple-400
+  '#fbbf24', // amber-400
+  '#60a5fa', // blue-400
+  '#f87171', // red-400
+  '#f472b6', // pink-400
+  '#a3e635', // lime-400
+  '#22d3ee', // cyan-400
+];
+
+/** Unit-by-attribute display table. Keep in sync with src/components/DataTree.tsx. */
+const ATTRIBUTE_UNIT: Record<string, string> = {
+  temperature: '°C', temp_avg: '°C', temp_min: '°C', temp_max: '°C',
+  airTemperature: '°C', delta_t: '°C',
+  humidity: '%', humidity_avg: '%', humidity_min: '%', humidity_max: '%',
+  relativeHumidity: '%', soil_moisture: '%', soil_moisture_0_10cm: '%',
+  precipitation: 'mm', precip_mm: 'mm', eto_mm: 'mm', et0: 'mm',
+  solar_rad_w_m2: 'W/m²', radiation: 'W/m²', solarRadiation: 'W/m²',
+  wind_speed: 'm/s', wind_speed_avg: 'm/s', wind_speed_max: 'm/s',
+  wind_speed_ms: 'm/s', windSpeed: 'm/s',
+  windDirection: '°',
+  pressure: 'hPa', pressure_avg: 'hPa', pressure_hpa: 'hPa',
+  atmosphericPressure: 'hPa',
+  panelInclination: '°',
+  gdd_accumulated: 'GDD',
+};
+
+export function unitFor(attribute: string): string {
+  return ATTRIBUTE_UNIT[attribute] ?? '';
+}
+
+/** Stable identity for a series across requests, panels, cache, UI overrides. */
+export function seriesKey(s: ChartSeriesDef): string {
+  return `${s.source ?? 'timescale'}|${s.entityId}|${s.attribute}`;
+}
+
+export function colorForIndex(index: number): string {
+  return SERIES_PALETTE[index % SERIES_PALETTE.length];
+}
+
+/** Quantile of a sorted finite-numbers array. */
+export function quantile(sorted: number[], q: number): number {
+  const n = sorted.length;
+  if (n === 0) return Number.NaN;
+  if (n === 1) return sorted[0];
+  const pos = (n - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const w = pos - lo;
+  return sorted[lo] * (1 - w) + sorted[hi] * w;
+}
+
+/**
+ * Auto-distribute series across left ('y') and right ('y2') Y axes by data
+ * magnitude. Explicit user choice (yAxis === 'right') is always honored. For
+ * implicit/'left'/undefined: keep series 0 on left; route others to whichever
+ * existing axis has compatible magnitude (within 5×). If neither matches,
+ * pick the axis with fewer series.
+ *
+ * Why: when two series with very different magnitudes (e.g. temperature 3-30
+ * and windSpeed 0-1) share an axis, the combined Y range collapses one of them
+ * to a flat line near zero. This was the SOTA bug shipped to production.
+ */
+export function distributeAxes(
+  defs: ChartSeriesDef[],
+  workerSeries: WorkerSeriesPayload[]
+): Array<'y' | 'y2'> {
+  const result: Array<'y' | 'y2'> = [];
+  const leftMags: number[] = [];
+  const rightMags: number[] = [];
+
+  function magnitude(payload: WorkerSeriesPayload | undefined): number {
+    if (!payload || payload.ys.length === 0) return 0;
+    const vals: number[] = [];
+    for (let i = 0; i < payload.ys.length; i++) {
+      const v = payload.ys[i];
+      if (Number.isFinite(v)) vals.push(Math.abs(v));
+    }
+    if (vals.length === 0) return 0;
+    vals.sort((a, b) => a - b);
+    return quantile(vals, 0.9);
+  }
+
+  function compatible(mag: number, refs: number[]): boolean {
+    if (refs.length === 0) return true;
+    for (const r of refs) {
+      if (mag === 0 && r === 0) return true;
+      if (r === 0 || mag === 0) continue;
+      const ratio = Math.max(mag, r) / Math.min(mag, r);
+      if (ratio <= 5) return true;
+    }
+    return false;
+  }
+
+  defs.forEach((def, i) => {
+    const mag = magnitude(workerSeries[i]);
+    if (def.yAxis === 'right') {
+      result.push('y2');
+      rightMags.push(mag);
+      return;
+    }
+    if (i === 0) {
+      result.push('y');
+      leftMags.push(mag);
+      return;
+    }
+    if (compatible(mag, leftMags)) {
+      result.push('y');
+      leftMags.push(mag);
+    } else if (compatible(mag, rightMags)) {
+      result.push('y2');
+      rightMags.push(mag);
+    } else if (rightMags.length < leftMags.length) {
+      result.push('y2');
+      rightMags.push(mag);
+    } else {
+      result.push('y');
+      leftMags.push(mag);
+    }
+  });
+  return result;
+}
+
+/**
+ * Compute Y range for one axis given the value pool on that axis and the
+ * current scale mode. Outliers stay in the data; only the *range* is shaped.
+ */
+export function computeYRange(
+  values: number[],
+  mode: YScaleMode,
+  manual?: { min: number; max: number },
+  visibleX?: { values: number[]; xs: number[]; xMin: number; xMax: number }
+): [number, number] | null {
+  if (mode === 'manual' && manual && Number.isFinite(manual.min) && Number.isFinite(manual.max)) {
+    if (manual.max <= manual.min) return [manual.min - 1, manual.min + 1];
+    return [manual.min, manual.max];
+  }
+
+  let pool = values;
+  if (mode === 'fit-visible' && visibleX) {
+    const filtered: number[] = [];
+    for (let i = 0; i < visibleX.values.length; i++) {
+      const x = visibleX.xs[i];
+      const y = visibleX.values[i];
+      if (
+        Number.isFinite(y) &&
+        Number.isFinite(x) &&
+        x >= visibleX.xMin &&
+        x <= visibleX.xMax
+      ) {
+        filtered.push(y);
+      }
+    }
+    pool = filtered;
+  }
+
+  if (pool.length === 0) return null;
+  const sorted = pool.slice().sort((a, b) => a - b);
+
+  if (mode === 'focus') {
+    const lo = quantile(sorted, 0.02);
+    const hi = quantile(sorted, 0.98);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+    if (lo === hi) return [lo - 1, lo + 1];
+    const pad = (hi - lo) * 0.05;
+    return [lo - pad, hi + pad];
+  }
+
+  // 'auto' and default 'fit-visible' (after pool selection) use simple min/max + pad.
+  const lo = sorted[0];
+  const hi = sorted[sorted.length - 1];
+  if (lo === hi) return [lo - 1, lo + 1];
+  const pad = (hi - lo) * 0.05;
+  return [lo - pad, hi + pad];
+}
+
+/** Localized "yyyy-mm-dd HH:MM" from epoch seconds. */
+export function formatLocalTimestamp(epochSec: number): string {
+  const d = new Date(epochSec * 1000);
+  if (Number.isNaN(d.getTime())) return '—';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Binary search nearest index in a strictly increasing xs Float64Array. */
+export function nearestIndex(xs: Float64Array, target: number): number {
+  const n = xs.length;
+  if (n === 0) return -1;
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0 && Math.abs(xs[lo - 1] - target) < Math.abs(xs[lo] - target)) {
+    return lo - 1;
+  }
+  return lo;
+}

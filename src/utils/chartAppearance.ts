@@ -5,7 +5,23 @@ import {
   DEFAULT_CHART_APPEARANCE,
   type ChartAppearance,
   type ChartViewMode,
+  type RollingAvgWindow,
+  type YScaleMode,
 } from '../types/dashboard';
+
+const Y_SCALE_MODES: ReadonlySet<YScaleMode> = new Set([
+  'auto',
+  'fit-visible',
+  'focus',
+  'manual',
+]);
+
+const ROLLING_WINDOWS: ReadonlySet<RollingAvgWindow> = new Set([
+  'off',
+  '1h',
+  '24h',
+  '7d',
+]);
 
 export function mergeChartAppearance(
   partial?: Partial<ChartAppearance>
@@ -47,6 +63,16 @@ export function mergeChartAppearance(
   const correlationXSeries = Number.isFinite(correlationXSeriesRaw) ? Math.max(0, Math.floor(correlationXSeriesRaw)) : 0;
   const correlationYSeries = Number.isFinite(correlationYSeriesRaw) ? Math.max(0, Math.floor(correlationYSeriesRaw)) : 1;
 
+  const yScaleMode: YScaleMode = Y_SCALE_MODES.has(partial?.yScaleMode as YScaleMode)
+    ? (partial!.yScaleMode as YScaleMode)
+    : DEFAULT_CHART_APPEARANCE.yScaleMode;
+
+  const rollingAverage: RollingAvgWindow = ROLLING_WINDOWS.has(
+    partial?.rollingAverage as RollingAvgWindow
+  )
+    ? (partial!.rollingAverage as RollingAvgWindow)
+    : DEFAULT_CHART_APPEARANCE.rollingAverage ?? 'off';
+
   return {
     ...DEFAULT_CHART_APPEARANCE,
     ...partial,
@@ -57,6 +83,11 @@ export function mergeChartAppearance(
     showTrendline: partial?.showTrendline === true,
     correlationXSeries,
     correlationYSeries,
+    yScaleMode,
+    yScaleManual: partial?.yScaleManual,
+    seriesConfig: partial?.seriesConfig ?? {},
+    thresholds: Array.isArray(partial?.thresholds) ? partial!.thresholds : [],
+    rollingAverage,
   };
 }
 
