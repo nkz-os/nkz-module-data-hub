@@ -9,6 +9,7 @@ interface ChartRenderHostProps {
   data: uPlot.AlignedData | null;
   syncEvents?: boolean;
   onViewportChange?: (size: { width: number; height: number }) => void;
+  debugKey?: string;
 }
 
 /**
@@ -20,6 +21,7 @@ export function ChartRenderHost({
   data,
   syncEvents = true,
   onViewportChange,
+  debugKey,
 }: ChartRenderHostProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +30,7 @@ export function ChartRenderHost({
     options,
     data,
     syncEvents,
+    debugKey,
   });
 
   useEffect(() => {

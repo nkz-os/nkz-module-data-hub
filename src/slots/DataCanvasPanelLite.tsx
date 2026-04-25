@@ -3,6 +3,7 @@ import uPlot from 'uplot';
 import { useTranslation } from '@nekazari/sdk';
 
 import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
+import { DATAHUB_EVENT_RENDER_DEBUG, type DataHubRenderDebugDetail } from '../hooks/useUPlotCesiumSync';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 import type { DatahubWorkerRequest } from '../workers/contracts/datahubWorkerV2';
 import DatahubWorkerInline from '../workers/datahubWorker.ts?worker&inline';
@@ -12,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-22-r6';
+const BUILD = 'uplot-worker-2026-04-25-r7';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -134,6 +135,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [plotData, setPlotData] = useState<uPlot.AlignedData | null>(null);
   const [diag, setDiag] = useState({ received: 0, plotted: 0 });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [renderDbg, setRenderDbg] = useState<{ stage: string; cw: number; ch: number; uw: number; uh: number; pt: number; ph: number } | null>(null);
 
   useEffect(() => {
     const worker = new DatahubWorkerInline();
@@ -144,6 +146,24 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       pendingReqRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const onDebug = (evt: Event) => {
+      const d = (evt as CustomEvent<DataHubRenderDebugDetail>).detail;
+      if (!d || d.key !== panelId) return;
+      setRenderDbg({
+        stage: d.stage,
+        cw: d.containerW,
+        ch: d.containerH,
+        uw: d.chartW,
+        uh: d.chartH,
+        pt: d.plotTop,
+        ph: d.plotHeight,
+      });
+    };
+    window.addEventListener(DATAHUB_EVENT_RENDER_DEBUG, onDebug);
+    return () => window.removeEventListener(DATAHUB_EVENT_RENDER_DEBUG, onDebug);
+  }, [panelId]);
 
   const processWithWorker = useCallback(
     (req: Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>): Promise<WorkerResult | null> => {
@@ -351,6 +371,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           data={plotData}
           syncEvents={true}
           onViewportChange={setViewport}
+          debugKey={panelId}
         />
       </ChartSurface>
 
@@ -405,6 +426,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         <span>{series.length === 1 ? series[0].attribute : `series:${series.length}`}</span>
         <span>points {diag.plotted}/{diag.received}</span>
         <span>viewport {viewport.width}x{viewport.height}</span>
+        {renderDbg ? (
+          <span>
+            dbg {renderDbg.stage} c:{renderDbg.cw}x{renderDbg.ch} u:{renderDbg.uw}x{renderDbg.uh} p:{renderDbg.pt}/{renderDbg.ph}
+          </span>
+        ) : null}
         <span className="text-slate-400">{BUILD}</span>
       </div>
 

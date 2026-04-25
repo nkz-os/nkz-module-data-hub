@@ -31,12 +31,25 @@ export const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
 
 /** Event the Host can dispatch to set the chart's visible X range. DataHub listens and calls u.setScale('x', { min, max }). */
 export const DATAHUB_EVENT_SET_TIME_RANGE = 'nekazari:datahub:setTimeRange';
+export const DATAHUB_EVENT_RENDER_DEBUG = 'nekazari:datahub:renderDebug';
+
+export interface DataHubRenderDebugDetail {
+  key?: string;
+  stage: 'init' | 'resize';
+  containerW: number;
+  containerH: number;
+  chartW: number;
+  chartH: number;
+  plotTop: number;
+  plotHeight: number;
+}
 
 export interface UseUPlotCesiumSyncProps {
   chartContainerRef: RefObject<HTMLDivElement | null>;
   options: uPlot.Options;
   data: uPlot.AlignedData | null;
   syncEvents?: boolean;
+  debugKey?: string;
 }
 
 function isTimeRangeDetail(d: unknown): d is DataHubTimeRangeDetail {
@@ -53,6 +66,7 @@ export function useUPlotCesiumSync({
   options,
   data,
   syncEvents = true,
+  debugKey,
 }: UseUPlotCesiumSyncProps): void {
   const uplotRef = useRef<uPlot | null>(null);
 
@@ -78,6 +92,25 @@ export function useUPlotCesiumSync({
       window.dispatchEvent(
         new CustomEvent<DataHubTimeHoverDetail>(DATAHUB_EVENT_TIME_HOVER, {
           detail: { timestamp },
+        })
+      );
+    };
+
+    const emitRenderDebug = (stage: 'init' | 'resize') => {
+      if (!uplotRef.current) return;
+      const u = uplotRef.current as unknown as { width?: number; height?: number; bbox?: { top?: number; height?: number } };
+      window.dispatchEvent(
+        new CustomEvent<DataHubRenderDebugDetail>(DATAHUB_EVENT_RENDER_DEBUG, {
+          detail: {
+            key: debugKey,
+            stage,
+            containerW: container.offsetWidth || 0,
+            containerH: container.offsetHeight || 0,
+            chartW: u.width ?? 0,
+            chartH: u.height ?? 0,
+            plotTop: u.bbox?.top ?? 0,
+            plotHeight: u.bbox?.height ?? 0,
+          },
         })
       );
     };
@@ -163,6 +196,7 @@ export function useUPlotCesiumSync({
         const ch = container.offsetHeight;
         if (uplotRef.current && cw > 0 && ch > 0) {
           uplotRef.current.setSize({ width: cw, height: ch });
+          emitRenderDebug('init');
         }
       });
       return true;
@@ -186,6 +220,7 @@ export function useUPlotCesiumSync({
         } else if (uplotRef.current) {
           if (w > 0 && h > 0) {
             uplotRef.current.setSize({ width: w, height: h });
+            emitRenderDebug('resize');
           }
         }
       });
@@ -242,5 +277,5 @@ export function useUPlotCesiumSync({
         uplotRef.current = null;
       }
     };
-  }, [chartContainerRef, options, data, syncEvents]);
+  }, [chartContainerRef, options, data, syncEvents, debugKey]);
 }
