@@ -23,9 +23,32 @@ import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
-const SERIES_COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444', '#ec4899'];
-const TEXT_MUTED = '#94a3b8';
-const GRID_RGBA = 'rgba(148,163,184,0.10)';
+const SERIES_COLORS = ['#34d399', '#c084fc', '#fbbf24', '#60a5fa', '#f87171', '#f472b6'];
+const AXIS_LEFT_COLOR = '#34d399';   // emerald-400
+const AXIS_RIGHT_COLOR = '#c084fc';  // purple-400
+const TEXT_MUTED = '#cbd5e1';        // slate-300, brighter for legibility
+const GRID_RGBA = 'rgba(148,163,184,0.14)';
+
+/** Display unit by attribute name (best-effort). Empty string when unknown. */
+const ATTRIBUTE_UNIT: Record<string, string> = {
+  temperature: '°C', temp_avg: '°C', temp_min: '°C', temp_max: '°C',
+  airTemperature: '°C', delta_t: '°C',
+  humidity: '%', humidity_avg: '%', humidity_min: '%', humidity_max: '%',
+  relativeHumidity: '%', soil_moisture: '%', soil_moisture_0_10cm: '%',
+  precipitation: 'mm', precip_mm: 'mm', eto_mm: 'mm', et0: 'mm',
+  solar_rad_w_m2: 'W/m²', radiation: 'W/m²', solarRadiation: 'W/m²',
+  wind_speed: 'm/s', wind_speed_avg: 'm/s', wind_speed_max: 'm/s',
+  wind_speed_ms: 'm/s', windSpeed: 'm/s',
+  windDirection: '°',
+  pressure: 'hPa', pressure_avg: 'hPa', pressure_hpa: 'hPa',
+  atmosphericPressure: 'hPa',
+  panelInclination: '°',
+  gdd_accumulated: 'GDD',
+};
+
+function unitFor(attribute: string): string {
+  return ATTRIBUTE_UNIT[attribute] ?? '';
+}
 
 type Status = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -187,6 +210,83 @@ function formatDateLocal(epochSec: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * Auto-assign each series to left ('y') or right ('y2') axis based on data magnitude.
+ *
+ * Why: when two series with very different magnitudes share an axis (e.g. temperature 3–30
+ * and windSpeed 0–1, both default to 'left'), the combined range squashes the smaller-range
+ * series until it appears as a flat line near zero. This is *the* bug that produced the
+ * "tiny spike at the bottom" rendering.
+ *
+ * Rule: respect explicit user choice ('right' is always honored). For everything else,
+ * keep series 0 on left, place subsequent series on the right *only* when their magnitude
+ * differs from a left-axis sibling by more than 5×. Compatible series (same units / same
+ * magnitude) stay together.
+ */
+function distributeAxes(
+  defs: ChartSeriesDef[],
+  data: ParsedSeries[]
+): Array<'y' | 'y2'> {
+  const result: Array<'y' | 'y2'> = [];
+  const leftMags: number[] = [];
+  const rightMags: number[] = [];
+
+  function magnitudeOf(series: ParsedSeries): number {
+    if (!series || series.ys.length === 0) return 0;
+    const vals: number[] = [];
+    for (let i = 0; i < series.ys.length; i++) {
+      const v = series.ys[i];
+      if (Number.isFinite(v)) vals.push(Math.abs(v));
+    }
+    if (vals.length === 0) return 0;
+    vals.sort((a, b) => a - b);
+    return quantile(vals, 0.9);
+  }
+
+  function compatible(mag: number, refs: number[]): boolean {
+    if (refs.length === 0) return true;
+    for (const r of refs) {
+      if (mag === 0 && r === 0) return true;
+      if (r === 0 || mag === 0) continue;
+      const ratio = Math.max(mag, r) / Math.min(mag, r);
+      if (ratio <= 5) return true;
+    }
+    return false;
+  }
+
+  defs.forEach((def, i) => {
+    const mag = magnitudeOf(data[i]);
+    if (def.yAxis === 'right') {
+      result.push('y2');
+      rightMags.push(mag);
+      return;
+    }
+    // 'left' or undefined → auto-distribute
+    if (i === 0) {
+      result.push('y');
+      leftMags.push(mag);
+      return;
+    }
+    if (compatible(mag, leftMags)) {
+      result.push('y');
+      leftMags.push(mag);
+    } else if (compatible(mag, rightMags)) {
+      result.push('y2');
+      rightMags.push(mag);
+    } else {
+      // Fallback: try right axis if it has fewer series, otherwise left.
+      if (rightMags.length < leftMags.length) {
+        result.push('y2');
+        rightMags.push(mag);
+      } else {
+        result.push('y');
+        leftMags.push(mag);
+      }
+    }
+  });
+  return result;
+}
+
 /** Find nearest sample in series.xs to xTarget; returns its y or NaN. */
 function nearestY(series: ParsedSeries, xTarget: number): { y: number; x: number } | null {
   const xs = series.xs;
@@ -213,7 +313,7 @@ interface TooltipState {
   left: number;
   top: number;
   xEpoch: number;
-  rows: Array<{ label: string; color: string; value: number; xEpoch: number }>;
+  rows: Array<{ label: string; unit: string; color: string; value: number; xEpoch: number }>;
 }
 
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
@@ -343,12 +443,14 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       xMax += 1;
     }
 
-    // Compute Y ranges per scale (left = "y", right = "y2").
+    // Auto-distribute series to left/right axis by magnitude (see distributeAxes for rationale).
+    const effectiveScales = distributeAxes(seriesDefs, seriesData);
+
+    // Compute Y ranges per scale using ONLY the series assigned to that scale.
     const leftValues: number[] = [];
     const rightValues: number[] = [];
     seriesData.forEach((sd, i) => {
-      const def = seriesDefs[i];
-      const target = def?.yAxis === 'right' ? rightValues : leftValues;
+      const target = effectiveScales[i] === 'y2' ? rightValues : leftValues;
       for (let j = 0; j < sd.ys.length; j++) {
         const v = sd.ys[j];
         if (Number.isFinite(v)) target.push(v);
@@ -357,12 +459,24 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     const leftRange = robustRange(leftValues);
     const rightRange = robustRange(rightValues);
 
+    // Determine units per axis (from the series assigned to each).
+    const leftUnits = new Set<string>();
+    const rightUnits = new Set<string>();
+    seriesDefs.forEach((def, i) => {
+      const u = unitFor(def.attribute);
+      if (!u) return;
+      (effectiveScales[i] === 'y2' ? rightUnits : leftUnits).add(u);
+    });
+    const leftUnitLabel = Array.from(leftUnits).join(' / ');
+    const rightUnitLabel = Array.from(rightUnits).join(' / ');
+    const hasRightAxis = effectiveScales.includes('y2');
+
     // Build series (mode 2): index 0 is the X reference (must exist).
     const uplotSeries: uPlot.Series[] = [
       {},
       ...seriesDefs.map((def, i) => {
         const color = SERIES_COLORS[i % SERIES_COLORS.length];
-        const scale = def.yAxis === 'right' ? 'y2' : 'y';
+        const scale = effectiveScales[i];
         const baseSeries: uPlot.Series = {
           label: def.attribute,
           scale,
@@ -405,26 +519,37 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         {
           stroke: TEXT_MUTED,
           grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
+          ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 },
           font: '11px ui-sans-serif, system-ui',
+          gap: 6,
         },
         {
           scale: 'y',
-          stroke: TEXT_MUTED,
+          stroke: AXIS_LEFT_COLOR,
           grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
-          size: 50,
+          ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 },
+          size: 60,
           font: '11px ui-sans-serif, system-ui',
+          gap: 6,
+          values: leftUnitLabel
+            ? (_u, splits) => splits.map((v) => `${formatNumberShort(v)} ${leftUnitLabel}`)
+            : undefined,
         },
-        {
-          scale: 'y2',
-          side: 1,
-          stroke: TEXT_MUTED,
-          grid: { show: false },
-          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
-          size: 50,
-          font: '11px ui-sans-serif, system-ui',
-        },
+        ...(hasRightAxis
+          ? [{
+              scale: 'y2',
+              side: 1 as const,
+              stroke: AXIS_RIGHT_COLOR,
+              grid: { show: false },
+              ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 },
+              size: 60,
+              font: '11px ui-sans-serif, system-ui',
+              gap: 6,
+              values: rightUnitLabel
+                ? (_u: uPlot, splits: number[]) => splits.map((v) => `${formatNumberShort(v)} ${rightUnitLabel}`)
+                : undefined,
+            } as uPlot.Axis]
+          : []),
       ],
       cursor: {
         x: true,
@@ -439,7 +564,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         },
       },
       series: uplotSeries,
-      padding: [16, 16, 6, 6],
+      padding: [12, hasRightAxis ? 8 : 16, 4, 4],
       hooks: {
         setCursor: [
           (u: uPlot) => {
@@ -461,6 +586,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               if (nearest && Number.isFinite(nearest.y)) {
                 rows.push({
                   label: def.attribute,
+                  unit: unitFor(def.attribute),
                   color: SERIES_COLORS[i % SERIES_COLORS.length],
                   value: nearest.y,
                   xEpoch: nearest.x,
@@ -531,9 +657,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const primaryStats = perSeriesStats[0] ?? null;
 
   return (
-    <div className="relative w-full h-full bg-slate-950/30 flex flex-col min-h-0">
-      {/* Plot container */}
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="relative w-full h-full bg-gradient-to-br from-slate-900/60 via-slate-900/40 to-slate-950/60 rounded-md ring-1 ring-slate-800/60 overflow-hidden flex flex-col min-h-0">
+      {/* Plot container — leaves a 28px band at the bottom for the footer so the trace never overlaps it. */}
+      <div ref={containerRef} className="absolute inset-x-0 top-0 bottom-7" />
 
       {/* Status overlay (loading / empty / error) */}
       {status !== 'ready' && (
@@ -639,36 +765,49 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer: legend + primary stats + total points. Sits in a band below the chart canvas. */}
       {status === 'ready' && (
-        <div className="absolute bottom-1 left-2 right-2 z-20 flex items-center gap-3 text-[10px] text-slate-400 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-3 px-3 py-1.5 bg-gradient-to-t from-slate-950/85 to-transparent text-[11px] text-slate-300 pointer-events-none">
           {series.length > 1 ? (
-            <div className="flex items-center gap-2 truncate">
+            <div className="flex items-center gap-3 truncate">
               {series.map((s, i) => (
-                <span key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1 text-slate-300 truncate">
+                <span key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1.5 truncate">
                   <span
                     aria-hidden
-                    className="inline-block w-2 h-2 rounded-full shrink-0"
+                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-slate-900"
                     style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }}
                   />
-                  <span className="truncate max-w-[140px]">{s.attribute}</span>
+                  <span className="truncate max-w-[160px] text-slate-200">{s.attribute}</span>
+                  {unitFor(s.attribute) && <span className="text-slate-500 text-[10px]">{unitFor(s.attribute)}</span>}
                 </span>
               ))}
             </div>
           ) : (
-            <span className="text-slate-300 font-medium truncate" title={summaryLabel}>
+            <span className="flex items-center gap-1.5 text-slate-200 font-medium truncate" title={summaryLabel}>
+              <span
+                aria-hidden
+                className="inline-block w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-slate-900"
+                style={{ background: SERIES_COLORS[0] }}
+              />
               {summaryLabel}
+              {series.length === 1 && unitFor(series[0].attribute) && (
+                <span className="text-slate-500 text-[10px] font-normal">{unitFor(series[0].attribute)}</span>
+              )}
             </span>
           )}
           {primaryStats && (
-            <span className="tabular-nums whitespace-nowrap">
-              <span className="text-slate-500">{t('canvasPanel.statMin')}</span> {formatNumberShort(primaryStats.min)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statMax')}</span> {formatNumberShort(primaryStats.max)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statAvg')}</span> {formatNumberShort(primaryStats.mean)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statLast')}</span> {formatNumberShort(primaryStats.last)}
+            <span className="tabular-nums whitespace-nowrap font-mono text-[10px]">
+              <span className="text-slate-500">{t('canvasPanel.statMin')}</span>
+              <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.min)}</span>
+              <span className="text-slate-500 ml-2.5">{t('canvasPanel.statMax')}</span>
+              <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.max)}</span>
+              <span className="text-slate-500 ml-2.5">{t('canvasPanel.statAvg')}</span>
+              <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.mean)}</span>
+              <span className="text-slate-500 ml-2.5">{t('canvasPanel.statLast')}</span>
+              <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.last)}</span>
             </span>
           )}
-          <span className="tabular-nums text-slate-500 ml-auto whitespace-nowrap">
+          <span className="tabular-nums text-slate-500 ml-auto whitespace-nowrap font-mono text-[10px]">
             {perSeriesStats.reduce((acc, s) => acc + (s?.count ?? 0), 0)} pts
           </span>
         </div>
@@ -677,27 +816,30 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       {/* Tooltip */}
       {tooltip.visible && status === 'ready' && (
         <div
-          className="absolute z-30 pointer-events-none px-2 py-1.5 rounded-md bg-slate-950/95 border border-slate-700/70 shadow-lg text-[11px] text-slate-100 backdrop-blur-md"
-          style={{ left: tooltip.left, top: tooltip.top, transform: 'translate(-50%, -100%)', maxWidth: 280 }}
+          className="absolute z-30 pointer-events-none px-2.5 py-2 rounded-lg bg-slate-900/95 border border-slate-700/80 shadow-2xl text-[11px] text-slate-100 backdrop-blur-md"
+          style={{ left: tooltip.left, top: tooltip.top, transform: 'translate(-50%, -100%)', maxWidth: 300 }}
         >
-          <div className="text-slate-400 text-[10px] mb-1 tabular-nums">
+          <div className="text-slate-400 text-[10px] mb-1.5 tabular-nums font-mono">
             {formatDateLocal(tooltip.xEpoch)}
           </div>
-          {tooltip.rows.map((r) => (
-            <div key={r.label} className="flex items-center gap-2 leading-tight">
-              <span
-                aria-hidden
-                className="inline-block w-2 h-2 rounded-full"
-                style={{ background: r.color }}
-              />
-              <span className="truncate text-slate-200" style={{ maxWidth: 140 }} title={r.label}>
-                {r.label}
-              </span>
-              <span className="ml-auto tabular-nums text-slate-100 font-medium">
-                {formatNumberShort(r.value)}
-              </span>
-            </div>
-          ))}
+          <div className="flex flex-col gap-1">
+            {tooltip.rows.map((r) => (
+              <div key={r.label} className="flex items-center gap-2 leading-tight">
+                <span
+                  aria-hidden
+                  className="inline-block w-2.5 h-2.5 rounded-full ring-1 ring-slate-900"
+                  style={{ background: r.color }}
+                />
+                <span className="truncate text-slate-200" style={{ maxWidth: 150 }} title={r.label}>
+                  {r.label}
+                </span>
+                <span className="ml-auto tabular-nums text-slate-50 font-semibold whitespace-nowrap">
+                  {formatNumberShort(r.value)}
+                  {r.unit && <span className="text-slate-400 font-normal ml-0.5">{r.unit}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
