@@ -1,18 +1,46 @@
+/**
+ * DataCanvasPanelLite — SOTA tactical chart panel.
+ *
+ * Architectural choices:
+ *  - uPlot mode 2 (faceted): each series owns its own X array. No outer-join,
+ *    no synthetic NaN gaps, no spanGaps tricks. Each line draws cleanly over
+ *    its real timestamps regardless of what other series do.
+ *  - Direct REST fetch per series (bypassing the worker pipeline whose
+ *    alignment + gap-injection produced fragmented traces in multi-series).
+ *  - Y range = robust percentile clamp (p1–p99) with 5% padding. Outliers
+ *    stay in the data (no masking) but cannot compress the visible band.
+ *  - Crosshair + custom HTML tooltip (per-series values + ISO timestamp).
+ *  - Settings UI collapsed behind a gear; canvas stays visually clean.
+ */
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
+import 'uplot/dist/uPlot.min.css';
 import { useTranslation } from '@nekazari/sdk';
 import { Settings2 } from 'lucide-react';
 
 import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
-import type { DatahubWorkerRequest } from '../workers/contracts/datahubWorkerV2';
-import DatahubWorkerInline from '../workers/datahubWorker.ts?worker&inline';
-import { ChartStatusLayer } from './chart/ChartStatusLayer';
-import { ChartSurface } from './chart/ChartSurface';
-import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
-const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
+const SERIES_COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444', '#ec4899'];
+const TEXT_MUTED = '#94a3b8';
+const GRID_RGBA = 'rgba(148,163,184,0.10)';
+
+type Status = 'loading' | 'ready' | 'empty' | 'error';
+
+interface ParsedSeries {
+  xs: Float64Array;
+  ys: Float64Array;
+}
+
+interface SeriesStats {
+  min: number;
+  max: number;
+  mean: number;
+  last: number;
+  count: number;
+}
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -26,22 +54,16 @@ export interface DataCanvasPanelProps {
   onSeriesAxisChange?: (panelId: string, seriesIndex: number, yAxis: 'left' | 'right') => void;
 }
 
-interface WorkerResult {
-  data: uPlot.AlignedData;
-  receivedPoints: number;
-  plottablePoints: number;
-}
-
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+function toFiniteNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NaN;
   if (typeof value === 'string') {
     const n = Number.parseFloat(value);
-    return Number.isFinite(n) ? n : null;
+    return Number.isFinite(n) ? n : Number.NaN;
   }
-  return null;
+  return Number.NaN;
 }
 
-function toEpochSeconds(value: unknown): number | null {
+function toEpochSeconds(value: unknown): number {
   const normalize = (n: number): number => {
     let v = n;
     while (Math.abs(v) > 1e11) v /= 1000;
@@ -52,56 +74,53 @@ function toEpochSeconds(value: unknown): number | null {
     const t = value.trim();
     if (/^\d+(\.\d+)?$/.test(t)) {
       const n = Number.parseFloat(t);
-      return Number.isFinite(n) ? normalize(n) : null;
+      return Number.isFinite(n) ? normalize(n) : Number.NaN;
     }
     const ms = Date.parse(t);
-    return Number.isFinite(ms) ? ms / 1000 : null;
+    return Number.isFinite(ms) ? ms / 1000 : Number.NaN;
   }
-  return null;
+  return Number.NaN;
 }
 
-function parseSeriesPayload(payload: unknown): { x: number[]; y: number[] } {
+function parsePayload(payload: unknown): ParsedSeries {
   const obj = (payload ?? {}) as Record<string, unknown>;
-  const timestamps = Array.isArray(obj.timestamps) ? obj.timestamps : [];
-  const values = Array.isArray(obj.values)
+  const ts = Array.isArray(obj.timestamps) ? obj.timestamps : [];
+  const vs = Array.isArray(obj.values)
     ? obj.values
     : Array.isArray(obj.value_0)
       ? obj.value_0
       : [];
-  const len = Math.min(timestamps.length, values.length);
-  const x: number[] = [];
-  const y: number[] = [];
+  const len = Math.min(ts.length, vs.length);
+  const xs = new Float64Array(len);
+  const ys = new Float64Array(len);
+  let n = 0;
   for (let i = 0; i < len; i++) {
-    const xv = toEpochSeconds(timestamps[i]);
-    if (xv == null) continue;
-    x.push(xv);
-    const yv = toFiniteNumber(values[i]);
-    y.push(yv == null ? Number.NaN : yv);
+    const x = toEpochSeconds(ts[i]);
+    if (!Number.isFinite(x)) continue;
+    xs[n] = x;
+    ys[n] = toFiniteNumber(vs[i]);
+    n += 1;
   }
-  return { x, y };
+  // Drop unused slots and ensure ascending X.
+  const finalXs = xs.slice(0, n);
+  const finalYs = ys.slice(0, n);
+  const idx = new Array(n);
+  for (let i = 0; i < n; i++) idx[i] = i;
+  idx.sort((a, b) => finalXs[a] - finalXs[b]);
+  const sortedX = new Float64Array(n);
+  const sortedY = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    sortedX[i] = finalXs[idx[i]];
+    sortedY[i] = finalYs[idx[i]];
+  }
+  return { xs: sortedX, ys: sortedY };
 }
 
-function outerJoinSeries(rows: Array<{ x: number[]; y: number[] }>): uPlot.AlignedData {
-  const all = new Set<number>();
-  rows.forEach((r) => r.x.forEach((v) => all.add(v)));
-  const x = Array.from(all.values()).sort((a, b) => a - b);
-  const index = new Map<number, number>();
-  x.forEach((v, i) => index.set(v, i));
-  const ys = rows.map(() => Array.from({ length: x.length }, () => Number.NaN));
-  rows.forEach((r, sIdx) => {
-    for (let i = 0; i < r.x.length; i++) {
-      const dst = index.get(r.x[i]);
-      if (dst == null) continue;
-      ys[sIdx][dst] = r.y[i];
-    }
-  });
-  return [x, ...ys] as uPlot.AlignedData;
-}
-
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return Number.NaN;
-  if (sorted.length === 1) return sorted[0];
-  const pos = (sorted.length - 1) * q;
+function quantile(sorted: Float64Array | number[], q: number): number {
+  const n = sorted.length;
+  if (n === 0) return Number.NaN;
+  if (n === 1) return sorted[0];
+  const pos = (n - 1) * q;
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
   if (lo === hi) return sorted[lo];
@@ -109,109 +128,47 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] * (1 - w) + sorted[hi] * w;
 }
 
-/**
- * Outlier removal using MAD (Median Absolute Deviation), floored by IQR fences
- * to handle near-flat data with rare spikes (typical sensor glitches).
- * Outliers are replaced with NaN so uPlot draws a gap; range stays compact.
- */
-function maskOutliers(values: ReadonlyArray<number>): { cleaned: number[]; removed: number } {
+function computeStats(ys: Float64Array): SeriesStats | null {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  let sum = 0;
+  let n = 0;
+  let last = Number.NaN;
+  for (let i = 0; i < ys.length; i++) {
+    const v = ys[i];
+    if (Number.isFinite(v)) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+      sum += v;
+      n += 1;
+      last = v;
+    }
+  }
+  if (n === 0) return null;
+  return { min, max, mean: sum / n, last, count: n };
+}
+
+/** Robust Y range = clamp by p1/p99 with 5% padding. Keeps natural variation, prevents single spikes from compressing the trace. */
+function robustRange(values: Float64Array | number[]): [number, number] | null {
   const finite: number[] = [];
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
     if (Number.isFinite(v)) finite.push(v);
   }
-  if (finite.length < 8) return { cleaned: values.slice(), removed: 0 };
+  if (finite.length === 0) return null;
   finite.sort((a, b) => a - b);
-  const median = quantile(finite, 0.5);
-  const q25 = quantile(finite, 0.25);
-  const q75 = quantile(finite, 0.75);
-  const iqr = Math.max(0, q75 - q25);
-  const devs = finite.map((v) => Math.abs(v - median)).sort((a, b) => a - b);
-  const mad = quantile(devs, 0.5);
-  // 1.4826*MAD estimates σ under normality. 6σ keeps natural variation.
-  const madBound = mad > 0 ? 6 * 1.4826 * mad : 0;
-  const iqrBound = iqr > 0 ? 3 * iqr : 0;
-  const bound = Math.max(madBound, iqrBound);
-  if (!(bound > 0)) return { cleaned: values.slice(), removed: 0 };
-  const cleaned = new Array<number>(values.length);
-  let removed = 0;
-  for (let i = 0; i < values.length; i++) {
-    const v = values[i];
-    if (!Number.isFinite(v)) {
-      cleaned[i] = Number.NaN;
-      continue;
-    }
-    if (Math.abs(v - median) > bound) {
-      cleaned[i] = Number.NaN;
-      removed += 1;
-    } else {
-      cleaned[i] = v;
-    }
+  let lo = quantile(finite, 0.01);
+  let hi = quantile(finite, 0.99);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    lo = finite[0];
+    hi = finite[finite.length - 1];
   }
-  return { cleaned, removed };
-}
-
-function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
-  const out: uPlot.Series[] = [{}];
-  series.forEach((s, i) => {
-    const resolvedScale =
-      s.yAxis === 'right'
-        ? 'y2'
-        : s.yAxis === 'left'
-          ? 'y'
-          : series.length > 1 && i > 0
-            ? 'y2'
-            : 'y';
-    out.push({
-      label: s.attribute,
-      scale: resolvedScale,
-      stroke: COLORS[i % COLORS.length],
-      width: 2,
-      points: { show: false, size: 3, stroke: '#ffffff', fill: COLORS[i % COLORS.length] },
-      paths: uPlot.paths.linear?.(),
-      spanGaps: false,
-    });
-  });
-  return out;
-}
-
-function rangeFor(scaleKey: 'y' | 'y2') {
-  return (u: uPlot, min: number, max: number): [number, number] => {
-    let lo = Number.POSITIVE_INFINITY;
-    let hi = Number.NEGATIVE_INFINITY;
-    for (let i = 1; i < u.series.length; i++) {
-      if ((u.series[i].scale ?? 'y') !== scaleKey) continue;
-      const col = u.data[i] as ArrayLike<number> | undefined;
-      if (!col) continue;
-      for (let j = 0; j < col.length; j++) {
-        const v = Number(col[j]);
-        if (Number.isFinite(v)) {
-          if (v < lo) lo = v;
-          if (v > hi) hi = v;
-        }
-      }
-    }
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
-      const a = Number.isFinite(min) ? min : 0;
-      const b = Number.isFinite(max) ? max : 1;
-      if (a === b) return [a - 1, a + 1];
-      return [a, b];
-    }
-    if (lo === hi) return [lo - 1, hi + 1];
-    const pad = Math.max(1e-6, (hi - lo) * 0.08);
-    return [lo - pad, hi + pad];
-  };
-}
-
-function computeAdaptiveMaxGapSeconds(startTime: string, endTime: string, resolution: number): number {
-  const startMs = Date.parse(startTime);
-  const endMs = Date.parse(endTime);
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || resolution <= 1) {
-    return 6 * 3600;
+  if (lo === hi) {
+    const c = lo;
+    return [c - 1, c + 1];
   }
-  const spanSec = (endMs - startMs) / 1000;
-  const step = spanSec / Math.max(1, resolution - 1);
-  return Math.max(15 * 60, Math.min(24 * 3600, step * 4));
+  const pad = (hi - lo) * 0.05;
+  return [lo - pad, hi + pad];
 }
 
 function formatNumberShort(v: number): string {
@@ -221,6 +178,42 @@ function formatNumberShort(v: number): string {
   if (abs >= 100) return v.toFixed(1);
   if (abs >= 10) return v.toFixed(2);
   return v.toFixed(3);
+}
+
+function formatDateLocal(epochSec: number): string {
+  const d = new Date(epochSec * 1000);
+  if (Number.isNaN(d.getTime())) return '—';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Find nearest sample in series.xs to xTarget; returns its y or NaN. */
+function nearestY(series: ParsedSeries, xTarget: number): { y: number; x: number } | null {
+  const xs = series.xs;
+  const n = xs.length;
+  if (n === 0) return null;
+  // Binary search for nearest.
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < xTarget) lo = mid + 1;
+    else hi = mid;
+  }
+  // lo is the first xs >= xTarget. Compare with previous.
+  let best = lo;
+  if (lo > 0 && Math.abs(xs[lo - 1] - xTarget) < Math.abs(xs[lo] - xTarget)) {
+    best = lo - 1;
+  }
+  return { y: series.ys[best], x: xs[best] };
+}
+
+interface TooltipState {
+  visible: boolean;
+  left: number;
+  top: number;
+  xEpoch: number;
+  rows: Array<{ label: string; color: string; value: number; xEpoch: number }>;
 }
 
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
@@ -234,209 +227,293 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   onSeriesAxisChange,
 }) => {
   const { t } = useTranslation('datahub');
-  const workerRef = useRef<Worker | null>(null);
-  const pendingReqRef = useRef<string | null>(null);
-
   const visual = useMemo(() => mergeChartAppearance(chartAppearance), [chartAppearance]);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const plotRef = useRef<uPlot | null>(null);
+  const seriesDataRef = useRef<ParsedSeries[]>([]);
+  const seriesDefsRef = useRef<ChartSeriesDef[]>([]);
+
+  const [status, setStatus] = useState<Status>('loading');
+  const [perSeriesStats, setPerSeriesStats] = useState<Array<SeriesStats | null>>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading');
-  const [plotData, setPlotData] = useState<uPlot.AlignedData | null>(null);
-  const [diag, setDiag] = useState({ received: 0, plotted: 0, outliers: 0 });
-  const [stats, setStats] = useState<{ min: number; max: number; mean: number; last: number } | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    left: 0,
+    top: 0,
+    xEpoch: 0,
+    rows: [],
+  });
 
-  useEffect(() => {
-    const worker = new DatahubWorkerInline();
-    workerRef.current = worker;
-    return () => {
-      worker.terminate();
-      workerRef.current = null;
-      pendingReqRef.current = null;
-    };
-  }, []);
-
-  const processWithWorker = useCallback(
-    (req: Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>): Promise<WorkerResult | null> => {
-      const worker = workerRef.current;
-      if (!worker) return Promise.resolve(null);
-      const requestId = `${panelId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      pendingReqRef.current = requestId;
-      return new Promise((resolve) => {
-        const onMessage = (event: MessageEvent<unknown>) => {
-          const msg = event.data as {
-            type?: string;
-            requestId?: string;
-            data?: Float64Array[];
-            error?: unknown;
-            stats?: { rawPointsFetched?: number; pointsPlotted?: number };
-          };
-          if (!msg || msg.type !== 'PROCESS_SERIES_RESULT') return;
-          if (msg.requestId !== requestId) return;
-          worker.removeEventListener('message', onMessage);
-          if (pendingReqRef.current !== requestId) {
-            resolve(null);
-            return;
-          }
-          if (msg.error || !msg.data || msg.data.length < 2 || !msg.data[0].length) {
-            resolve(null);
-            return;
-          }
-          const normalized = msg.data.map((arr) => Array.from(arr)) as unknown as uPlot.AlignedData;
-          resolve({
-            data: normalized,
-            receivedPoints: msg.stats?.rawPointsFetched ?? 0,
-            plottablePoints: msg.stats?.pointsPlotted ?? 0,
-          });
-        };
-        worker.addEventListener('message', onMessage);
-        worker.postMessage({
-          ...req,
-          type: 'PROCESS_SERIES',
-          requestId,
-          contractVersion: 2,
-        } as DatahubWorkerRequest);
-      });
-    },
-    [panelId]
-  );
-
-  const processDirectFallback = useCallback(
-    async (base: string): Promise<WorkerResult | null> => {
-      const headers = getDatahubRequestHeaders({ Accept: 'application/json' });
-      const rows: Array<{ x: number[]; y: number[] }> = [];
-      let receivedPoints = 0;
-      for (const s of series) {
-        const params = new URLSearchParams({
-          start_time: startTime,
-          end_time: endTime,
-          resolution: String(resolution),
-          attribute: s.attribute,
-        });
-        const path = `/api/datahub/timeseries/entities/${encodeURIComponent(s.entityId)}/data?${params}`;
-        const url = base ? `${base}${path}` : path;
-        const resp = await fetch(url, { headers, credentials: 'include' });
-        if (resp.status === 204) {
-          rows.push({ x: [], y: [] });
-          continue;
-        }
-        if (!resp.ok) return null;
-        const payload = await resp.json();
-        const parsed = parseSeriesPayload(payload);
-        receivedPoints += parsed.x.length;
-        rows.push(parsed);
-      }
-      const data = outerJoinSeries(rows);
-      let plotted = 0;
-      for (let i = 1; i < data.length; i++) {
-        const arr = data[i] as number[];
-        for (let j = 0; j < arr.length; j++) if (Number.isFinite(arr[j])) plotted += 1;
-      }
-      if ((data[0] as number[]).length === 0) return null;
-      return { data, receivedPoints, plottablePoints: plotted };
-    },
-    [endTime, resolution, series, startTime]
-  );
-
+  // ---------- Data fetching ----------
   useEffect(() => {
     if (series.length === 0) {
-      setPlotData(null);
-      setStats(null);
+      seriesDataRef.current = [];
+      seriesDefsRef.current = [];
+      setPerSeriesStats([]);
       setStatus('empty');
       return;
     }
     let active = true;
+    setStatus('loading');
     (async () => {
       try {
-        setStatus('loading');
         const base = getBaseUrl().replace(/\/$/, '');
-        const adaptiveGapSeconds = computeAdaptiveMaxGapSeconds(startTime, endTime, resolution);
-        const effectiveGapSeconds = series.length === 1 ? 365 * 24 * 3600 : adaptiveGapSeconds;
-        const workerRequest = {
-          mode: series.length > 1 ? 'multi' : 'single',
-          baseUrl: base || undefined,
-          headers: getDatahubRequestHeaders({ Accept: 'application/json' }),
-          startTime,
-          endTime,
-          resolution,
-          series: series.map((s) => ({
-            entityId: s.entityId,
+        const headers = getDatahubRequestHeaders({ Accept: 'application/json' });
+        const fetched: ParsedSeries[] = [];
+        const stats: Array<SeriesStats | null> = [];
+        let totalPoints = 0;
+        for (const s of series) {
+          const params = new URLSearchParams({
+            start_time: startTime,
+            end_time: endTime,
+            resolution: String(resolution),
             attribute: s.attribute,
-            source: s.source ?? 'timescale',
-          })),
-          policy: {
-            maxGapSeconds: effectiveGapSeconds,
-            downsampleThreshold: 3000,
-            viewportWidthPx: 1200,
-            preserveExtrema: true,
-          },
-        } as Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>;
-
-        let result = await processWithWorker(workerRequest);
-        if ((!result || result.plottablePoints <= 0) && active) {
-          result = await processWithWorker({ ...workerRequest, forceRefresh: true });
-        }
-        if ((!result || result.plottablePoints <= 0) && active) {
-          result = await processDirectFallback(base);
-        }
-        if (!active) return;
-        if (!result || result.plottablePoints <= 0) {
-          setPlotData(null);
-          setStats(null);
-          setDiag({ received: result?.receivedPoints ?? 0, plotted: result?.plottablePoints ?? 0, outliers: 0 });
-          setStatus('empty');
-          return;
-        }
-
-        // Outlier sanitation per Y series.
-        const cleanedColumns: number[][] = [];
-        let outlierCount = 0;
-        for (let i = 1; i < result.data.length; i++) {
-          const col = result.data[i] as ArrayLike<number>;
-          const arr: number[] = [];
-          for (let j = 0; j < col.length; j++) arr.push(Number(col[j]));
-          const { cleaned, removed } = maskOutliers(arr);
-          outlierCount += removed;
-          cleanedColumns.push(cleaned);
-        }
-        const cleanedData = [result.data[0] as number[], ...cleanedColumns] as unknown as uPlot.AlignedData;
-
-        // Stats from the first series, cleaned.
-        const firstClean = cleanedColumns[0] ?? [];
-        let mn = Number.POSITIVE_INFINITY;
-        let mx = Number.NEGATIVE_INFINITY;
-        let sum = 0;
-        let n = 0;
-        let last = Number.NaN;
-        for (let j = 0; j < firstClean.length; j++) {
-          const v = firstClean[j];
-          if (Number.isFinite(v)) {
-            if (v < mn) mn = v;
-            if (v > mx) mx = v;
-            sum += v;
-            n += 1;
-            last = v;
+          });
+          const path = `/api/datahub/timeseries/entities/${encodeURIComponent(s.entityId)}/data?${params}`;
+          const url = base ? `${base}${path}` : path;
+          const resp = await fetch(url, { headers, credentials: 'include' });
+          if (!active) return;
+          if (resp.status === 204) {
+            fetched.push({ xs: new Float64Array(0), ys: new Float64Array(0) });
+            stats.push(null);
+            continue;
           }
+          if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status} for ${s.attribute}`);
+          }
+          const payload = await resp.json();
+          const parsed = parsePayload(payload);
+          fetched.push(parsed);
+          stats.push(computeStats(parsed.ys));
+          totalPoints += parsed.xs.length;
         }
-        setStats(
-          n > 0
-            ? { min: mn, max: mx, mean: sum / n, last }
-            : null
-        );
-        setPlotData(cleanedData);
-        setDiag({ received: result.receivedPoints, plotted: result.plottablePoints, outliers: outlierCount });
-        setStatus('ready');
-      } catch {
         if (!active) return;
-        setPlotData(null);
-        setStats(null);
-        setDiag({ received: 0, plotted: 0, outliers: 0 });
+        seriesDataRef.current = fetched;
+        seriesDefsRef.current = series;
+        setPerSeriesStats(stats);
+        setStatus(totalPoints > 0 ? 'ready' : 'empty');
+      } catch (err) {
+        if (!active) return;
+        console.error('[DataCanvasPanel] fetch failed', err);
+        seriesDataRef.current = [];
+        setPerSeriesStats([]);
         setStatus('error');
       }
     })();
     return () => {
       active = false;
-      pendingReqRef.current = null;
     };
-  }, [series, startTime, endTime, resolution, processWithWorker, processDirectFallback]);
+  }, [series, startTime, endTime, resolution]);
+
+  // ---------- Hide tooltip whenever data reloads ----------
+  useEffect(() => {
+    if (status !== 'ready') {
+      setTooltip((t) => ({ ...t, visible: false }));
+    }
+  }, [status]);
+
+  // ---------- uPlot init / re-init ----------
+  useEffect(() => {
+    if (status !== 'ready') {
+      if (plotRef.current) {
+        plotRef.current.destroy();
+        plotRef.current = null;
+      }
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) return;
+
+    const seriesData = seriesDataRef.current;
+    const seriesDefs = seriesDefsRef.current;
+    if (seriesData.length === 0) return;
+
+    // Compute global X domain across all series.
+    let xMin = Number.POSITIVE_INFINITY;
+    let xMax = Number.NEGATIVE_INFINITY;
+    for (const s of seriesData) {
+      if (s.xs.length === 0) continue;
+      if (s.xs[0] < xMin) xMin = s.xs[0];
+      if (s.xs[s.xs.length - 1] > xMax) xMax = s.xs[s.xs.length - 1];
+    }
+    if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return;
+    if (xMin === xMax) {
+      xMin -= 1;
+      xMax += 1;
+    }
+
+    // Compute Y ranges per scale (left = "y", right = "y2").
+    const leftValues: number[] = [];
+    const rightValues: number[] = [];
+    seriesData.forEach((sd, i) => {
+      const def = seriesDefs[i];
+      const target = def?.yAxis === 'right' ? rightValues : leftValues;
+      for (let j = 0; j < sd.ys.length; j++) {
+        const v = sd.ys[j];
+        if (Number.isFinite(v)) target.push(v);
+      }
+    });
+    const leftRange = robustRange(leftValues);
+    const rightRange = robustRange(rightValues);
+
+    // Build series (mode 2): index 0 is the X reference (must exist).
+    const uplotSeries: uPlot.Series[] = [
+      {},
+      ...seriesDefs.map((def, i) => {
+        const color = SERIES_COLORS[i % SERIES_COLORS.length];
+        const scale = def.yAxis === 'right' ? 'y2' : 'y';
+        const baseSeries: uPlot.Series = {
+          label: def.attribute,
+          scale,
+          stroke: color,
+          width: visual.mode === 'points' ? 0 : Math.max(1, visual.lineWidth),
+          points: {
+            show: visual.mode === 'points' || visual.pointRadius > 0,
+            size: Math.max(2, visual.mode === 'points' ? Math.max(visual.pointRadius || 4, 4) : visual.pointRadius),
+            stroke: '#0f172a',
+            fill: color,
+            width: 1,
+          },
+          paths: uPlot.paths.linear?.(),
+          spanGaps: true,
+        };
+        // Pretty hover marker — we render our own tooltip but keep cursor point.
+        return baseSeries;
+      }),
+    ];
+
+    const opts: uPlot.Options = {
+      width: container.clientWidth || 800,
+      height: container.clientHeight || 400,
+      mode: 2,
+      pxAlign: false,
+      legend: { show: false },
+      scales: {
+        x: {
+          time: true,
+          range: () => [xMin, xMax],
+        },
+        y: {
+          range: () => leftRange ?? [0, 1],
+        },
+        y2: {
+          range: () => rightRange ?? [0, 1],
+        },
+      },
+      axes: [
+        {
+          stroke: TEXT_MUTED,
+          grid: { stroke: GRID_RGBA, width: 1 },
+          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
+          font: '11px ui-sans-serif, system-ui',
+        },
+        {
+          scale: 'y',
+          stroke: TEXT_MUTED,
+          grid: { stroke: GRID_RGBA, width: 1 },
+          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
+          size: 50,
+          font: '11px ui-sans-serif, system-ui',
+        },
+        {
+          scale: 'y2',
+          side: 1,
+          stroke: TEXT_MUTED,
+          grid: { show: false },
+          ticks: { stroke: 'rgba(148,163,184,0.20)', size: 4 },
+          size: 50,
+          font: '11px ui-sans-serif, system-ui',
+        },
+      ],
+      cursor: {
+        x: true,
+        y: false,
+        drag: { x: true, y: false, setScale: true },
+        points: {
+          show: true,
+          size: 6,
+          stroke: (u, i) => (u.series[i].stroke as string) ?? '#22c55e',
+          fill: '#0f172a',
+          width: 2,
+        },
+      },
+      series: uplotSeries,
+      padding: [16, 16, 6, 6],
+      hooks: {
+        setCursor: [
+          (u: uPlot) => {
+            const left = u.cursor.left ?? -1;
+            const top = u.cursor.top ?? -1;
+            if (left < 0 || top < 0) {
+              setTooltip((t) => (t.visible ? { ...t, visible: false } : t));
+              return;
+            }
+            const xEpoch = u.posToVal(left, 'x');
+            if (!Number.isFinite(xEpoch)) {
+              setTooltip((t) => (t.visible ? { ...t, visible: false } : t));
+              return;
+            }
+            const rows: TooltipState['rows'] = [];
+            seriesData.forEach((sd, i) => {
+              const def = seriesDefs[i];
+              const nearest = nearestY(sd, xEpoch);
+              if (nearest && Number.isFinite(nearest.y)) {
+                rows.push({
+                  label: def.attribute,
+                  color: SERIES_COLORS[i % SERIES_COLORS.length],
+                  value: nearest.y,
+                  xEpoch: nearest.x,
+                });
+              }
+            });
+            if (rows.length === 0) {
+              setTooltip((t) => (t.visible ? { ...t, visible: false } : t));
+              return;
+            }
+            // Show tooltip near cursor; auto-flip if too close to right edge.
+            const flipRight = left > (u.bbox.left + u.bbox.width - 200);
+            setTooltip({
+              visible: true,
+              left: flipRight ? left - 12 : left + 12,
+              top: Math.max(8, top - 8),
+              xEpoch,
+              rows,
+            });
+          },
+        ],
+      },
+    };
+
+    // Mode-2 data: [null, [xs, ys], [xs, ys], ...]
+    const data = [null as unknown as number[], ...seriesData.map((sd) => [Array.from(sd.xs), Array.from(sd.ys)] as unknown as uPlot.AlignedData)] as unknown as uPlot.AlignedData;
+
+    if (plotRef.current) {
+      plotRef.current.destroy();
+      plotRef.current = null;
+    }
+    const plot = new uPlot(opts, data, container);
+    plotRef.current = plot;
+
+    // Resize observer for fluid layout.
+    const ro = new ResizeObserver(() => {
+      if (!plotRef.current || !container) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) {
+        plotRef.current.setSize({ width: w, height: h });
+      }
+    });
+    ro.observe(container);
+
+    return () => {
+      ro.disconnect();
+      if (plotRef.current === plot) {
+        plot.destroy();
+        plotRef.current = null;
+      }
+    };
+  }, [status, visual.lineWidth, visual.mode, visual.pointRadius]);
 
   const patchAppearance = useCallback(
     (partial: Partial<ChartAppearance>) => {
@@ -446,93 +523,43 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [onAppearanceChange, panelId, visual]
   );
 
-  const options = useMemo(() => {
-    const effectiveMode: ChartRenderMode = visual.mode === 'bars' ? 'line' : visual.mode;
-    return {
-      title: undefined,
-      series: buildSeriesOptions(series).map((s, idx) => {
-        if (idx === 0) return s;
-        if (effectiveMode === 'points') {
-          return {
-            ...s,
-            width: 0,
-            points: { show: true, size: Math.max(2, visual.pointRadius || 4), stroke: '#ffffff' },
-          } as uPlot.Series;
-        }
-        return {
-          ...s,
-          width: Math.max(1, visual.lineWidth),
-          points: {
-            show: visual.pointRadius > 0,
-            size: Math.max(2, visual.pointRadius),
-            stroke: '#ffffff',
-          },
-        } as uPlot.Series;
-      }),
-      scales: {
-        x: { time: true },
-        y: { auto: true, range: rangeFor('y') },
-        y2: { auto: true, range: rangeFor('y2') },
-      },
-      axes: [
-        {
-          stroke: '#94a3b8',
-          grid: { stroke: 'rgba(148,163,184,0.10)', width: 1 },
-          ticks: { stroke: 'rgba(148,163,184,0.25)' },
-        },
-        {
-          scale: 'y',
-          stroke: '#94a3b8',
-          grid: { stroke: 'rgba(148,163,184,0.10)', width: 1 },
-          ticks: { stroke: 'rgba(148,163,184,0.25)' },
-          size: 50,
-        },
-        {
-          scale: 'y2',
-          side: 1,
-          stroke: '#94a3b8',
-          grid: { show: false },
-          ticks: { stroke: 'rgba(148,163,184,0.25)' },
-          size: 50,
-        },
-      ],
-      legend: { show: false },
-      cursor: {
-        drag: { x: true, y: false },
-      },
-      padding: [8, 12, 4, 4] as [number, number, number, number],
-    } as unknown as uPlot.Options;
-  }, [series, visual.lineWidth, visual.mode, visual.pointRadius]);
-
-  const subtitle = series.length === 1
+  const summaryLabel = series.length === 1
     ? series[0].attribute
     : t('canvasPanel.multiSeries', { count: series.length });
 
-  return (
-    <div className="relative w-full h-full bg-transparent flex flex-col min-h-0">
-      <ChartSurface>
-        <ChartStatusLayer
-          status={status}
-          loadingText={t('canvasPanel.loading')}
-          emptyText={t('canvasPanel.noData')}
-          errorText={t('canvasPanel.errorLoad')}
-        />
-        <ChartRenderHost
-          options={options}
-          data={plotData}
-          syncEvents={true}
-          debugKey={panelId}
-        />
-      </ChartSurface>
+  // Aggregate stats footer: prefer first series.
+  const primaryStats = perSeriesStats[0] ?? null;
 
-      {/* Settings gear: collapsed by default, no overlay clutter */}
+  return (
+    <div className="relative w-full h-full bg-slate-950/30 flex flex-col min-h-0">
+      {/* Plot container */}
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Status overlay (loading / empty / error) */}
+      {status !== 'ready' && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <span
+            className={
+              status === 'error'
+                ? 'px-3 py-1.5 rounded-full bg-red-950/60 border border-red-500/40 text-red-200 text-xs'
+                : 'px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs'
+            }
+          >
+            {status === 'loading' && t('canvasPanel.loading')}
+            {status === 'empty' && t('canvasPanel.noData')}
+            {status === 'error' && t('canvasPanel.errorLoad')}
+          </span>
+        </div>
+      )}
+
+      {/* Settings gear */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setSettingsOpen((v) => !v);
         }}
-        className="absolute top-1.5 left-1.5 z-30 p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-colors"
+        className="absolute top-1.5 left-1.5 z-30 p-1 rounded-md text-slate-500 hover:text-slate-100 hover:bg-slate-800/70 transition-colors"
         title={t('canvasPanel.chartStyle')}
         aria-label={t('canvasPanel.chartStyle')}
       >
@@ -541,7 +568,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
       {settingsOpen && (
         <div
-          className="absolute top-9 left-1.5 z-30 px-2.5 py-2 flex flex-col gap-2 text-[11px] text-slate-100 rounded-md bg-slate-950/90 backdrop-blur-md border border-slate-700/60 shadow-lg"
+          className="absolute top-9 left-1.5 z-30 px-2.5 py-2 flex flex-col gap-2 text-[11px] text-slate-100 rounded-md bg-slate-950/90 backdrop-blur-md border border-slate-700/60 shadow-xl"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <label className="flex items-center justify-between gap-3">
@@ -584,7 +611,15 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               <span className="text-slate-400">{t('canvasPanel.axisPerSeriesHint')}</span>
               {series.map((s, idx) => (
                 <label key={`${s.entityId}-${s.attribute}`} className="flex items-center justify-between gap-3">
-                  <span className="text-slate-300 truncate max-w-[140px]" title={s.attribute}>
+                  <span
+                    className="flex items-center gap-1.5 text-slate-300 truncate max-w-[140px]"
+                    title={s.attribute}
+                  >
+                    <span
+                      aria-hidden
+                      className="inline-block w-2 h-2 rounded-full"
+                      style={{ background: SERIES_COLORS[idx % SERIES_COLORS.length] }}
+                    />
                     {s.attribute}
                   </span>
                   <select
@@ -604,27 +639,65 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         </div>
       )}
 
+      {/* Footer */}
       {status === 'ready' && (
-        <div className="absolute bottom-1 left-1.5 z-20 flex items-center gap-3 text-[10px] text-slate-400 pointer-events-none">
-          <span className="text-slate-300 font-medium truncate max-w-[180px]" title={subtitle}>
-            {subtitle}
-          </span>
-          {stats && (
-            <span className="tabular-nums">
-              <span className="text-slate-500">{t('canvasPanel.statMin')}</span> {formatNumberShort(stats.min)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statMax')}</span> {formatNumberShort(stats.max)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statAvg')}</span> {formatNumberShort(stats.mean)}
-              <span className="text-slate-500 ml-2">{t('canvasPanel.statLast')}</span> {formatNumberShort(stats.last)}
+        <div className="absolute bottom-1 left-2 right-2 z-20 flex items-center gap-3 text-[10px] text-slate-400 pointer-events-none">
+          {series.length > 1 ? (
+            <div className="flex items-center gap-2 truncate">
+              {series.map((s, i) => (
+                <span key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1 text-slate-300 truncate">
+                  <span
+                    aria-hidden
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
+                    style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }}
+                  />
+                  <span className="truncate max-w-[140px]">{s.attribute}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-slate-300 font-medium truncate" title={summaryLabel}>
+              {summaryLabel}
             </span>
           )}
-          <span className="tabular-nums text-slate-500">
-            {diag.plotted} pts
-            {diag.outliers > 0 && (
-              <span className="ml-1.5 text-amber-400/80" title={t('canvasPanel.outliersHiddenTitle')}>
-                · {t('canvasPanel.outliersHidden', { count: diag.outliers })}
-              </span>
-            )}
+          {primaryStats && (
+            <span className="tabular-nums whitespace-nowrap">
+              <span className="text-slate-500">{t('canvasPanel.statMin')}</span> {formatNumberShort(primaryStats.min)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statMax')}</span> {formatNumberShort(primaryStats.max)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statAvg')}</span> {formatNumberShort(primaryStats.mean)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statLast')}</span> {formatNumberShort(primaryStats.last)}
+            </span>
+          )}
+          <span className="tabular-nums text-slate-500 ml-auto whitespace-nowrap">
+            {perSeriesStats.reduce((acc, s) => acc + (s?.count ?? 0), 0)} pts
           </span>
+        </div>
+      )}
+
+      {/* Tooltip */}
+      {tooltip.visible && status === 'ready' && (
+        <div
+          className="absolute z-30 pointer-events-none px-2 py-1.5 rounded-md bg-slate-950/95 border border-slate-700/70 shadow-lg text-[11px] text-slate-100 backdrop-blur-md"
+          style={{ left: tooltip.left, top: tooltip.top, transform: 'translate(-50%, -100%)', maxWidth: 280 }}
+        >
+          <div className="text-slate-400 text-[10px] mb-1 tabular-nums">
+            {formatDateLocal(tooltip.xEpoch)}
+          </div>
+          {tooltip.rows.map((r) => (
+            <div key={r.label} className="flex items-center gap-2 leading-tight">
+              <span
+                aria-hidden
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: r.color }}
+              />
+              <span className="truncate text-slate-200" style={{ maxWidth: 140 }} title={r.label}>
+                {r.label}
+              </span>
+              <span className="ml-auto tabular-nums text-slate-100 font-medium">
+                {formatNumberShort(r.value)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
