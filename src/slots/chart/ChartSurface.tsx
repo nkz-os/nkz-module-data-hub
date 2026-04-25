@@ -10,9 +10,8 @@ interface ChartSurfaceProps {
  */
 export function ChartSurface({ children }: ChartSurfaceProps) {
   return (
-    <div className="absolute inset-0 min-h-0 bg-transparent border-none rounded-none p-0">
+    <div className="absolute inset-0 min-h-0 bg-transparent border-none rounded-none p-0 overflow-hidden">
       {children}
     </div>
   );
 }
-

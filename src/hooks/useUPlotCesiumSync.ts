@@ -63,33 +63,10 @@ export function useUPlotCesiumSync({
     if (!container) return;
     if (!data || data.length < 2) return;
 
-    const opts = { ...options };
-    if (!opts.width) opts.width = container.offsetWidth || 800;
-    if (!opts.height) opts.height = 300;
-
-    const existingSetSelect = opts.hooks?.setSelect ?? [];
-    const setSelectHandlers = Array.isArray(existingSetSelect) ? [...existingSetSelect] : [existingSetSelect];
-    if (syncEvents) {
-      setSelectHandlers.push((u: uPlot) => {
-        const sel = u.select;
-        if (!sel || sel.width <= 0) return;
-        const min = u.posToVal(sel.left, 'x');
-        const max = u.posToVal(sel.left + sel.width, 'x');
-        if (min !== max && Number.isFinite(min) && Number.isFinite(max)) {
-          window.dispatchEvent(
-            new CustomEvent<DataHubTimeRangeDetail>(DATAHUB_EVENT_TIME_SELECT, {
-              detail: { min, max },
-            })
-          );
-        }
-      });
-    }
-    opts.hooks = { ...opts.hooks, setSelect: setSelectHandlers };
-
-    const existingSetCursor = opts.hooks?.setCursor ?? [];
-    const setCursorHandlers = Array.isArray(existingSetCursor) ? [...existingSetCursor] : [existingSetCursor];
+    let resizeRaf = 0;
     let hoverRafId: number | null = null;
     let pendingHoverMs: number | null = null;
+    let isInitialized = false;
 
     const flushTimeHover = () => {
       hoverRafId = null;
@@ -102,44 +79,84 @@ export function useUPlotCesiumSync({
       );
     };
 
-    if (syncEvents) {
-      setCursorHandlers.push(((u: uPlot) => {
-        const idx = u.cursor.idx;
-        if (idx == null || idx < 0) {
-          pendingHoverMs = null;
-          if (hoverRafId != null) {
-            cancelAnimationFrame(hoverRafId);
-            hoverRafId = null;
+    // Deferred Initialization: only create uPlot if container has actual dimensions > 0.
+    const tryInitChart = () => {
+      const w = container.offsetWidth;
+      const h = container.offsetHeight;
+      if (w === 0 || h === 0) return false;
+
+      const opts = { ...options };
+      opts.width = w;
+      opts.height = h;
+
+      const existingSetSelect = opts.hooks?.setSelect ?? [];
+      const setSelectHandlers = Array.isArray(existingSetSelect) ? [...existingSetSelect] : [existingSetSelect];
+      if (syncEvents) {
+        setSelectHandlers.push((u: uPlot) => {
+          const sel = u.select;
+          if (!sel || sel.width <= 0) return;
+          const min = u.posToVal(sel.left, 'x');
+          const max = u.posToVal(sel.left + sel.width, 'x');
+          if (min !== max && Number.isFinite(min) && Number.isFinite(max)) {
+            window.dispatchEvent(
+              new CustomEvent<DataHubTimeRangeDetail>(DATAHUB_EVENT_TIME_SELECT, {
+                detail: { min, max },
+              })
+            );
           }
-          return;
-        }
-        const series0 = u.data[0];
-        if (!series0 || idx >= series0.length) return;
-        const xSeconds = series0[idx];
-        if (xSeconds == null || !Number.isFinite(xSeconds)) return;
-        pendingHoverMs = xSeconds * 1000;
-        if (hoverRafId == null) {
-          hoverRafId = requestAnimationFrame(flushTimeHover);
-        }
-      }) as (self: uPlot) => void);
-    }
-    opts.hooks = { ...opts.hooks, setCursor: setCursorHandlers };
+        });
+      }
+      opts.hooks = { ...opts.hooks, setSelect: setSelectHandlers };
 
-    // Create uPlot WITH data directly — avoids empty-init + setData race condition
-    const u = new uPlot(opts, data, container);
-    uplotRef.current = u;
+      const existingSetCursor = opts.hooks?.setCursor ?? [];
+      const setCursorHandlers = Array.isArray(existingSetCursor) ? [...existingSetCursor] : [existingSetCursor];
+      
+      if (syncEvents) {
+        setCursorHandlers.push(((u: uPlot) => {
+          const idx = u.cursor.idx;
+          if (idx == null || idx < 0) {
+            pendingHoverMs = null;
+            if (hoverRafId != null) {
+              cancelAnimationFrame(hoverRafId);
+              hoverRafId = null;
+            }
+            return;
+          }
+          const series0 = u.data[0];
+          if (!series0 || idx >= series0.length) return;
+          const xSeconds = series0[idx];
+          if (xSeconds == null || !Number.isFinite(xSeconds)) return;
+          pendingHoverMs = xSeconds * 1000;
+          if (hoverRafId == null) {
+            hoverRafId = requestAnimationFrame(flushTimeHover);
+          }
+        }) as (self: uPlot) => void);
+      }
+      opts.hooks = { ...opts.hooks, setCursor: setCursorHandlers };
 
-    // Defer setSize to the next frame — synchronous resize inside ResizeObserver triggers
-    // Chrome's "ResizeObserver loop completed with undelivered notifications" and host window.onerror spam.
-    let resizeRaf = 0;
+      // Create uPlot WITH data directly
+      uplotRef.current = new uPlot(opts, data, container);
+      return true;
+    };
+
+    // 1. Try to initialize immediately (in case DOM layout is already resolved)
+    isInitialized = tryInitChart();
+
+    // 2. Observer kicks in to either initialize or resize
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
         resizeRaf = 0;
-        if (uplotRef.current && container) {
-          const w = container.offsetWidth || opts.width || 800;
-          const h = container.offsetHeight || opts.height || 300;
-          uplotRef.current.setSize({ width: w, height: h });
+        if (!container) return;
+        
+        if (!isInitialized) {
+          isInitialized = tryInitChart();
+        } else if (uplotRef.current) {
+          const w = container.offsetWidth;
+          const h = container.offsetHeight;
+          if (w > 0 && h > 0) {
+            uplotRef.current.setSize({ width: w, height: h });
+          }
         }
       });
     });
@@ -154,10 +171,9 @@ export function useUPlotCesiumSync({
       const rawMax = Number(d.max);
       if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax) || rawMax <= rawMin) return;
 
-      // Accept host events in either epoch seconds (DataHub native) or epoch milliseconds.
-      // If values look like milliseconds, convert to seconds before applying uPlot scale.
       let min = rawMin;
       let max = rawMax;
+      // Accept host events in either epoch seconds or epoch milliseconds.
       if (Math.max(Math.abs(min), Math.abs(max)) > 1e11) {
         min /= 1000;
         max /= 1000;
@@ -168,7 +184,6 @@ export function useUPlotCesiumSync({
       const dataMin = Math.min(first, last);
       const dataMax = Math.max(first, last);
 
-      // Ignore sync ranges that are fully outside the current data domain.
       if (max < dataMin || min > dataMax) return;
       const clampedMin = Math.max(min, dataMin);
       const clampedMax = Math.min(max, dataMax);
@@ -176,6 +191,7 @@ export function useUPlotCesiumSync({
 
       uplotRef.current.setScale('x', { min: clampedMin, max: clampedMax });
     };
+    
     if (syncEvents) {
       window.addEventListener(DATAHUB_EVENT_SET_TIME_RANGE, onSetTimeRange);
     }
@@ -191,8 +207,10 @@ export function useUPlotCesiumSync({
       if (syncEvents) {
         window.removeEventListener(DATAHUB_EVENT_SET_TIME_RANGE, onSetTimeRange);
       }
-      u.destroy();
-      uplotRef.current = null;
+      if (uplotRef.current) {
+        uplotRef.current.destroy();
+        uplotRef.current = null;
+      }
     };
   }, [chartContainerRef, options, data, syncEvents]);
 }
