@@ -18,6 +18,10 @@ import polars as pl
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from app.common.logging_setup import get_logger
+
+logger = get_logger(__name__)
+
 router = APIRouter(prefix="/api/datahub", tags=["datahub"])
 
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
@@ -556,6 +560,10 @@ async def proxy_timeseries_data(
     to JSON {timestamps: [...], values: [...]} for the browser (no heavy Arrow lib needed).
     """
     if not PLATFORM_API_URL:
+        logger.warning(
+            "timeseries_data_no_platform",
+            extra={"entity_id": entity_id},
+        )
         return JSONResponse(
             content={"error": "PLATFORM_API_URL not configured"},
             status_code=503,
@@ -583,11 +591,25 @@ async def proxy_timeseries_data(
                 body = r.json()
             except Exception:
                 body = {"error": r.text or f"Upstream {r.status_code}"}
+            logger.warning(
+                "timeseries_data_upstream_error",
+                extra={
+                    "entity_id": entity_id,
+                    "attribute": qp.get("attrs"),
+                    "time_from": qp.get("time_from"),
+                    "time_to": qp.get("time_to"),
+                    "upstream_status": r.status_code,
+                },
+            )
             return JSONResponse(content=body, status_code=r.status_code)
 
         try:
             data = r.json()
         except Exception:
+            logger.error(
+                "timeseries_data_invalid_json",
+                extra={"entity_id": entity_id, "attribute": qp.get("attrs")},
+            )
             return JSONResponse(
                 content={"error": "Invalid JSON response from timeseries reader"},
                 status_code=502,
@@ -595,7 +617,19 @@ async def proxy_timeseries_data(
         json_data = _reader_json_to_frontend_json(data, qp.get("attrs"))
         ts = json_data.get("timestamps") or []
         vals = json_data.get("values") or []
-        print(f"[DBG] entity={entity_id} attr={qp.get('attrs')} ts_len={len(ts)} vals_len={len(vals)} ts_sample={ts[:2] if ts else []} vals_sample={vals[:2] if vals else []}", flush=True)
+        logger.info(
+            "timeseries_data_ok",
+            extra={
+                "entity_id": entity_id,
+                "attribute": qp.get("attrs"),
+                "time_from": qp.get("time_from"),
+                "time_to": qp.get("time_to"),
+                "resolution": qp.get("resolution"),
+                "ts_len": len(ts),
+                "vals_len": len(vals),
+                "status": 204 if not ts else 200,
+            },
+        )
         if not ts:
             return Response(status_code=204)
         return JSONResponse(content=json_data)

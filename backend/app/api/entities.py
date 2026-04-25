@@ -3,7 +3,6 @@ GET /api/datahub/entities — list entities that have timeseries data.
 Proxies to platform NGSI-LD / entity APIs when PLATFORM_API_URL is set.
 """
 
-import logging
 import os
 from typing import Any, Optional
 
@@ -11,9 +10,11 @@ import httpx
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse
 
+from app.common.logging_setup import get_logger
+
 router = APIRouter(prefix="/api/datahub", tags=["datahub"])
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
 CONTEXT_URL = os.getenv("CONTEXT_URL", "").strip()
 
@@ -278,13 +279,15 @@ async def get_entities(
         except Exception as ex:
             failures.append(f"{etype}: {ex}")
             logger.warning(
-                "datahub entities: skip type %s — %s",
-                etype,
-                ex,
-                exc_info=logger.isEnabledFor(logging.DEBUG),
+                "entities_skip_type",
+                extra={"entity_type": etype, "error": str(ex)},
             )
             continue
     if successful_types == 0 and failures:
+        logger.error(
+            "entities_all_types_failed",
+            extra={"failures": failures[:5], "search": search},
+        )
         return JSONResponse(
             content={
                 "error": "No se pudo consultar Orion-LD desde DataHub",
@@ -292,4 +295,12 @@ async def get_entities(
             },
             status_code=502,
         )
+    logger.info(
+        "entities_ok",
+        extra={
+            "count": len(all_entities),
+            "successful_types": successful_types,
+            "search": search,
+        },
+    )
     return {"entities": all_entities}
