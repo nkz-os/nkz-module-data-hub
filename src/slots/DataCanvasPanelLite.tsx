@@ -13,7 +13,9 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r14';
+const BUILD = 'uplot-worker-2026-04-25-r15';
+const SHOW_DEBUG = false;
+type YScaleMode = 'focus' | 'full';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -142,7 +144,7 @@ function quantile(sorted: number[], q: number): number {
   return sorted[lo] * (1 - w) + sorted[hi] * w;
 }
 
-function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
+function robustScaleRangeFor(scaleKey: 'y' | 'y2', mode: YScaleMode) {
   return (u: uPlot, min: number, max: number): [number, number] => {
     const values: number[] = [];
     for (let i = 1; i < u.series.length; i++) {
@@ -166,6 +168,8 @@ function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
     values.sort((a, b) => a - b);
     const p05 = quantile(values, 0.05);
     const p95 = quantile(values, 0.95);
+    const p10 = quantile(values, 0.1);
+    const p90 = quantile(values, 0.9);
     const q25 = quantile(values, 0.25);
     const q75 = quantile(values, 0.75);
     const iqr = Math.max(1e-9, q75 - q25);
@@ -174,6 +178,10 @@ function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
 
     let lo = Number.isFinite(p05) ? p05 : min;
     let hi = Number.isFinite(p95) ? p95 : max;
+    if (mode === 'focus' && Number.isFinite(p10) && Number.isFinite(p90) && p90 > p10) {
+      lo = p10;
+      hi = p90;
+    }
     // If distribution is highly skewed (many low values + few spikes),
     // switch to Tukey-fence focus to avoid "flat-at-bottom" rendering.
     if (Number.isFinite(q25) && Number.isFinite(q75) && skewRatio > 6) {
@@ -227,6 +235,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [renderDbg, setRenderDbg] = useState<{ stage: string; cw: number; ch: number; uw: number; uh: number; pt: number; ph: number } | null>(null);
   const [yDbg, setYDbg] = useState<{ min: number; max: number; p05: number; p95: number } | null>(null);
   const [xDbg, setXDbg] = useState<{ min: number; max: number } | null>(null);
+  const [yScaleMode, setYScaleMode] = useState<YScaleMode>('focus');
 
   useEffect(() => {
     const worker = new DatahubWorkerInline();
@@ -457,8 +466,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       }),
       scales: {
         x: { time: true },
-        y: { auto: true, range: robustScaleRangeFor('y') },
-        y2: { auto: true, range: robustScaleRangeFor('y2') },
+        y: { auto: true, range: robustScaleRangeFor('y', yScaleMode) },
+        y2: { auto: true, range: robustScaleRangeFor('y2', yScaleMode) },
       },
       axes: [
         { grid: { show: false } },
@@ -473,7 +482,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         },
       },
     } as unknown as uPlot.Options;
-  }, [series, t, visual.lineWidth, visual.mode, visual.pointRadius]);
+  }, [series, t, visual.lineWidth, visual.mode, visual.pointRadius, yScaleMode]);
 
   return (
     <div className="relative w-full h-full bg-transparent border-none rounded-none p-0 flex flex-col min-h-0">
@@ -538,23 +547,31 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             {advancedOpen ? 'Basic' : 'Advanced'}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setYScaleMode((m) => (m === 'focus' ? 'full' : 'focus'))}
+          className="px-1.5 py-0.5 rounded border border-slate-500/50 bg-slate-900 text-slate-100"
+          title="Toggle Y scaling mode"
+        >
+          Y {yScaleMode}
+        </button>
       </div>
 
       <div className="absolute bottom-1 left-1 z-20 flex items-center gap-2 rounded-md bg-slate-950/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-slate-200">
         <span>{series.length === 1 ? series[0].attribute : `series:${series.length}`}</span>
         <span>points {diag.plotted}/{diag.received}</span>
         <span>viewport {viewport.width}x{viewport.height}</span>
-        {renderDbg ? (
+        {SHOW_DEBUG && renderDbg ? (
           <span>
             dbg {renderDbg.stage} c:{renderDbg.cw}x{renderDbg.ch} u:{renderDbg.uw}x{renderDbg.uh} p:{renderDbg.pt}/{renderDbg.ph}
           </span>
         ) : null}
-        {yDbg ? (
+        {SHOW_DEBUG && yDbg ? (
           <span>
             y {yDbg.min.toFixed(2)}/{yDbg.max.toFixed(2)} p05/p95 {yDbg.p05.toFixed(2)}/{yDbg.p95.toFixed(2)}
           </span>
         ) : null}
-        {xDbg ? (
+        {SHOW_DEBUG && xDbg ? (
           <span>
             x {new Date(xDbg.min * 1000).toISOString().slice(5, 16)}..{new Date(xDbg.max * 1000).toISOString().slice(5, 16)}
           </span>
