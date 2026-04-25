@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r10';
+const BUILD = 'uplot-worker-2026-04-25-r11';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -43,15 +43,20 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 function toEpochSeconds(value: unknown): number | null {
+  const normalizeEpoch = (n: number): number => {
+    let v = n;
+    while (Math.abs(v) > 1e11) v /= 1000;
+    return v;
+  };
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.abs(value) > 1e11 ? value / 1000 : value;
+    return normalizeEpoch(value);
   }
   if (typeof value === 'string') {
     const t = value.trim();
     if (/^\d+(\.\d+)?$/.test(t)) {
       const n = Number.parseFloat(t);
       if (!Number.isFinite(n)) return null;
-      return Math.abs(n) > 1e11 ? n / 1000 : n;
+      return normalizeEpoch(n);
     }
     const ms = Date.parse(t);
     return Number.isFinite(ms) ? ms / 1000 : null;
