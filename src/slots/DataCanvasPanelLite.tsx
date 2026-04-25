@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r11';
+const BUILD = 'uplot-worker-2026-04-25-r12';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -181,6 +181,17 @@ function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
   };
 }
 
+function computeAdaptiveMaxGapSeconds(startTime: string, endTime: string, resolution: number): number {
+  const startMs = Date.parse(startTime);
+  const endMs = Date.parse(endTime);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs || resolution <= 1) {
+    return 6 * 3600;
+  }
+  const spanSec = (endMs - startMs) / 1000;
+  const step = spanSec / Math.max(1, resolution - 1);
+  return Math.max(15 * 60, Math.min(24 * 3600, step * 4));
+}
+
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   panelId,
   series,
@@ -325,6 +336,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       try {
         setStatus('loading');
         const base = getBaseUrl().replace(/\/$/, '');
+        const adaptiveGapSeconds = computeAdaptiveMaxGapSeconds(startTime, endTime, resolution);
         const workerRequest = {
           mode: series.length > 1 ? 'multi' : 'single',
           baseUrl: base || undefined,
@@ -338,7 +350,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             source: s.source ?? 'timescale',
           })),
           policy: {
-            maxGapSeconds: 15 * 60,
+            maxGapSeconds: adaptiveGapSeconds,
             downsampleThreshold: 3000,
             viewportWidthPx: 1200,
             preserveExtrema: true,
