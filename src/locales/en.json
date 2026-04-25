@@ -69,6 +69,8 @@
     "correlationInfo": "Active correlation: X={{x}} / Y={{y}}",
     "pearsonR": "Pearson r: {{r}} (n={{n}})",
     "pointsInfo": "Plottable points: {{plottable}} / received: {{received}}",
+    "outliersHidden": "{{count}} outliers hidden",
+    "outliersHiddenTitle": "Extreme values detected (MAD/IQR) and hidden from the trace to avoid scale compression. Switch mode in Settings to view them.",
     "trendline": "Trend (OLS)",
     "styleLockedWithPrediction": "Chart style is fixed while AI prediction is shown."
   },

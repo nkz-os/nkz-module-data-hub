@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { useTranslation } from '@nekazari/sdk';
+import { Settings2 } from 'lucide-react';
 
 import { getBaseUrl, getDatahubRequestHeaders } from '../services/datahubApi';
-import { DATAHUB_EVENT_RENDER_DEBUG, type DataHubRenderDebugDetail } from '../hooks/useUPlotCesiumSync';
 import type { ChartAppearance, ChartRenderMode, ChartSeriesDef, PredictionPayload } from '../types/dashboard';
 import type { DatahubWorkerRequest } from '../workers/contracts/datahubWorkerV2';
 import DatahubWorkerInline from '../workers/datahubWorker.ts?worker&inline';
@@ -13,9 +13,6 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r15';
-const SHOW_DEBUG = false;
-type YScaleMode = 'focus' | 'full';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -45,20 +42,17 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 function toEpochSeconds(value: unknown): number | null {
-  const normalizeEpoch = (n: number): number => {
+  const normalize = (n: number): number => {
     let v = n;
     while (Math.abs(v) > 1e11) v /= 1000;
     return v;
   };
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return normalizeEpoch(value);
-  }
+  if (typeof value === 'number' && Number.isFinite(value)) return normalize(value);
   if (typeof value === 'string') {
     const t = value.trim();
     if (/^\d+(\.\d+)?$/.test(t)) {
       const n = Number.parseFloat(t);
-      if (!Number.isFinite(n)) return null;
-      return normalizeEpoch(n);
+      return Number.isFinite(n) ? normalize(n) : null;
     }
     const ms = Date.parse(t);
     return Number.isFinite(ms) ? ms / 1000 : null;
@@ -104,6 +98,59 @@ function outerJoinSeries(rows: Array<{ x: number[]; y: number[] }>): uPlot.Align
   return [x, ...ys] as uPlot.AlignedData;
 }
 
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return Number.NaN;
+  if (sorted.length === 1) return sorted[0];
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const w = pos - lo;
+  return sorted[lo] * (1 - w) + sorted[hi] * w;
+}
+
+/**
+ * Outlier removal using MAD (Median Absolute Deviation), floored by IQR fences
+ * to handle near-flat data with rare spikes (typical sensor glitches).
+ * Outliers are replaced with NaN so uPlot draws a gap; range stays compact.
+ */
+function maskOutliers(values: ReadonlyArray<number>): { cleaned: number[]; removed: number } {
+  const finite: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (Number.isFinite(v)) finite.push(v);
+  }
+  if (finite.length < 8) return { cleaned: values.slice(), removed: 0 };
+  finite.sort((a, b) => a - b);
+  const median = quantile(finite, 0.5);
+  const q25 = quantile(finite, 0.25);
+  const q75 = quantile(finite, 0.75);
+  const iqr = Math.max(0, q75 - q25);
+  const devs = finite.map((v) => Math.abs(v - median)).sort((a, b) => a - b);
+  const mad = quantile(devs, 0.5);
+  // 1.4826*MAD estimates σ under normality. 6σ keeps natural variation.
+  const madBound = mad > 0 ? 6 * 1.4826 * mad : 0;
+  const iqrBound = iqr > 0 ? 3 * iqr : 0;
+  const bound = Math.max(madBound, iqrBound);
+  if (!(bound > 0)) return { cleaned: values.slice(), removed: 0 };
+  const cleaned = new Array<number>(values.length);
+  let removed = 0;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (!Number.isFinite(v)) {
+      cleaned[i] = Number.NaN;
+      continue;
+    }
+    if (Math.abs(v - median) > bound) {
+      cleaned[i] = Number.NaN;
+      removed += 1;
+    } else {
+      cleaned[i] = v;
+    }
+  }
+  return { cleaned, removed };
+}
+
 function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
   const out: uPlot.Series[] = [{}];
   series.forEach((s, i) => {
@@ -120,12 +167,7 @@ function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
       scale: resolvedScale,
       stroke: COLORS[i % COLORS.length],
       width: 2,
-      points: {
-        show: false,
-        size: 3,
-        stroke: '#ffffff',
-        fill: COLORS[i % COLORS.length],
-      },
+      points: { show: false, size: 3, stroke: '#ffffff', fill: COLORS[i % COLORS.length] },
       paths: uPlot.paths.linear?.(),
       spanGaps: false,
     });
@@ -133,70 +175,30 @@ function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
   return out;
 }
 
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return Number.NaN;
-  if (sorted.length === 1) return sorted[0];
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  if (lo === hi) return sorted[lo];
-  const w = pos - lo;
-  return sorted[lo] * (1 - w) + sorted[hi] * w;
-}
-
-function robustScaleRangeFor(scaleKey: 'y' | 'y2', mode: YScaleMode) {
+function rangeFor(scaleKey: 'y' | 'y2') {
   return (u: uPlot, min: number, max: number): [number, number] => {
-    const values: number[] = [];
+    let lo = Number.POSITIVE_INFINITY;
+    let hi = Number.NEGATIVE_INFINITY;
     for (let i = 1; i < u.series.length; i++) {
-      const s = u.series[i];
-      if ((s.scale ?? 'y') !== scaleKey) continue;
+      if ((u.series[i].scale ?? 'y') !== scaleKey) continue;
       const col = u.data[i] as ArrayLike<number> | undefined;
       if (!col) continue;
       for (let j = 0; j < col.length; j++) {
         const v = Number(col[j]);
-        if (Number.isFinite(v)) values.push(v);
+        if (Number.isFinite(v)) {
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
       }
     }
-    if (values.length < 3) {
-      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
-        const base = Number.isFinite(min) ? min : 0;
-        return [base - 1, base + 1];
-      }
-      const pad = Math.max(1e-6, Math.abs(max - min) * 0.08);
-      return [min - pad, max + pad];
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+      const a = Number.isFinite(min) ? min : 0;
+      const b = Number.isFinite(max) ? max : 1;
+      if (a === b) return [a - 1, a + 1];
+      return [a, b];
     }
-    values.sort((a, b) => a - b);
-    const p05 = quantile(values, 0.05);
-    const p95 = quantile(values, 0.95);
-    const p10 = quantile(values, 0.1);
-    const p90 = quantile(values, 0.9);
-    const q25 = quantile(values, 0.25);
-    const q75 = quantile(values, 0.75);
-    const iqr = Math.max(1e-9, q75 - q25);
-    const spread = Math.max(1e-9, p95 - p05);
-    const skewRatio = spread / iqr;
-
-    let lo = Number.isFinite(p05) ? p05 : min;
-    let hi = Number.isFinite(p95) ? p95 : max;
-    if (mode === 'focus' && Number.isFinite(p10) && Number.isFinite(p90) && p90 > p10) {
-      lo = p10;
-      hi = p90;
-    }
-    // If distribution is highly skewed (many low values + few spikes),
-    // switch to Tukey-fence focus to avoid "flat-at-bottom" rendering.
-    if (Number.isFinite(q25) && Number.isFinite(q75) && skewRatio > 6) {
-      lo = q25 - 1.5 * iqr;
-      hi = q75 + 1.5 * iqr;
-    }
-    if (!(Number.isFinite(lo) && Number.isFinite(hi))) {
-      lo = Number.isFinite(min) ? min : 0;
-      hi = Number.isFinite(max) ? max : 1;
-    }
-    if (hi <= lo) {
-      const c = Number.isFinite(lo) ? lo : 0;
-      return [c - 1, c + 1];
-    }
-    const pad = Math.max(1e-6, (hi - lo) * 0.12);
+    if (lo === hi) return [lo - 1, hi + 1];
+    const pad = Math.max(1e-6, (hi - lo) * 0.08);
     return [lo - pad, hi + pad];
   };
 }
@@ -210,6 +212,15 @@ function computeAdaptiveMaxGapSeconds(startTime: string, endTime: string, resolu
   const spanSec = (endMs - startMs) / 1000;
   const step = spanSec / Math.max(1, resolution - 1);
   return Math.max(15 * 60, Math.min(24 * 3600, step * 4));
+}
+
+function formatNumberShort(v: number): string {
+  if (!Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1000) return v.toFixed(0);
+  if (abs >= 100) return v.toFixed(1);
+  if (abs >= 10) return v.toFixed(2);
+  return v.toFixed(3);
 }
 
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
@@ -227,15 +238,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const pendingReqRef = useRef<string | null>(null);
 
   const visual = useMemo(() => mergeChartAppearance(chartAppearance), [chartAppearance]);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'empty' | 'error'>('loading');
   const [plotData, setPlotData] = useState<uPlot.AlignedData | null>(null);
-  const [diag, setDiag] = useState({ received: 0, plotted: 0 });
-  const [viewport, setViewport] = useState({ width: 0, height: 0 });
-  const [renderDbg, setRenderDbg] = useState<{ stage: string; cw: number; ch: number; uw: number; uh: number; pt: number; ph: number } | null>(null);
-  const [yDbg, setYDbg] = useState<{ min: number; max: number; p05: number; p95: number } | null>(null);
-  const [xDbg, setXDbg] = useState<{ min: number; max: number } | null>(null);
-  const [yScaleMode, setYScaleMode] = useState<YScaleMode>('focus');
+  const [diag, setDiag] = useState({ received: 0, plotted: 0, outliers: 0 });
+  const [stats, setStats] = useState<{ min: number; max: number; mean: number; last: number } | null>(null);
 
   useEffect(() => {
     const worker = new DatahubWorkerInline();
@@ -246,24 +253,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       pendingReqRef.current = null;
     };
   }, []);
-
-  useEffect(() => {
-    const onDebug = (evt: Event) => {
-      const d = (evt as CustomEvent<DataHubRenderDebugDetail>).detail;
-      if (!d || d.key !== panelId) return;
-      setRenderDbg({
-        stage: d.stage,
-        cw: d.containerW,
-        ch: d.containerH,
-        uw: d.chartW,
-        uh: d.chartH,
-        pt: d.plotTop,
-        ph: d.plotHeight,
-      });
-    };
-    window.addEventListener(DATAHUB_EVENT_RENDER_DEBUG, onDebug);
-    return () => window.removeEventListener(DATAHUB_EVENT_RENDER_DEBUG, onDebug);
-  }, [panelId]);
 
   const processWithWorker = useCallback(
     (req: Omit<DatahubWorkerRequest, 'type' | 'requestId' | 'contractVersion'>): Promise<WorkerResult | null> => {
@@ -350,6 +339,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   useEffect(() => {
     if (series.length === 0) {
       setPlotData(null);
+      setStats(null);
       setStatus('empty');
       return;
     }
@@ -390,38 +380,55 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         if (!active) return;
         if (!result || result.plottablePoints <= 0) {
           setPlotData(null);
-          setDiag({ received: result?.receivedPoints ?? 0, plotted: result?.plottablePoints ?? 0 });
+          setStats(null);
+          setDiag({ received: result?.receivedPoints ?? 0, plotted: result?.plottablePoints ?? 0, outliers: 0 });
           setStatus('empty');
           return;
         }
-        setPlotData(result.data);
-        setDiag({ received: result.receivedPoints, plotted: result.plottablePoints });
-        const x0 = (result.data?.[0] as number[] | undefined) ?? [];
-        const finiteX = x0.filter((v) => Number.isFinite(v));
-        if (finiteX.length > 0) {
-          setXDbg({ min: finiteX[0], max: finiteX[finiteX.length - 1] });
-        } else {
-          setXDbg(null);
+
+        // Outlier sanitation per Y series.
+        const cleanedColumns: number[][] = [];
+        let outlierCount = 0;
+        for (let i = 1; i < result.data.length; i++) {
+          const col = result.data[i] as ArrayLike<number>;
+          const arr: number[] = [];
+          for (let j = 0; j < col.length; j++) arr.push(Number(col[j]));
+          const { cleaned, removed } = maskOutliers(arr);
+          outlierCount += removed;
+          cleanedColumns.push(cleaned);
         }
-        const y0 = (result.data?.[1] as number[] | undefined) ?? [];
-        const finite = y0.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-        if (finite.length > 0) {
-          setYDbg({
-            min: finite[0],
-            max: finite[finite.length - 1],
-            p05: quantile(finite, 0.05),
-            p95: quantile(finite, 0.95),
-          });
-        } else {
-          setYDbg(null);
+        const cleanedData = [result.data[0] as number[], ...cleanedColumns] as unknown as uPlot.AlignedData;
+
+        // Stats from the first series, cleaned.
+        const firstClean = cleanedColumns[0] ?? [];
+        let mn = Number.POSITIVE_INFINITY;
+        let mx = Number.NEGATIVE_INFINITY;
+        let sum = 0;
+        let n = 0;
+        let last = Number.NaN;
+        for (let j = 0; j < firstClean.length; j++) {
+          const v = firstClean[j];
+          if (Number.isFinite(v)) {
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+            sum += v;
+            n += 1;
+            last = v;
+          }
         }
+        setStats(
+          n > 0
+            ? { min: mn, max: mx, mean: sum / n, last }
+            : null
+        );
+        setPlotData(cleanedData);
+        setDiag({ received: result.receivedPoints, plotted: result.plottablePoints, outliers: outlierCount });
         setStatus('ready');
       } catch {
         if (!active) return;
         setPlotData(null);
-        setDiag({ received: 0, plotted: 0 });
-        setXDbg(null);
-        setYDbg(null);
+        setStats(null);
+        setDiag({ received: 0, plotted: 0, outliers: 0 });
         setStatus('error');
       }
     })();
@@ -442,8 +449,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const options = useMemo(() => {
     const effectiveMode: ChartRenderMode = visual.mode === 'bars' ? 'line' : visual.mode;
     return {
-      // Keep title unset in uPlot; long dynamic labels can consume vertical space
-      // and visually push the plot area to the bottom of the viewport.
       title: undefined,
       series: buildSeriesOptions(series).map((s, idx) => {
         if (idx === 0) return s;
@@ -466,26 +471,45 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       }),
       scales: {
         x: { time: true },
-        y: { auto: true, range: robustScaleRangeFor('y', yScaleMode) },
-        y2: { auto: true, range: robustScaleRangeFor('y2', yScaleMode) },
+        y: { auto: true, range: rangeFor('y') },
+        y2: { auto: true, range: rangeFor('y2') },
       },
       axes: [
-        { grid: { show: false } },
-        { scale: 'y', grid: { stroke: '#334155' }, label: t('canvasPanel.axisLeft') },
-        { scale: 'y2', side: 3, grid: { show: false }, label: t('canvasPanel.axisRight') },
+        {
+          stroke: '#94a3b8',
+          grid: { stroke: 'rgba(148,163,184,0.10)', width: 1 },
+          ticks: { stroke: 'rgba(148,163,184,0.25)' },
+        },
+        {
+          scale: 'y',
+          stroke: '#94a3b8',
+          grid: { stroke: 'rgba(148,163,184,0.10)', width: 1 },
+          ticks: { stroke: 'rgba(148,163,184,0.25)' },
+          size: 50,
+        },
+        {
+          scale: 'y2',
+          side: 1,
+          stroke: '#94a3b8',
+          grid: { show: false },
+          ticks: { stroke: 'rgba(148,163,184,0.25)' },
+          size: 50,
+        },
       ],
       legend: { show: false },
       cursor: {
-        drag: {
-          x: true,
-          y: false,
-        },
+        drag: { x: true, y: false },
       },
+      padding: [8, 12, 4, 4] as [number, number, number, number],
     } as unknown as uPlot.Options;
-  }, [series, t, visual.lineWidth, visual.mode, visual.pointRadius, yScaleMode]);
+  }, [series, visual.lineWidth, visual.mode, visual.pointRadius]);
+
+  const subtitle = series.length === 1
+    ? series[0].attribute
+    : t('canvasPanel.multiSeries', { count: series.length });
 
   return (
-    <div className="relative w-full h-full bg-transparent border-none rounded-none p-0 flex flex-col min-h-0">
+    <div className="relative w-full h-full bg-transparent flex flex-col min-h-0">
       <ChartSurface>
         <ChartStatusLayer
           status={status}
@@ -497,105 +521,110 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           options={options}
           data={plotData}
           syncEvents={true}
-          onViewportChange={setViewport}
           debugKey={panelId}
         />
       </ChartSurface>
 
-      <div className="absolute top-1 left-1 z-20 px-1.5 py-1 flex items-center gap-2 text-[11px] text-slate-100 flex-wrap rounded-md bg-slate-950/70 backdrop-blur-sm">
-        <label className="flex items-center gap-1">
-          <span className="text-slate-300">{t('canvasPanel.chartStyle')}</span>
-          <select
-            value={visual.mode === 'bars' ? 'line' : visual.mode}
-            onChange={(e) => patchAppearance({ mode: e.target.value as ChartRenderMode })}
-            className="rounded border border-slate-500/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
-          >
-            <option value="line">{t('canvasPanel.modeLine')}</option>
-            <option value="points">{t('canvasPanel.modePoints')}</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-slate-300">{t('canvasPanel.lineWidth')}</span>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            step={1}
-            value={visual.lineWidth}
-            onChange={(e) => patchAppearance({ lineWidth: Number(e.target.value) })}
-            className="w-16 accent-emerald-500"
-          />
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-slate-300">{t('canvasPanel.pointSize')}</span>
-          <input
-            type="range"
-            min={0}
-            max={8}
-            step={1}
-            value={visual.pointRadius}
-            onChange={(e) => patchAppearance({ pointRadius: Number(e.target.value) })}
-            className="w-16 accent-emerald-500"
-          />
-        </label>
-        {series.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="px-1.5 py-0.5 rounded border border-slate-500/50 bg-slate-900 text-slate-100"
-          >
-            {advancedOpen ? 'Basic' : 'Advanced'}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setYScaleMode((m) => (m === 'focus' ? 'full' : 'focus'))}
-          className="px-1.5 py-0.5 rounded border border-slate-500/50 bg-slate-900 text-slate-100"
-          title="Toggle Y scaling mode"
+      {/* Settings gear: collapsed by default, no overlay clutter */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSettingsOpen((v) => !v);
+        }}
+        className="absolute top-1.5 left-1.5 z-30 p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-colors"
+        title={t('canvasPanel.chartStyle')}
+        aria-label={t('canvasPanel.chartStyle')}
+      >
+        <Settings2 size={14} />
+      </button>
+
+      {settingsOpen && (
+        <div
+          className="absolute top-9 left-1.5 z-30 px-2.5 py-2 flex flex-col gap-2 text-[11px] text-slate-100 rounded-md bg-slate-950/90 backdrop-blur-md border border-slate-700/60 shadow-lg"
+          onMouseDown={(e) => e.stopPropagation()}
         >
-          Y {yScaleMode}
-        </button>
-      </div>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-slate-400">{t('canvasPanel.chartStyle')}</span>
+            <select
+              value={visual.mode === 'bars' ? 'line' : visual.mode}
+              onChange={(e) => patchAppearance({ mode: e.target.value as ChartRenderMode })}
+              className="rounded border border-slate-600/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
+            >
+              <option value="line">{t('canvasPanel.modeLine')}</option>
+              <option value="points">{t('canvasPanel.modePoints')}</option>
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-slate-400">{t('canvasPanel.lineWidth')}</span>
+            <input
+              type="range"
+              min={1}
+              max={4}
+              step={1}
+              value={visual.lineWidth}
+              onChange={(e) => patchAppearance({ lineWidth: Number(e.target.value) })}
+              className="w-20 accent-emerald-500"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            <span className="text-slate-400">{t('canvasPanel.pointSize')}</span>
+            <input
+              type="range"
+              min={0}
+              max={8}
+              step={1}
+              value={visual.pointRadius}
+              onChange={(e) => patchAppearance({ pointRadius: Number(e.target.value) })}
+              className="w-20 accent-emerald-500"
+            />
+          </label>
+          {series.length > 1 && onSeriesAxisChange && (
+            <div className="border-t border-slate-700/60 pt-2 mt-1 flex flex-col gap-1.5">
+              <span className="text-slate-400">{t('canvasPanel.axisPerSeriesHint')}</span>
+              {series.map((s, idx) => (
+                <label key={`${s.entityId}-${s.attribute}`} className="flex items-center justify-between gap-3">
+                  <span className="text-slate-300 truncate max-w-[140px]" title={s.attribute}>
+                    {s.attribute}
+                  </span>
+                  <select
+                    value={s.yAxis ?? 'left'}
+                    onChange={(e) =>
+                      onSeriesAxisChange(panelId, idx, e.target.value === 'right' ? 'right' : 'left')
+                    }
+                    className="rounded border border-slate-600/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
+                  >
+                    <option value="left">{t('canvasPanel.axisLeft')}</option>
+                    <option value="right">{t('canvasPanel.axisRight')}</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      <div className="absolute bottom-1 left-1 z-20 flex items-center gap-2 rounded-md bg-slate-950/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] text-slate-200">
-        <span>{series.length === 1 ? series[0].attribute : `series:${series.length}`}</span>
-        <span>points {diag.plotted}/{diag.received}</span>
-        <span>viewport {viewport.width}x{viewport.height}</span>
-        {SHOW_DEBUG && renderDbg ? (
-          <span>
-            dbg {renderDbg.stage} c:{renderDbg.cw}x{renderDbg.ch} u:{renderDbg.uw}x{renderDbg.uh} p:{renderDbg.pt}/{renderDbg.ph}
+      {status === 'ready' && (
+        <div className="absolute bottom-1 left-1.5 z-20 flex items-center gap-3 text-[10px] text-slate-400 pointer-events-none">
+          <span className="text-slate-300 font-medium truncate max-w-[180px]" title={subtitle}>
+            {subtitle}
           </span>
-        ) : null}
-        {SHOW_DEBUG && yDbg ? (
-          <span>
-            y {yDbg.min.toFixed(2)}/{yDbg.max.toFixed(2)} p05/p95 {yDbg.p05.toFixed(2)}/{yDbg.p95.toFixed(2)}
+          {stats && (
+            <span className="tabular-nums">
+              <span className="text-slate-500">{t('canvasPanel.statMin')}</span> {formatNumberShort(stats.min)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statMax')}</span> {formatNumberShort(stats.max)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statAvg')}</span> {formatNumberShort(stats.mean)}
+              <span className="text-slate-500 ml-2">{t('canvasPanel.statLast')}</span> {formatNumberShort(stats.last)}
+            </span>
+          )}
+          <span className="tabular-nums text-slate-500">
+            {diag.plotted} pts
+            {diag.outliers > 0 && (
+              <span className="ml-1.5 text-amber-400/80" title={t('canvasPanel.outliersHiddenTitle')}>
+                · {t('canvasPanel.outliersHidden', { count: diag.outliers })}
+              </span>
+            )}
           </span>
-        ) : null}
-        {SHOW_DEBUG && xDbg ? (
-          <span>
-            x {new Date(xDbg.min * 1000).toISOString().slice(5, 16)}..{new Date(xDbg.max * 1000).toISOString().slice(5, 16)}
-          </span>
-        ) : null}
-        <span className="text-slate-400">{BUILD}</span>
-      </div>
-
-      {advancedOpen && onSeriesAxisChange && (
-        <div className="absolute top-10 left-1 z-20 px-1.5 py-1 flex items-center gap-3 text-[11px] text-slate-100 flex-wrap rounded-md bg-slate-950/70 backdrop-blur-sm">
-          {series.map((s, idx) => (
-            <label key={`${s.entityId}-${s.attribute}`} className="flex items-center gap-1">
-              <span className="text-slate-300">{s.attribute}</span>
-              <select
-                value={s.yAxis ?? 'left'}
-                onChange={(e) =>
-                  onSeriesAxisChange(panelId, idx, e.target.value === 'right' ? 'right' : 'left')
-                }
-                className="rounded border border-slate-500/50 bg-slate-900 text-slate-100 px-1.5 py-0.5"
-              >
-                <option value="left">{t('canvasPanel.axisLeft')}</option>
-                <option value="right">{t('canvasPanel.axisRight')}</option>
-              </select>
-            </label>
-          ))}
         </div>
       )}
     </div>
@@ -603,4 +632,3 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 };
 
 export const DataCanvasPanelMemo = React.memo(DataCanvasPanel);
-
