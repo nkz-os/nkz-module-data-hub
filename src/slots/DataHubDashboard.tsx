@@ -774,7 +774,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 min-h-0 rounded-none overflow-visible">
+                <div className="absolute inset-0 min-h-0 rounded-none overflow-hidden">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}
@@ -841,24 +841,25 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       )}
       <style>{`
         .react-resizable-handle {
-          position: absolute !important;
           opacity: 1 !important;
           z-index: 50 !important;
-          cursor: se-resize !important;
-          width: 20px !important;
-          height: 20px !important;
-          bottom: 0 !important;
-          right: 0 !important;
         }
         .react-resizable-handle::after {
           border-right: 2px solid rgba(148, 163, 184, 0.9) !important;
           border-bottom: 2px solid rgba(148, 163, 184, 0.9) !important;
-          position: absolute !important;
-          right: 4px !important;
-          bottom: 4px !important;
+        }
+        .react-resizable-handle-se {
+          width: 20px !important;
+          height: 20px !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          cursor: se-resize !important;
+        }
+        .react-resizable-handle-se::after {
           width: 8px !important;
           height: 8px !important;
-          content: "";
+          right: 4px !important;
+          bottom: 4px !important;
         }
       `}</style>
     </div>
