@@ -33,12 +33,15 @@ function toFiniteNumber(value: unknown): number | null {
 
 /** Epoch seconds from API (number) or ISO 8601 string (BFF may pass either). */
 function timestampToEpochSeconds(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.abs(value) > 1e11 ? value / 1000 : value;
+  }
   if (typeof value === 'string') {
     const t = value.trim();
     if (/^\d+(\.\d+)?$/.test(t)) {
       const n = Number.parseFloat(t);
-      return Number.isFinite(n) ? n : null;
+      if (!Number.isFinite(n)) return null;
+      return Math.abs(n) > 1e11 ? n / 1000 : n;
     }
     const ms = Date.parse(t);
     return Number.isFinite(ms) ? ms / 1000 : null;
