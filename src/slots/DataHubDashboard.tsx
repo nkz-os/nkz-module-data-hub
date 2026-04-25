@@ -442,6 +442,28 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
     );
   }, []);
 
+  const removePanelSeries = useCallback((panelId: string, seriesIndex: number) => {
+    setPanels((ps) =>
+      ps.map((panel) => {
+        if (panel.id !== panelId) return panel;
+        if (seriesIndex < 0 || seriesIndex >= panel.series.length) return panel;
+        const nextSeries = panel.series.filter((_, i) => i !== seriesIndex);
+        // Drop seriesConfig entry for the removed series so colour/visibility
+        // don't leak across re-adds with the same key.
+        const removedKey = `${panel.series[seriesIndex].source ?? 'timescale'}|${panel.series[seriesIndex].entityId}|${panel.series[seriesIndex].attribute}`;
+        const cfg = { ...(panel.chartAppearance?.seriesConfig ?? {}) };
+        delete cfg[removedKey];
+        return {
+          ...panel,
+          series: nextSeries,
+          chartAppearance: panel.chartAppearance
+            ? { ...panel.chartAppearance, seriesConfig: cfg }
+            : panel.chartAppearance,
+        };
+      })
+    );
+  }, []);
+
   const applyCustomRange = useCallback(() => {
     const s = new Date(draftRangeStart);
     const e = new Date(draftRangeEnd);
@@ -785,6 +807,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     chartAppearance={panel.chartAppearance}
                     onAppearanceChange={updatePanelAppearance}
                     onSeriesAxisChange={updatePanelSeriesAxis}
+                    onSeriesRemove={removePanelSeries}
                   />
                 </div>
               </div>

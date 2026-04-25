@@ -71,6 +71,10 @@
     "pointsInfo": "Plottable points: {{plottable}} / received: {{received}}",
     "outliersHidden": "{{count}} outliers hidden",
     "retry": "Retry",
+    "show": "Show",
+    "hide": "Hide",
+    "removeSeries": "Remove series",
+    "allHidden": "All series hidden",
     "outliersHiddenTitle": "Extreme values detected (MAD/IQR) and hidden from the trace to avoid scale compression. Switch mode in Settings to view them.",
     "trendline": "Trend (OLS)",
     "styleLockedWithPrediction": "Chart style is fixed while AI prediction is shown."

@@ -71,6 +71,10 @@
     "pointsInfo": "Puntos ploteables: {{plottable}} / recibidos: {{received}}",
     "outliersHidden": "{{count}} outliers ocultos",
     "retry": "Reintentar",
+    "show": "Mostrar",
+    "hide": "Ocultar",
+    "removeSeries": "Quitar serie",
+    "allHidden": "Todas las series ocultas",
     "outliersHiddenTitle": "Valores extremos detectados (MAD/IQR) y ocultos del trazo para no comprimir la escala. Cambia el modo en Ajustes si quieres verlos.",
     "trendline": "Tendencia (MCO)",
     "styleLockedWithPrediction": "El estilo del gráfico queda fijo mientras se muestra la predicción IA."

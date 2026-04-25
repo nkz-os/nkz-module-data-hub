@@ -53,6 +53,8 @@ export interface DataCanvasPanelProps {
   chartAppearance?: Partial<ChartAppearance>;
   onAppearanceChange?: (panelId: string, next: ChartAppearance) => void;
   onSeriesAxisChange?: (panelId: string, seriesIndex: number, yAxis: 'left' | 'right') => void;
+  /** Remove one series from the panel. When omitted the rail's remove button is hidden. */
+  onSeriesRemove?: (panelId: string, seriesIndex: number) => void;
 }
 
 interface CursorState {
@@ -74,6 +76,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   chartAppearance,
   onAppearanceChange,
   onSeriesAxisChange,
+  onSeriesRemove,
 }) => {
   const { t } = useTranslation('datahub');
   const appearance = useMemo(() => mergeChartAppearance(chartAppearance), [chartAppearance]);
@@ -89,14 +92,24 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     resolution,
   });
 
-  // Resolve color per series, honoring chartAppearance.seriesConfig override.
+  // Resolve seriesConfig per series (visibility, colour override, axis override).
+  const seriesCfg = appearance.seriesConfig ?? {};
+
+  // Per-series visibility flag (default = visible). Hidden series stay in the
+  // rail (with eye-off icon) but are filtered out of chart and Y-range pools.
+  const visibilityMask = useMemo(
+    () => series.map((s) => seriesCfg[seriesKey(s)]?.visible !== false),
+    [series, seriesCfg]
+  );
+
+  // Resolve color per series (full list — rail needs all, even hidden).
   const colors = useMemo(
     () =>
       series.map((s, i) => {
-        const cfg = appearance.seriesConfig?.[seriesKey(s)];
+        const cfg = seriesCfg[seriesKey(s)];
         return cfg?.colorOverride ?? colorForIndex(i);
       }),
-    [series, appearance.seriesConfig]
+    [series, seriesCfg]
   );
 
   // Auto-distribute axes by magnitude. Explicit user choice via series rail
@@ -106,29 +119,51 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [series, workerSeries]
   );
 
-  // Per-axis value pool for Y range computation.
+  // Visible-only views passed to the chart.
+  const visibleIndices = useMemo(
+    () => series.map((_, i) => i).filter((i) => visibilityMask[i]),
+    [series, visibilityMask]
+  );
+  const visibleSeriesDefs = useMemo(
+    () => visibleIndices.map((i) => series[i]),
+    [visibleIndices, series]
+  );
+  const visibleWorkerSeries = useMemo(
+    () => visibleIndices.map((i) => workerSeries[i]).filter(Boolean),
+    [visibleIndices, workerSeries]
+  );
+  const visibleColors = useMemo(
+    () => visibleIndices.map((i) => colors[i]),
+    [visibleIndices, colors]
+  );
+  const visibleScales = useMemo(
+    () => visibleIndices.map((i) => effectiveScales[i] ?? 'y'),
+    [visibleIndices, effectiveScales]
+  );
+
+  // Per-axis value pool for Y range computation — VISIBLE series only.
   const { leftValues, rightValues, leftUnit, rightUnit, hasRightAxis } = useMemo(() => {
     const lvs: number[] = [];
     const rvs: number[] = [];
     const lUnits = new Set<string>();
     const rUnits = new Set<string>();
-    workerSeries.forEach((s, i) => {
-      const target = effectiveScales[i] === 'y2' ? rvs : lvs;
+    visibleWorkerSeries.forEach((s, idx) => {
+      const target = visibleScales[idx] === 'y2' ? rvs : lvs;
       for (let j = 0; j < s.ys.length; j++) {
         const v = s.ys[j];
         if (Number.isFinite(v)) target.push(v);
       }
       const u = unitFor(s.attribute);
-      if (u) (effectiveScales[i] === 'y2' ? rUnits : lUnits).add(u);
+      if (u) (visibleScales[idx] === 'y2' ? rUnits : lUnits).add(u);
     });
     return {
       leftValues: lvs,
       rightValues: rvs,
       leftUnit: Array.from(lUnits).join(' / '),
       rightUnit: Array.from(rUnits).join(' / '),
-      hasRightAxis: effectiveScales.includes('y2'),
+      hasRightAxis: visibleScales.includes('y2'),
     };
-  }, [workerSeries, effectiveScales]);
+  }, [visibleWorkerSeries, visibleScales]);
 
   const leftRange = useMemo(
     () =>
@@ -149,10 +184,10 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [rightValues, appearance.yScaleMode, appearance.yScaleManual]
   );
 
-  // Footer primary stats from the first visible series.
+  // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
-    () => (workerSeries.length > 0 ? computeFooterStats(workerSeries[0]) : null),
-    [workerSeries]
+    () => (visibleWorkerSeries.length > 0 ? computeFooterStats(visibleWorkerSeries[0]) : null),
+    [visibleWorkerSeries]
   );
 
   // Cursor → tooltip rows (nearest sample per series at the cursor's xEpoch).
@@ -164,18 +199,18 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       }
       const rows: TooltipRow[] = [];
       let nearestEpoch = info.xEpoch;
-      workerSeries.forEach((s, i) => {
-        const idx = nearestIndex(s.xs, info.xEpoch);
-        if (idx < 0) return;
-        const y = s.ys[idx];
+      visibleWorkerSeries.forEach((s, idx) => {
+        const i = nearestIndex(s.xs, info.xEpoch);
+        if (i < 0) return;
+        const y = s.ys[i];
         if (!Number.isFinite(y)) return;
         rows.push({
           label: s.attribute,
           unit: unitFor(s.attribute),
-          color: colors[i] ?? '#34d399',
+          color: visibleColors[idx] ?? '#34d399',
           value: y,
         });
-        nearestEpoch = s.xs[idx];
+        nearestEpoch = s.xs[i];
       });
       if (rows.length === 0) {
         setCursor((prev) => (prev.visible ? EMPTY_CURSOR : prev));
@@ -183,7 +218,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       }
       setCursor({ visible: true, left: info.left, top: info.top, xEpoch: nearestEpoch, rows });
     },
-    [workerSeries, colors]
+    [visibleWorkerSeries, visibleColors]
   );
 
   const patchAppearance = useCallback(
@@ -199,6 +234,42 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       onSeriesAxisChange?.(panelId, idx, axis);
     },
     [onSeriesAxisChange, panelId]
+  );
+
+  const updateSeriesConfig = useCallback(
+    (key: string, patch: Partial<NonNullable<ChartAppearance['seriesConfig']>[string]>) => {
+      const nextConfig: ChartAppearance['seriesConfig'] = {
+        ...(appearance.seriesConfig ?? {}),
+        [key]: { ...(appearance.seriesConfig?.[key] ?? {}), ...patch },
+      };
+      patchAppearance({ seriesConfig: nextConfig });
+    },
+    [appearance.seriesConfig, patchAppearance]
+  );
+
+  const handleVisibilityChange = useCallback(
+    (idx: number, visible: boolean) => {
+      const s = series[idx];
+      if (!s) return;
+      updateSeriesConfig(seriesKey(s), { visible });
+    },
+    [series, updateSeriesConfig]
+  );
+
+  const handleColorChange = useCallback(
+    (idx: number, colorHex: string) => {
+      const s = series[idx];
+      if (!s) return;
+      updateSeriesConfig(seriesKey(s), { colorOverride: colorHex });
+    },
+    [series, updateSeriesConfig]
+  );
+
+  const handleRemove = useCallback(
+    (idx: number) => {
+      onSeriesRemove?.(panelId, idx);
+    },
+    [onSeriesRemove, panelId]
   );
 
   // Header subtitle: primary axis units summary.
@@ -244,25 +315,37 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         {railOpen && (
           <PanelSeriesRail
             series={series}
+            workerSeries={workerSeries}
             colorFor={(_, i) => colors[i] ?? '#34d399'}
             unitFor={unitFor}
             seriesKey={seriesKey}
+            config={seriesCfg}
             onAxisChange={handleAxisChange}
+            onVisibilityChange={handleVisibilityChange}
+            onColorChange={handleColorChange}
+            onRemove={handleRemove}
             labels={{
               axisLeft: t('canvasPanel.axisLeft'),
               axisRight: t('canvasPanel.axisRight'),
+              show: t('canvasPanel.show', { defaultValue: 'Mostrar' }),
+              hide: t('canvasPanel.hide', { defaultValue: 'Ocultar' }),
+              remove: t('canvasPanel.removeSeries', { defaultValue: 'Quitar serie' }),
+              statMin: t('canvasPanel.statMin'),
+              statMax: t('canvasPanel.statMax'),
+              statAvg: t('canvasPanel.statAvg'),
+              statLast: t('canvasPanel.statLast'),
               emptyHint: t('canvasPanel.dragHere'),
             }}
           />
         )}
         <div ref={containerWidthRef} className="relative flex-1 min-w-0">
-          {status === 'ready' && workerSeries.length > 0 && (
+          {status === 'ready' && visibleWorkerSeries.length > 0 && (
             <PanelChart
-              series={series}
-              workerSeries={workerSeries}
+              series={visibleSeriesDefs}
+              workerSeries={visibleWorkerSeries}
               appearance={appearance}
-              effectiveScales={effectiveScales}
-              colors={colors}
+              effectiveScales={visibleScales}
+              colors={visibleColors}
               leftRange={leftRange}
               rightRange={rightRange}
               hasRightAxis={hasRightAxis}
@@ -270,6 +353,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               rightUnit={rightUnit}
               onCursor={handleCursor}
             />
+          )}
+          {status === 'ready' && visibleWorkerSeries.length === 0 && workerSeries.length > 0 && (
+            <PanelEmptyState message={t('canvasPanel.allHidden', { defaultValue: 'Todas las series ocultas' })} />
           )}
           {status === 'loading' && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -300,12 +386,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
       {status === 'ready' && stats && (
         <PanelFooter
-          workerSeries={workerSeries}
-          colorFor={(_, i) => colors[i] ?? '#34d399'}
+          workerSeries={visibleWorkerSeries}
+          colorFor={(_, i) => visibleColors[i] ?? '#34d399'}
           unitFor={unitFor}
           primaryStats={primaryFooter}
           telemetry={{
-            plotted: aggregatePoints(workerSeries).plotted,
+            plotted: aggregatePoints(visibleWorkerSeries).plotted,
             received: aggregatePoints(workerSeries).received,
             viewportWidth: containerWidth,
             viewportHeight: containerHeight,
