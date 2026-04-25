@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r7';
+const BUILD = 'uplot-worker-2026-04-25-r8';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -115,6 +115,56 @@ function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
   return out;
 }
 
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return Number.NaN;
+  if (sorted.length === 1) return sorted[0];
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const w = pos - lo;
+  return sorted[lo] * (1 - w) + sorted[hi] * w;
+}
+
+function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
+  return (u: uPlot, min: number, max: number): [number, number] => {
+    const values: number[] = [];
+    for (let i = 1; i < u.series.length; i++) {
+      const s = u.series[i];
+      if ((s.scale ?? 'y') !== scaleKey) continue;
+      const col = u.data[i] as ArrayLike<number> | undefined;
+      if (!col) continue;
+      for (let j = 0; j < col.length; j++) {
+        const v = Number(col[j]);
+        if (Number.isFinite(v)) values.push(v);
+      }
+    }
+    if (values.length < 3) {
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+        const base = Number.isFinite(min) ? min : 0;
+        return [base - 1, base + 1];
+      }
+      const pad = Math.max(1e-6, Math.abs(max - min) * 0.08);
+      return [min - pad, max + pad];
+    }
+    values.sort((a, b) => a - b);
+    const p05 = quantile(values, 0.05);
+    const p95 = quantile(values, 0.95);
+    let lo = Number.isFinite(p05) ? p05 : min;
+    let hi = Number.isFinite(p95) ? p95 : max;
+    if (!(Number.isFinite(lo) && Number.isFinite(hi))) {
+      lo = Number.isFinite(min) ? min : 0;
+      hi = Number.isFinite(max) ? max : 1;
+    }
+    if (hi <= lo) {
+      const c = Number.isFinite(lo) ? lo : 0;
+      return [c - 1, c + 1];
+    }
+    const pad = Math.max(1e-6, (hi - lo) * 0.12);
+    return [lo - pad, hi + pad];
+  };
+}
+
 export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   panelId,
   series,
@@ -136,6 +186,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [diag, setDiag] = useState({ received: 0, plotted: 0 });
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [renderDbg, setRenderDbg] = useState<{ stage: string; cw: number; ch: number; uw: number; uh: number; pt: number; ph: number } | null>(null);
+  const [yDbg, setYDbg] = useState<{ min: number; max: number; p05: number; p95: number } | null>(null);
 
   useEffect(() => {
     const worker = new DatahubWorkerInline();
@@ -294,11 +345,24 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         }
         setPlotData(result.data);
         setDiag({ received: result.receivedPoints, plotted: result.plottablePoints });
+        const y0 = (result.data?.[1] as number[] | undefined) ?? [];
+        const finite = y0.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+        if (finite.length > 0) {
+          setYDbg({
+            min: finite[0],
+            max: finite[finite.length - 1],
+            p05: quantile(finite, 0.05),
+            p95: quantile(finite, 0.95),
+          });
+        } else {
+          setYDbg(null);
+        }
         setStatus('ready');
       } catch {
         if (!active) return;
         setPlotData(null);
         setDiag({ received: 0, plotted: 0 });
+        setYDbg(null);
         setStatus('error');
       }
     })();
@@ -341,7 +405,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           },
         } as uPlot.Series;
       }),
-      scales: { x: { time: true }, y: { auto: true }, y2: { auto: true } },
+      scales: {
+        x: { time: true },
+        y: { auto: true, range: robustScaleRangeFor('y') },
+        y2: { auto: true, range: robustScaleRangeFor('y2') },
+      },
       axes: [
         { grid: { show: false } },
         { scale: 'y', grid: { stroke: '#334155' }, label: t('canvasPanel.axisLeft') },
@@ -429,6 +497,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         {renderDbg ? (
           <span>
             dbg {renderDbg.stage} c:{renderDbg.cw}x{renderDbg.ch} u:{renderDbg.uw}x{renderDbg.uh} p:{renderDbg.pt}/{renderDbg.ph}
+          </span>
+        ) : null}
+        {yDbg ? (
+          <span>
+            y {yDbg.min.toFixed(2)}/{yDbg.max.toFixed(2)} p05/p95 {yDbg.p05.toFixed(2)}/{yDbg.p95.toFixed(2)}
           </span>
         ) : null}
         <span className="text-slate-400">{BUILD}</span>
