@@ -703,7 +703,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div
                 key={panel.id}
                 onMouseDown={() => setActivePanelId(panel.id)}
-                className={`relative flex flex-col bg-transparent border-none rounded-none overflow-hidden p-0 ${
+                className={`relative flex flex-col bg-transparent border-none rounded-none overflow-visible p-0 ${
                   activePanelId === panel.id
                     ? 'ring-1 ring-emerald-400/30'
                     : ''
@@ -774,7 +774,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 min-h-0 rounded-none overflow-hidden">
+                <div className="absolute inset-0 min-h-0 rounded-none overflow-visible">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}
@@ -841,6 +841,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       )}
       <style>{`
         .react-resizable-handle {
+          position: absolute !important;
           opacity: 1 !important;
           z-index: 50 !important;
           cursor: se-resize !important;
@@ -852,10 +853,12 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         .react-resizable-handle::after {
           border-right: 2px solid rgba(148, 163, 184, 0.9) !important;
           border-bottom: 2px solid rgba(148, 163, 184, 0.9) !important;
+          position: absolute !important;
           right: 4px !important;
           bottom: 4px !important;
           width: 8px !important;
           height: 8px !important;
+          content: "";
         }
       `}</style>
     </div>
