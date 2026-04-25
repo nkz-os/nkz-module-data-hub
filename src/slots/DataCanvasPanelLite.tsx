@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r13';
+const BUILD = 'uplot-worker-2026-04-25-r14';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -166,8 +166,20 @@ function robustScaleRangeFor(scaleKey: 'y' | 'y2') {
     values.sort((a, b) => a - b);
     const p05 = quantile(values, 0.05);
     const p95 = quantile(values, 0.95);
+    const q25 = quantile(values, 0.25);
+    const q75 = quantile(values, 0.75);
+    const iqr = Math.max(1e-9, q75 - q25);
+    const spread = Math.max(1e-9, p95 - p05);
+    const skewRatio = spread / iqr;
+
     let lo = Number.isFinite(p05) ? p05 : min;
     let hi = Number.isFinite(p95) ? p95 : max;
+    // If distribution is highly skewed (many low values + few spikes),
+    // switch to Tukey-fence focus to avoid "flat-at-bottom" rendering.
+    if (Number.isFinite(q25) && Number.isFinite(q75) && skewRatio > 6) {
+      lo = q25 - 1.5 * iqr;
+      hi = q75 + 1.5 * iqr;
+    }
     if (!(Number.isFinite(lo) && Number.isFinite(hi))) {
       lo = Number.isFinite(min) ? min : 0;
       hi = Number.isFinite(max) ? max : 1;
