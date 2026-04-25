@@ -299,10 +299,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const options = useMemo(() => {
     const effectiveMode: ChartRenderMode = visual.mode === 'bars' ? 'line' : visual.mode;
     return {
-      title:
-        series.length === 1
-          ? `${series[0].entityId} — ${series[0].attribute}`
-          : `${t('canvasPanel.multiSeries', { count: series.length })}`,
+      // Keep title unset in uPlot; long dynamic labels can consume vertical space
+      // and visually push the plot area to the bottom of the viewport.
+      title: undefined,
       series: buildSeriesOptions(series).map((s, idx) => {
         if (idx === 0) return s;
         if (effectiveMode === 'points') {
