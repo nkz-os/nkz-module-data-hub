@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r8';
+const BUILD = 'uplot-worker-2026-04-25-r9';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -97,9 +97,17 @@ function outerJoinSeries(rows: Array<{ x: number[]; y: number[] }>): uPlot.Align
 function buildSeriesOptions(series: ChartSeriesDef[]): uPlot.Series[] {
   const out: uPlot.Series[] = [{}];
   series.forEach((s, i) => {
+    const resolvedScale =
+      s.yAxis === 'right'
+        ? 'y2'
+        : s.yAxis === 'left'
+          ? 'y'
+          : series.length > 1 && i > 0
+            ? 'y2'
+            : 'y';
     out.push({
       label: s.attribute,
-      scale: s.yAxis === 'right' ? 'y2' : 'y',
+      scale: resolvedScale,
       stroke: COLORS[i % COLORS.length],
       width: 2,
       points: {
