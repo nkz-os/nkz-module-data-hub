@@ -13,7 +13,7 @@ import { ChartRenderHost } from './chart/ChartRenderHost';
 import { mergeChartAppearance } from '../utils/chartAppearance';
 
 const COLORS = ['#22c55e', '#a855f7', '#f59e0b', '#3b82f6', '#ef4444'];
-const BUILD = 'uplot-worker-2026-04-25-r12';
+const BUILD = 'uplot-worker-2026-04-25-r13';
 
 export interface DataCanvasPanelProps {
   panelId: string;
@@ -214,6 +214,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [renderDbg, setRenderDbg] = useState<{ stage: string; cw: number; ch: number; uw: number; uh: number; pt: number; ph: number } | null>(null);
   const [yDbg, setYDbg] = useState<{ min: number; max: number; p05: number; p95: number } | null>(null);
+  const [xDbg, setXDbg] = useState<{ min: number; max: number } | null>(null);
 
   useEffect(() => {
     const worker = new DatahubWorkerInline();
@@ -337,6 +338,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         setStatus('loading');
         const base = getBaseUrl().replace(/\/$/, '');
         const adaptiveGapSeconds = computeAdaptiveMaxGapSeconds(startTime, endTime, resolution);
+        const effectiveGapSeconds = series.length === 1 ? 365 * 24 * 3600 : adaptiveGapSeconds;
         const workerRequest = {
           mode: series.length > 1 ? 'multi' : 'single',
           baseUrl: base || undefined,
@@ -350,7 +352,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             source: s.source ?? 'timescale',
           })),
           policy: {
-            maxGapSeconds: adaptiveGapSeconds,
+            maxGapSeconds: effectiveGapSeconds,
             downsampleThreshold: 3000,
             viewportWidthPx: 1200,
             preserveExtrema: true,
@@ -373,6 +375,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         }
         setPlotData(result.data);
         setDiag({ received: result.receivedPoints, plotted: result.plottablePoints });
+        const x0 = (result.data?.[0] as number[] | undefined) ?? [];
+        const finiteX = x0.filter((v) => Number.isFinite(v));
+        if (finiteX.length > 0) {
+          setXDbg({ min: finiteX[0], max: finiteX[finiteX.length - 1] });
+        } else {
+          setXDbg(null);
+        }
         const y0 = (result.data?.[1] as number[] | undefined) ?? [];
         const finite = y0.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
         if (finite.length > 0) {
@@ -390,6 +399,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         if (!active) return;
         setPlotData(null);
         setDiag({ received: 0, plotted: 0 });
+        setXDbg(null);
         setYDbg(null);
         setStatus('error');
       }
@@ -530,6 +540,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         {yDbg ? (
           <span>
             y {yDbg.min.toFixed(2)}/{yDbg.max.toFixed(2)} p05/p95 {yDbg.p05.toFixed(2)}/{yDbg.p95.toFixed(2)}
+          </span>
+        ) : null}
+        {xDbg ? (
+          <span>
+            x {new Date(xDbg.min * 1000).toISOString().slice(5, 16)}..{new Date(xDbg.max * 1000).toISOString().slice(5, 16)}
           </span>
         ) : null}
         <span className="text-slate-400">{BUILD}</span>
