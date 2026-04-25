@@ -67,6 +67,9 @@ export function useUPlotCesiumSync({
     let hoverRafId: number | null = null;
     let pendingHoverMs: number | null = null;
     let isInitialized = false;
+    let stableW = 0;
+    let stableH = 0;
+    let stableFrames = 0;
 
     const flushTimeHover = () => {
       hoverRafId = null;
@@ -79,11 +82,29 @@ export function useUPlotCesiumSync({
       );
     };
 
-    // Deferred Initialization: only create uPlot if container has actual dimensions > 0.
+    const markStableSize = (w: number, h: number): number => {
+      if (w <= 0 || h <= 0) {
+        stableFrames = 0;
+        stableW = 0;
+        stableH = 0;
+        return stableFrames;
+      }
+      if (w === stableW && h === stableH) {
+        stableFrames += 1;
+      } else {
+        stableW = w;
+        stableH = h;
+        stableFrames = 1;
+      }
+      return stableFrames;
+    };
+
+    // Deferred Initialization: only create uPlot if container has stable dimensions.
     const tryInitChart = () => {
       const w = container.offsetWidth;
       const h = container.offsetHeight;
       if (w === 0 || h === 0) return false;
+      if (markStableSize(w, h) < 2) return false;
 
       const opts = { ...options };
       opts.width = w;
@@ -134,8 +155,16 @@ export function useUPlotCesiumSync({
       }
       opts.hooks = { ...opts.hooks, setCursor: setCursorHandlers };
 
-      // Create uPlot WITH data directly
+      // Create uPlot WITH data directly.
       uplotRef.current = new uPlot(opts, data, container);
+      // One extra size sync next frame to guarantee final viewport anchoring.
+      requestAnimationFrame(() => {
+        const cw = container.offsetWidth;
+        const ch = container.offsetHeight;
+        if (uplotRef.current && cw > 0 && ch > 0) {
+          uplotRef.current.setSize({ width: cw, height: ch });
+        }
+      });
       return true;
     };
 
@@ -148,12 +177,13 @@ export function useUPlotCesiumSync({
       resizeRaf = requestAnimationFrame(() => {
         resizeRaf = 0;
         if (!container) return;
-        
+
+        const w = container.offsetWidth;
+        const h = container.offsetHeight;
+        markStableSize(w, h);
         if (!isInitialized) {
           isInitialized = tryInitChart();
         } else if (uplotRef.current) {
-          const w = container.offsetWidth;
-          const h = container.offsetHeight;
           if (w > 0 && h > 0) {
             uplotRef.current.setSize({ width: w, height: h });
           }

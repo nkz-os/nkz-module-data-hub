@@ -63,7 +63,7 @@ const GRID_WIDTH_OFFSET = 300;
 const PANEL_DEFAULT_W = 8;
 const PANEL_DEFAULT_H = 5;
 const PANEL_MIN_W = 3;
-const PANEL_MIN_H = 2;
+const PANEL_MIN_H = 4;
 
 /** Input value for type="datetime-local" from an ISO 8601 string (local timezone). */
 function toDatetimeLocalValue(iso: string): string {
@@ -774,7 +774,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 min-h-0 rounded-none overflow-visible">
+                <div className="absolute inset-0 min-h-0 rounded-none overflow-hidden">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}
