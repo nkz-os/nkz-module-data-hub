@@ -774,7 +774,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 min-h-0 rounded-none overflow-hidden">
+                <div className="absolute inset-0 min-h-0 rounded-none overflow-visible">
                   <DataCanvasPanelMemo
                     panelId={panel.id}
                     series={panel.series}
