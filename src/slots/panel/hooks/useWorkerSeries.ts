@@ -12,7 +12,7 @@
  * concerns live in the panel's reducer/uPlot config.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getBaseUrl, getDatahubRequestHeaders } from '../../../services/datahubApi';
 import DatahubWorkerInline from '../../../workers/datahubWorker.ts?worker&inline';
@@ -101,6 +101,18 @@ export function useWorkerSeries(args: UseWorkerSeriesArgs): UseWorkerSeriesResul
     };
   }, []);
 
+  // Stable signature for the series list so a re-render of the parent that
+  // produces a new array reference (with the same content) doesn't trigger an
+  // unnecessary refetch. Using a string key here is much cheaper than deep-eq
+  // and survives cross-renders cleanly.
+  const seriesSignature = useMemo(
+    () =>
+      series
+        .map((s) => `${s.source ?? 'timescale'}|${s.entityId}|${s.attribute}|${s.yAxis ?? ''}`)
+        .join('§'),
+    [series]
+  );
+
   useEffect(() => {
     if (series.length === 0) {
       setSeriesPayloads([]);
@@ -180,7 +192,10 @@ export function useWorkerSeries(args: UseWorkerSeriesArgs): UseWorkerSeriesResul
       worker.removeEventListener('message', onMessage);
     };
     // refetchTick is intentionally a dep so refetch() forces a new fetch.
-  }, [panelId, series, startTime, endTime, resolution, viewportWidthPx, refetchTick]);
+    // We depend on seriesSignature, not the array reference, so re-renders
+    // with identical content do not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelId, seriesSignature, startTime, endTime, resolution, viewportWidthPx, refetchTick]);
 
   const refetch = useCallback(() => {
     forceRefreshRef.current = true;

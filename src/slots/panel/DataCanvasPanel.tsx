@@ -43,10 +43,7 @@ import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
 import { usePanelTimeSync } from './hooks/usePanelTimeSync';
-import {
-  DATAHUB_EVENT_TIME_HOVER,
-  DATAHUB_EVENT_TIME_SELECT,
-} from '../../hooks/useUPlotCesiumSync';
+import { DATAHUB_EVENT_TIME_HOVER } from '../../hooks/useUPlotCesiumSync';
 import {
   colorForIndex,
   computeYRange,
@@ -453,7 +450,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     },
   });
 
-  // Emit our own cursor-hover and brush events.
+  // Emit hover events to peer panels (cheap, no feedback loop possible — the
+  // dashboard does not consume DATAHUB_EVENT_TIME_HOVER).
   React.useEffect(() => {
     if (!cursor.visible) return;
     window.dispatchEvent(
@@ -463,14 +461,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     );
   }, [cursor.visible, cursor.xEpoch]);
 
-  React.useEffect(() => {
-    if (!visibleX) return;
-    window.dispatchEvent(
-      new CustomEvent(DATAHUB_EVENT_TIME_SELECT, {
-        detail: { min: visibleX.min, max: visibleX.max },
-      })
-    );
-  }, [visibleX]);
+  // NOTE: do NOT auto-emit DATAHUB_EVENT_TIME_SELECT on every visibleX change.
+  // DataHubDashboard listens to that event to update its global timeContext,
+  // which would re-trigger the panel's data fetch, which fires setScale on
+  // init, which updates visibleX again — infinite loop. Brush-to-Cesium sync
+  // is now a deliberate user action wired through PanelChart's setSelect hook
+  // (shift+drag), not a side-effect of every uPlot setScale.
 
   // Header subtitle: primary axis units summary.
   const headerSubtitle = useMemo(() => {
