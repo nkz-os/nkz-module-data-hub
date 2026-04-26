@@ -83,6 +83,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
   const [railOpen, setRailOpen] = useState(false);
   const [cursor, setCursor] = useState<CursorState>(EMPTY_CURSOR);
+  /** Current visible X range from uPlot (epoch seconds). null = full data domain. */
+  const [visibleX, setVisibleX] = useState<{ min: number; max: number } | null>(null);
 
   const { status, series: workerSeries, refetch, error, stats, stage } = useWorkerSeries({
     panelId,
@@ -165,24 +167,51 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     };
   }, [visibleWorkerSeries, visibleScales]);
 
-  const leftRange = useMemo(
+  // Build per-axis visibleX context for fit-visible mode.
+  const fitVisibleContext = useMemo(() => {
+    if (appearance.yScaleMode !== 'fit-visible' || !visibleX) return undefined;
+    const buildAxis = (axis: 'y' | 'y2') => {
+      const perSeriesX: Float64Array[] = [];
+      const perSeriesY: Float64Array[] = [];
+      visibleWorkerSeries.forEach((s, i) => {
+        if (visibleScales[i] !== axis) return;
+        perSeriesX.push(s.xs);
+        perSeriesY.push(s.ys);
+      });
+      return { perSeriesX, perSeriesY, xMin: visibleX.min, xMax: visibleX.max };
+    };
+    return { left: buildAxis('y'), right: buildAxis('y2') };
+  }, [appearance.yScaleMode, visibleX, visibleWorkerSeries, visibleScales]);
+
+  const leftResult = useMemo(
     () =>
       computeYRange(
         leftValues,
         appearance.yScaleMode,
-        appearance.yScaleManual?.left
+        appearance.yScaleManual?.left,
+        fitVisibleContext?.left
       ),
-    [leftValues, appearance.yScaleMode, appearance.yScaleManual]
+    [leftValues, appearance.yScaleMode, appearance.yScaleManual, fitVisibleContext]
   );
-  const rightRange = useMemo(
+  const rightResult = useMemo(
     () =>
       computeYRange(
         rightValues,
         appearance.yScaleMode,
-        appearance.yScaleManual?.right
+        appearance.yScaleManual?.right,
+        fitVisibleContext?.right
       ),
-    [rightValues, appearance.yScaleMode, appearance.yScaleManual]
+    [rightValues, appearance.yScaleMode, appearance.yScaleManual, fitVisibleContext]
   );
+
+  const leftRange = leftResult.range;
+  const rightRange = rightResult.range;
+  const totalOutliersExcluded = leftResult.outliersExcluded + rightResult.outliersExcluded;
+  const totalPool = leftResult.poolSize + rightResult.poolSize;
+  const showOutlierBadge =
+    appearance.yScaleMode === 'focus' &&
+    totalPool > 0 &&
+    totalOutliersExcluded / totalPool >= 0.01;
 
   // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
@@ -301,6 +330,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         onAppearanceChange={patchAppearance}
         seriesRailOpen={railOpen}
         onToggleSeriesRail={() => setRailOpen((v) => !v)}
+        hasRightAxis={hasRightAxis}
         labels={{
           style: t('canvasPanel.chartStyle'),
           line: t('canvasPanel.lineWidth'),
@@ -308,6 +338,17 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           modeLine: t('canvasPanel.modeLine'),
           modePoints: t('canvasPanel.modePoints'),
           seriesRail: t('canvasPanel.axisPerSeriesHint'),
+          yScale: t('canvasPanel.yScale', { defaultValue: 'Escala Y' }),
+          yAuto: t('canvasPanel.yAuto', { defaultValue: 'Auto' }),
+          yFitVisible: t('canvasPanel.yFitVisible', { defaultValue: 'Visible' }),
+          yFocus: t('canvasPanel.yFocus', { defaultValue: 'Focus' }),
+          yManual: t('canvasPanel.yManual', { defaultValue: 'Manual' }),
+          manualLeft: t('canvasPanel.axisLeft'),
+          manualRight: t('canvasPanel.axisRight'),
+          manualMin: t('canvasPanel.statMin'),
+          manualMax: t('canvasPanel.statMax'),
+          apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
+          reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
         }}
       />
 
@@ -352,7 +393,23 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               leftUnit={leftUnit}
               rightUnit={rightUnit}
               onCursor={handleCursor}
+              onVisibleXChange={setVisibleX}
             />
+          )}
+          {showOutlierBadge && (
+            <button
+              type="button"
+              onClick={() => patchAppearance({ yScaleMode: 'auto' })}
+              className="absolute top-2 right-2 z-20 px-2 py-1 text-[10px] rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-200 hover:bg-amber-500/25 transition-colors flex items-center gap-1.5 shadow-lg"
+              title={t('canvasPanel.outliersHiddenTitle')}
+            >
+              <span className="font-semibold">{totalOutliersExcluded}</span>
+              <span>{t('canvasPanel.outliersOutOfScale', { defaultValue: 'fuera de escala' })}</span>
+              <span className="text-amber-300/70">·</span>
+              <span className="text-amber-300 underline-offset-2 hover:underline">
+                {t('canvasPanel.showAll', { defaultValue: 'Mostrar todos' })}
+              </span>
+            </button>
           )}
           {status === 'ready' && visibleWorkerSeries.length === 0 && workerSeries.length > 0 && (
             <PanelEmptyState message={t('canvasPanel.allHidden', { defaultValue: 'Todas las series ocultas' })} />

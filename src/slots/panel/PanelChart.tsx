@@ -39,6 +39,8 @@ export interface PanelChartProps {
   rightUnit: string;
   /** Cursor moved → orchestrator uses this to update tooltip + emit time-hover. */
   onCursor?: (info: { left: number; top: number; xEpoch: number } | null) => void;
+  /** Fired whenever uPlot updates the X scale (zoom/pan). Epoch seconds. */
+  onVisibleXChange?: (range: { min: number; max: number }) => void;
 }
 
 function formatNumberShort(v: number): string {
@@ -62,10 +64,13 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   leftUnit,
   rightUnit,
   onCursor,
+  onVisibleXChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCursorRef = useRef(onCursor);
   onCursorRef.current = onCursor;
+  const onVisibleXChangeRef = useRef(onVisibleXChange);
+  onVisibleXChangeRef.current = onVisibleXChange;
 
   // Build a stable reset key so uPlot is rebuilt only when series shape changes.
   const resetKey = useMemo(() => {
@@ -214,6 +219,23 @@ export const PanelChart: React.FC<PanelChartProps> = ({
               return;
             }
             onCursorRef.current?.({ left, top, xEpoch });
+          },
+        ],
+        setScale: [
+          (u: uPlot, key: string) => {
+            if (key !== 'x') return;
+            const scale = u.scales.x;
+            const min = scale?.min;
+            const max = scale?.max;
+            if (
+              typeof min === 'number' &&
+              typeof max === 'number' &&
+              Number.isFinite(min) &&
+              Number.isFinite(max) &&
+              max > min
+            ) {
+              onVisibleXChangeRef.current?.({ min, max });
+            }
           },
         ],
       },

@@ -131,57 +131,103 @@ export function distributeAxes(
   return result;
 }
 
+/** Result of Y-range computation; includes outlier accounting for focus mode. */
+export interface YRangeResult {
+  range: [number, number] | null;
+  /** Count of finite values inside `pool` (after fit-visible filtering). */
+  poolSize: number;
+  /** Count of finite values that fall outside the computed range. */
+  outliersExcluded: number;
+}
+
 /**
  * Compute Y range for one axis given the value pool on that axis and the
  * current scale mode. Outliers stay in the data; only the *range* is shaped.
+ *
+ * Returns the computed range plus the number of values that fall outside it
+ * (used by the outlier badge in focus mode).
  */
 export function computeYRange(
   values: number[],
   mode: YScaleMode,
   manual?: { min: number; max: number },
-  visibleX?: { values: number[]; xs: number[]; xMin: number; xMax: number }
-): [number, number] | null {
+  visibleX?: {
+    /** Per-series Y arrays — same order as Y series on this axis. */
+    perSeriesY: Float64Array[];
+    /** Per-series X arrays. */
+    perSeriesX: Float64Array[];
+    xMin: number;
+    xMax: number;
+  }
+): YRangeResult {
+  // Manual: caller specifies the range. Pool size / outliers don't matter for UI.
   if (mode === 'manual' && manual && Number.isFinite(manual.min) && Number.isFinite(manual.max)) {
-    if (manual.max <= manual.min) return [manual.min - 1, manual.min + 1];
-    return [manual.min, manual.max];
+    if (manual.max <= manual.min) {
+      return { range: [manual.min - 1, manual.min + 1], poolSize: 0, outliersExcluded: 0 };
+    }
+    let outsideCount = 0;
+    for (const v of values) {
+      if (Number.isFinite(v) && (v < manual.min || v > manual.max)) outsideCount += 1;
+    }
+    return { range: [manual.min, manual.max], poolSize: values.length, outliersExcluded: outsideCount };
   }
 
+  // Build the working pool: fit-visible filters by X range, others use full pool.
   let pool = values;
   if (mode === 'fit-visible' && visibleX) {
     const filtered: number[] = [];
-    for (let i = 0; i < visibleX.values.length; i++) {
-      const x = visibleX.xs[i];
-      const y = visibleX.values[i];
-      if (
-        Number.isFinite(y) &&
-        Number.isFinite(x) &&
-        x >= visibleX.xMin &&
-        x <= visibleX.xMax
-      ) {
-        filtered.push(y);
+    for (let s = 0; s < visibleX.perSeriesX.length; s++) {
+      const xs = visibleX.perSeriesX[s];
+      const ys = visibleX.perSeriesY[s];
+      if (!xs || !ys) continue;
+      for (let i = 0; i < xs.length; i++) {
+        const x = xs[i];
+        const y = ys[i];
+        if (
+          Number.isFinite(y) &&
+          Number.isFinite(x) &&
+          x >= visibleX.xMin &&
+          x <= visibleX.xMax
+        ) {
+          filtered.push(y);
+        }
       }
     }
     pool = filtered;
   }
 
-  if (pool.length === 0) return null;
+  if (pool.length === 0) {
+    return { range: null, poolSize: 0, outliersExcluded: 0 };
+  }
   const sorted = pool.slice().sort((a, b) => a - b);
 
   if (mode === 'focus') {
     const lo = quantile(sorted, 0.02);
     const hi = quantile(sorted, 0.98);
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
-    if (lo === hi) return [lo - 1, lo + 1];
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+      return { range: null, poolSize: pool.length, outliersExcluded: 0 };
+    }
+    if (lo === hi) {
+      return { range: [lo - 1, lo + 1], poolSize: pool.length, outliersExcluded: 0 };
+    }
     const pad = (hi - lo) * 0.05;
-    return [lo - pad, hi + pad];
+    const lower = lo - pad;
+    const upper = hi + pad;
+    let outsideCount = 0;
+    for (const v of sorted) {
+      if (v < lower || v > upper) outsideCount += 1;
+    }
+    return { range: [lower, upper], poolSize: pool.length, outliersExcluded: outsideCount };
   }
 
-  // 'auto' and default 'fit-visible' (after pool selection) use simple min/max + pad.
+  // 'auto' and 'fit-visible' (after pool filtering) → simple min/max + 5% pad.
   const lo = sorted[0];
   const hi = sorted[sorted.length - 1];
-  if (lo === hi) return [lo - 1, lo + 1];
+  if (lo === hi) {
+    return { range: [lo - 1, lo + 1], poolSize: pool.length, outliersExcluded: 0 };
+  }
   const pad = (hi - lo) * 0.05;
-  return [lo - pad, hi + pad];
+  return { range: [lo - pad, hi + pad], poolSize: pool.length, outliersExcluded: 0 };
 }
 
 /** Localized "yyyy-mm-dd HH:MM" from epoch seconds. */
