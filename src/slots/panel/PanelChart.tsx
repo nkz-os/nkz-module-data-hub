@@ -99,15 +99,26 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     ].join('::');
   }, [workerSeries, appearance.mode, hasRightAxis, effectiveScales, leftUnit, rightUnit]);
 
+  // Build uPlot mode-2 data only when all input arrays are aligned in length;
+  // otherwise return null and skip render. This avoids 't[g] is undefined'
+  // from inside uPlot when, for example, a newly added series exists in
+  // `series` but its worker payload hasn't landed yet.
   const data = useMemo<uPlot.AlignedData | null>(() => {
     if (workerSeries.length === 0) return null;
+    if (
+      workerSeries.length !== series.length ||
+      workerSeries.length !== effectiveScales.length ||
+      workerSeries.length !== colors.length
+    ) {
+      return null;
+    }
     return [
       null as unknown as number[],
       ...workerSeries.map(
         (s) => [Array.from(s.xs), Array.from(s.ys)] as unknown as uPlot.AlignedData
       ),
     ] as unknown as uPlot.AlignedData;
-  }, [workerSeries]);
+  }, [workerSeries, series.length, effectiveScales.length, colors.length]);
 
   // Compute global X domain across all series.
   const xDomain = useMemo<[number, number] | null>(() => {

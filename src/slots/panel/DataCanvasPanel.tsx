@@ -143,26 +143,34 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [series, workerSeries]
   );
 
-  // Visible-only views passed to the chart.
+  // Visible-only views passed to the chart. CRITICAL: all three arrays
+  // (defs / payloads / colours / scales) must stay in 1-to-1 alignment, even
+  // mid-fetch when a newly added series exists in `series` but its worker
+  // payload has not landed yet. Filter all of them by the same index set —
+  // the indices for which a worker payload exists AND visibility is on.
   const visibleIndices = useMemo(
     () => series.map((_, i) => i).filter((i) => visibilityMask[i]),
     [series, visibilityMask]
   );
-  const visibleSeriesDefs = useMemo(
-    () => visibleIndices.map((i) => series[i]),
-    [visibleIndices, series]
-  );
-  const baseVisibleWorkerSeries = useMemo(
-    () => visibleIndices.map((i) => workerSeries[i]).filter(Boolean),
+  const renderableIndices = useMemo(
+    () => visibleIndices.filter((i) => workerSeries[i] !== undefined),
     [visibleIndices, workerSeries]
   );
+  const visibleSeriesDefs = useMemo(
+    () => renderableIndices.map((i) => series[i]),
+    [renderableIndices, series]
+  );
+  const baseVisibleWorkerSeries = useMemo(
+    () => renderableIndices.map((i) => workerSeries[i]),
+    [renderableIndices, workerSeries]
+  );
   const baseVisibleColors = useMemo(
-    () => visibleIndices.map((i) => colors[i]),
-    [visibleIndices, colors]
+    () => renderableIndices.map((i) => colors[i]),
+    [renderableIndices, colors]
   );
   const baseVisibleScales = useMemo(
-    () => visibleIndices.map((i) => effectiveScales[i] ?? 'y'),
-    [visibleIndices, effectiveScales]
+    () => renderableIndices.map((i) => effectiveScales[i] ?? 'y'),
+    [renderableIndices, effectiveScales]
   );
 
   // ──────── Phase 7: derived overlay series (trendline + rolling avg) ────────
