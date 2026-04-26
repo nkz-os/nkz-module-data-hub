@@ -33,6 +33,12 @@ import {
   aggregatePoints,
 } from './PanelFooter';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
+import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
+import { usePanelTimeSync } from './hooks/usePanelTimeSync';
+import {
+  DATAHUB_EVENT_TIME_HOVER,
+  DATAHUB_EVENT_TIME_SELECT,
+} from '../../hooks/useUPlotCesiumSync';
 import {
   colorForIndex,
   computeYRange,
@@ -85,6 +91,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [cursor, setCursor] = useState<CursorState>(EMPTY_CURSOR);
   /** Current visible X range from uPlot (epoch seconds). null = full data domain. */
   const [visibleX, setVisibleX] = useState<{ min: number; max: number } | null>(null);
+  /** Imperative zoom command sent to PanelChart (nonce bumps to retrigger). */
+  const [zoomCommand, setZoomCommand] = useState<{
+    range: { min: number; max: number } | null;
+    reset?: boolean;
+    nonce: number;
+  } | null>(null);
+  const viewportHistory = useViewportHistory(null);
 
   const { status, series: workerSeries, refetch, error, stats, stage } = useWorkerSeries({
     panelId,
@@ -301,6 +314,69 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     [onSeriesRemove, panelId]
   );
 
+  // ──────── D1: Viewport history (zoom + undo + reset) ────────
+  const handleVisibleXChange = useCallback(
+    (range: { min: number; max: number }) => {
+      setVisibleX(range);
+      const last = viewportHistory.current;
+      if (!last || Math.abs(last.min - range.min) > 0.5 || Math.abs(last.max - range.max) > 0.5) {
+        viewportHistory.push(range as Viewport);
+      }
+    },
+    [viewportHistory]
+  );
+
+  const handleZoomUndo = useCallback(() => {
+    const prev = viewportHistory.pop();
+    if (!prev) return;
+    setZoomCommand({ range: prev, nonce: Date.now() });
+  }, [viewportHistory]);
+
+  const handleZoomReset = useCallback(() => {
+    viewportHistory.reset();
+    setZoomCommand({ range: null, reset: true, nonce: Date.now() });
+  }, [viewportHistory]);
+
+  // Right-click anywhere on the chart area undoes the last zoom (Grafana-style).
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!viewportHistory.hasHistory) return;
+      e.preventDefault();
+      handleZoomUndo();
+    },
+    [viewportHistory.hasHistory, handleZoomUndo]
+  );
+
+  // ──────── D2: Cross-panel sync (hover + brush) ────────
+  // Listen for hover events from other panels to draw an external crosshair.
+  // (Implementation note: uPlot does not expose a setCursor-from-X method
+  //  out-of-the-box; this is a placeholder for Phase 9 once we expose the
+  //  plotRef from PanelChart. Brush emission is wired below.)
+  usePanelTimeSync({
+    onExternalRange: (range) => {
+      setZoomCommand({ range, nonce: Date.now() });
+    },
+  });
+
+  // Emit our own cursor-hover and brush events.
+  React.useEffect(() => {
+    if (!cursor.visible) return;
+    window.dispatchEvent(
+      new CustomEvent(DATAHUB_EVENT_TIME_HOVER, {
+        detail: { timestamp: cursor.xEpoch * 1000 },
+      })
+    );
+  }, [cursor.visible, cursor.xEpoch]);
+
+  React.useEffect(() => {
+    if (!visibleX) return;
+    window.dispatchEvent(
+      new CustomEvent(DATAHUB_EVENT_TIME_SELECT, {
+        detail: { min: visibleX.min, max: visibleX.max },
+      })
+    );
+  }, [visibleX]);
+
   // Header subtitle: primary axis units summary.
   const headerSubtitle = useMemo(() => {
     if (!leftUnit && !rightUnit) return undefined;
@@ -331,6 +407,10 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         seriesRailOpen={railOpen}
         onToggleSeriesRail={() => setRailOpen((v) => !v)}
         hasRightAxis={hasRightAxis}
+        canUndoZoom={viewportHistory.hasHistory}
+        canResetZoom={viewportHistory.hasHistory}
+        onZoomUndo={handleZoomUndo}
+        onZoomReset={handleZoomReset}
         labels={{
           style: t('canvasPanel.chartStyle'),
           line: t('canvasPanel.lineWidth'),
@@ -349,6 +429,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           manualMax: t('canvasPanel.statMax'),
           apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
           reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
+          zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
+          zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
         }}
       />
 
@@ -379,7 +461,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             }}
           />
         )}
-        <div ref={containerWidthRef} className="relative flex-1 min-w-0">
+        <div
+          ref={containerWidthRef}
+          className="relative flex-1 min-w-0"
+          onContextMenu={handleContextMenu}
+        >
           {status === 'ready' && visibleWorkerSeries.length > 0 && (
             <PanelChart
               series={visibleSeriesDefs}
@@ -393,7 +479,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               leftUnit={leftUnit}
               rightUnit={rightUnit}
               onCursor={handleCursor}
-              onVisibleXChange={setVisibleX}
+              onVisibleXChange={handleVisibleXChange}
+              zoomCommand={zoomCommand ?? undefined}
             />
           )}
           {showOutlierBadge && (

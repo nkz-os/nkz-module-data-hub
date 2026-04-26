@@ -9,7 +9,7 @@
  * a real sensor outage, not an alignment hole.
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import uPlot from 'uplot';
 
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
@@ -41,6 +41,13 @@ export interface PanelChartProps {
   onCursor?: (info: { left: number; top: number; xEpoch: number } | null) => void;
   /** Fired whenever uPlot updates the X scale (zoom/pan). Epoch seconds. */
   onVisibleXChange?: (range: { min: number; max: number }) => void;
+  /**
+   * Forwarded zoom commands from the toolbar / right-click handler.
+   * When this changes (and includes a non-null range), the chart calls
+   * u.setScale('x', range). Pass `{ reset: true }` to restore the full data
+   * domain. Setting both null is a no-op.
+   */
+  zoomCommand?: { range: { min: number; max: number } | null; reset?: boolean; nonce: number };
 }
 
 function formatNumberShort(v: number): string {
@@ -65,6 +72,7 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   rightUnit,
   onCursor,
   onVisibleXChange,
+  zoomCommand,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCursorRef = useRef(onCursor);
@@ -256,12 +264,33 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     xDomain,
   ]);
 
-  useUPlotInstance({
+  const plotRef = useUPlotInstance({
     containerRef,
     data,
     options,
     resetKey,
   });
+
+  // Apply incoming zoom commands (reset or set range) without rebuilding uPlot.
+  useEffect(() => {
+    if (!zoomCommand) return;
+    const inst = plotRef.current;
+    if (!inst) return;
+    if (zoomCommand.reset) {
+      // Full data domain is currently options.scales.x.range() — undefined → uPlot
+      // recomputes to data extents.
+      const xs = data?.[1] as number[] | undefined;
+      if (xs && xs.length > 0) {
+        inst.setScale('x', { min: xs[0], max: xs[xs.length - 1] });
+      }
+      return;
+    }
+    if (zoomCommand.range) {
+      inst.setScale('x', { min: zoomCommand.range.min, max: zoomCommand.range.max });
+    }
+    // intentionally only re-run on nonce change — same command should not re-fire
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomCommand?.nonce]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 };

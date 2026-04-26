@@ -84,6 +84,8 @@
     "reset": "Reset",
     "outliersOutOfScale": "out of scale",
     "showAll": "Show all",
+    "zoomUndo": "Undo zoom (right-click)",
+    "zoomReset": "Reset zoom",
     "outliersHiddenTitle": "Extreme values detected (MAD/IQR) and hidden from the trace to avoid scale compression. Switch mode in Settings to view them.",
     "trendline": "Trend (OLS)",
     "styleLockedWithPrediction": "Chart style is fixed while AI prediction is shown."

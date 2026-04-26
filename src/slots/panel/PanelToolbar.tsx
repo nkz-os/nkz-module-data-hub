@@ -11,7 +11,7 @@
  */
 
 import React, { useState } from 'react';
-import { Settings2, Sliders, Maximize2, Activity, RotateCcw } from 'lucide-react';
+import { Settings2, Sliders, Maximize2, Activity, RotateCcw, Undo2, ZoomOut } from 'lucide-react';
 
 import type {
   ChartAppearance,
@@ -27,6 +27,11 @@ export interface PanelToolbarProps {
   onToggleSeriesRail: () => void;
   /** Whether the right axis is currently in use — gates manual right inputs. */
   hasRightAxis: boolean;
+  /** Zoom controls (D1). */
+  canUndoZoom: boolean;
+  canResetZoom: boolean;
+  onZoomUndo: () => void;
+  onZoomReset: () => void;
   /** Localized labels. */
   labels: {
     style: string;
@@ -46,6 +51,8 @@ export interface PanelToolbarProps {
     manualMax: string;
     apply: string;
     reset: string;
+    zoomUndo: string;
+    zoomReset: string;
   };
 }
 
@@ -67,6 +74,10 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   seriesRailOpen,
   onToggleSeriesRail,
   hasRightAxis,
+  canUndoZoom,
+  canResetZoom,
+  onZoomUndo,
+  onZoomReset,
   labels,
 }) => {
   const [manualOpen, setManualOpen] = useState(false);
@@ -86,6 +97,28 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         title={labels.seriesRail}
       >
         <Settings2 size={13} />
+      </button>
+
+      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+
+      {/* Zoom controls (D1) */}
+      <button
+        type="button"
+        onClick={onZoomUndo}
+        disabled={!canUndoZoom}
+        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        title={labels.zoomUndo}
+      >
+        <Undo2 size={13} aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onZoomReset}
+        disabled={!canResetZoom}
+        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        title={labels.zoomReset}
+      >
+        <ZoomOut size={13} aria-hidden />
       </button>
 
       <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
