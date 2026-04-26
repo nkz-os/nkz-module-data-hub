@@ -732,7 +732,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 }`}
               >
                 <div
-                  className={`panel-header panel-drag-handle absolute top-1 right-1 z-30 flex justify-between items-center bg-slate-950/75 backdrop-blur-sm rounded-md h-7 px-2 border border-slate-600/30 ${
+                  className={`panel-header panel-drag-handle absolute top-1 right-1 z-50 flex justify-between items-center bg-slate-950/85 backdrop-blur-sm rounded-md h-7 px-2 border border-slate-600/30 pointer-events-auto ${
                     predictingPanelId === panel.id ? 'ring-1 ring-amber-500/70' : ''
                   }`}
                 >

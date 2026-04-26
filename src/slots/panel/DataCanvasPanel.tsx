@@ -492,7 +492,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const containerHeight = containerWidthRef.current?.clientHeight ?? 400;
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-900/60 via-slate-900/40 to-slate-950/60 rounded-md ring-1 ring-slate-800/60 overflow-hidden flex flex-col min-h-0">
+    <div className="relative w-full h-full bg-gradient-to-br from-slate-900/60 via-slate-900/40 to-slate-950/60 rounded-md ring-1 ring-slate-800/60 flex flex-col min-h-0">
       <PanelHeader
         title={headerTitle}
         subtitle={headerSubtitle}

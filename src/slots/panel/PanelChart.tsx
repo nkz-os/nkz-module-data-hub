@@ -294,6 +294,24 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     onLifecycleTick?.();
   }, [resetKey, plotInstanceRef, onLifecycleTick, plotRef]);
 
+  // Y range is read at uPlot init via the `range` callback closure. When
+  // leftRange / rightRange update post-init (e.g. user toggles Y-scale mode,
+  // adds/removes a series, switches axis), the closure keeps the *initial*
+  // range — uPlot never sees the new value because we don't bump resetKey on
+  // range changes (would force an expensive rebuild). Instead, drive the
+  // scale imperatively when the range prop changes.
+  useEffect(() => {
+    const inst = plotRef.current;
+    if (!inst || !leftRange) return;
+    inst.setScale('y', { min: leftRange[0], max: leftRange[1] });
+  }, [leftRange, plotRef]);
+
+  useEffect(() => {
+    const inst = plotRef.current;
+    if (!inst || !rightRange || !hasRightAxis) return;
+    inst.setScale('y2', { min: rightRange[0], max: rightRange[1] });
+  }, [rightRange, hasRightAxis, plotRef]);
+
   // Apply incoming zoom commands (reset or set range) without rebuilding uPlot.
   useEffect(() => {
     if (!zoomCommand) return;

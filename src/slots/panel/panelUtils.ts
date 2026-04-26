@@ -61,15 +61,23 @@ export function quantile(sorted: number[], q: number): number {
 }
 
 /**
- * Auto-distribute series across left ('y') and right ('y2') Y axes by data
- * magnitude. Explicit user choice (yAxis === 'right') is always honored. For
- * implicit/'left'/undefined: keep series 0 on left; route others to whichever
- * existing axis has compatible magnitude (within 5×). If neither matches,
- * pick the axis with fewer series.
+ * Auto-distribute series across left ('y') and right ('y2') Y axes.
  *
- * Why: when two series with very different magnitudes (e.g. temperature 3-30
- * and windSpeed 0-1) share an axis, the combined Y range collapses one of them
- * to a flat line near zero. This was the SOTA bug shipped to production.
+ * Rule (in order of precedence):
+ *   1. Explicit user choice (yAxis === 'right') is always honored.
+ *   2. The first series with implicit/'left' axis goes to 'y' and seeds the
+ *      left "bucket" with its unit and magnitude.
+ *   3. A subsequent series joins an existing axis ONLY if BOTH:
+ *      - its unit is compatible with the axis's units, AND
+ *      - its magnitude is within 5× of an existing series on that axis.
+ *   4. Otherwise it goes to the OTHER axis.
+ *   5. As last resort: whichever axis has fewer series.
+ *
+ * Why both checks: temperature (°C, 3–30) and relativeHumidity (%, 0–100) have
+ * a magnitude ratio of ~2.7× — within 5× — so a magnitude-only check kept
+ * them on the same axis and the resulting [0, 105] Y range squashed the
+ * temperature trace to the bottom 30% of the canvas. Different unit ⇒
+ * different axis is the only safe semantics.
  */
 export function distributeAxes(
   defs: ChartSeriesDef[],
@@ -78,6 +86,8 @@ export function distributeAxes(
   const result: Array<'y' | 'y2'> = [];
   const leftMags: number[] = [];
   const rightMags: number[] = [];
+  const leftUnits = new Set<string>();
+  const rightUnits = new Set<string>();
 
   function magnitude(payload: WorkerSeriesPayload | undefined): number {
     if (!payload || payload.ys.length === 0) return 0;
@@ -91,7 +101,7 @@ export function distributeAxes(
     return quantile(vals, 0.9);
   }
 
-  function compatible(mag: number, refs: number[]): boolean {
+  function magnitudeCompatible(mag: number, refs: number[]): boolean {
     if (refs.length === 0) return true;
     for (const r of refs) {
       if (mag === 0 && r === 0) return true;
@@ -102,30 +112,48 @@ export function distributeAxes(
     return false;
   }
 
+  function unitCompatible(unit: string, axisUnits: Set<string>): boolean {
+    if (axisUnits.size === 0) return true;
+    if (!unit) return true; // unitless series can sit anywhere
+    if (axisUnits.has('')) return true; // axis already has unitless members
+    return axisUnits.has(unit);
+  }
+
   defs.forEach((def, i) => {
     const mag = magnitude(workerSeries[i]);
+    const unit = unitFor(def.attribute);
     if (def.yAxis === 'right') {
       result.push('y2');
       rightMags.push(mag);
+      rightUnits.add(unit);
       return;
     }
     if (i === 0) {
       result.push('y');
       leftMags.push(mag);
+      leftUnits.add(unit);
       return;
     }
-    if (compatible(mag, leftMags)) {
+    const fitsLeft =
+      unitCompatible(unit, leftUnits) && magnitudeCompatible(mag, leftMags);
+    const fitsRight =
+      unitCompatible(unit, rightUnits) && magnitudeCompatible(mag, rightMags);
+    if (fitsLeft) {
       result.push('y');
       leftMags.push(mag);
-    } else if (compatible(mag, rightMags)) {
+      leftUnits.add(unit);
+    } else if (fitsRight) {
       result.push('y2');
       rightMags.push(mag);
+      rightUnits.add(unit);
     } else if (rightMags.length < leftMags.length) {
       result.push('y2');
       rightMags.push(mag);
+      rightUnits.add(unit);
     } else {
       result.push('y');
       leftMags.push(mag);
+      leftUnits.add(unit);
     }
   });
   return result;
