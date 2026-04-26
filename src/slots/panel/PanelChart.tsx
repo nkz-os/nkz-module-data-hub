@@ -288,11 +288,32 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     resetKey,
   });
 
-  // Expose the instance to the orchestrator (overlays).
+  // Expose the instance + the props we computed for this render to window
+  // so the user can inspect from devtools and tell us exactly what mismatch
+  // is happening between the orchestrator's intent and uPlot's reality.
   useEffect(() => {
     if (plotInstanceRef) plotInstanceRef.current = plotRef.current;
     onLifecycleTick?.();
-  }, [resetKey, plotInstanceRef, onLifecycleTick, plotRef]);
+    if (typeof window !== 'undefined' && plotRef.current) {
+      const inst = plotRef.current;
+      (window as unknown as { __nkz_chart?: unknown }).__nkz_chart = inst;
+      // eslint-disable-next-line no-console
+      console.log('[nkz datahub] uPlot ready', {
+        propsLeftRange: leftRange,
+        propsRightRange: rightRange,
+        propsHasRightAxis: hasRightAxis,
+        scales: {
+          y: { min: inst.scales.y?.min, max: inst.scales.y?.max },
+          y2: { min: inst.scales.y2?.min, max: inst.scales.y2?.max },
+          x: { min: inst.scales.x?.min, max: inst.scales.x?.max },
+        },
+        bbox: inst.bbox,
+        canvasSize: { w: inst.width, h: inst.height },
+        seriesCount: inst.series.length,
+        firstSeriesLabel: inst.series[1]?.label,
+      });
+    }
+  }, [resetKey, plotInstanceRef, onLifecycleTick, plotRef, leftRange, rightRange, hasRightAxis]);
 
   // Y range is read at uPlot init via the `range` callback closure. When
   // leftRange / rightRange update post-init (e.g. user toggles Y-scale mode,
