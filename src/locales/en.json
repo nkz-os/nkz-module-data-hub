@@ -86,6 +86,9 @@
     "showAll": "Show all",
     "zoomUndo": "Undo zoom (right-click)",
     "zoomReset": "Reset zoom",
+    "rollingAvg": "Rolling avg",
+    "rollingOff": "Off",
+    "correlationNeed2": "Correlation needs 2 series",
     "outliersHiddenTitle": "Extreme values detected (MAD/IQR) and hidden from the trace to avoid scale compression. Switch mode in Settings to view them.",
     "trendline": "Trend (OLS)",
     "styleLockedWithPrediction": "Chart style is fixed while AI prediction is shown."

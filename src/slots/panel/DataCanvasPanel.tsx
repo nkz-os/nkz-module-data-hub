@@ -32,6 +32,11 @@ import {
   computeFooterStats,
   aggregatePoints,
 } from './PanelFooter';
+import {
+  buildTrendlineSeries,
+  buildRollingAverageSeries,
+  pearsonCorrelation,
+} from './derivedSeries';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
 import { usePanelTimeSync } from './hooks/usePanelTimeSync';
@@ -143,18 +148,101 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     () => visibleIndices.map((i) => series[i]),
     [visibleIndices, series]
   );
-  const visibleWorkerSeries = useMemo(
+  const baseVisibleWorkerSeries = useMemo(
     () => visibleIndices.map((i) => workerSeries[i]).filter(Boolean),
     [visibleIndices, workerSeries]
   );
-  const visibleColors = useMemo(
+  const baseVisibleColors = useMemo(
     () => visibleIndices.map((i) => colors[i]),
     [visibleIndices, colors]
   );
-  const visibleScales = useMemo(
+  const baseVisibleScales = useMemo(
     () => visibleIndices.map((i) => effectiveScales[i] ?? 'y'),
     [visibleIndices, effectiveScales]
   );
+
+  // ──────── Phase 7: derived overlay series (trendline + rolling avg) ────────
+  const trendlineSeries = useMemo(() => {
+    if (!appearance.showTrendline || baseVisibleWorkerSeries.length === 0) return null;
+    return buildTrendlineSeries(baseVisibleWorkerSeries[0]);
+  }, [appearance.showTrendline, baseVisibleWorkerSeries]);
+
+  const rollingSeries = useMemo(() => {
+    const window = appearance.rollingAverage ?? 'off';
+    if (window === 'off' || baseVisibleWorkerSeries.length === 0) return null;
+    return buildRollingAverageSeries(baseVisibleWorkerSeries[0], window);
+  }, [appearance.rollingAverage, baseVisibleWorkerSeries]);
+
+  // Compose final visible series list: real series first, then overlays.
+  const visibleWorkerSeries = useMemo(() => {
+    const out = [...baseVisibleWorkerSeries];
+    if (rollingSeries) out.push(rollingSeries);
+    if (trendlineSeries) out.push(trendlineSeries);
+    return out;
+  }, [baseVisibleWorkerSeries, rollingSeries, trendlineSeries]);
+
+  // Synthetic series colours: rolling = primary 60% alpha; trend = primary 80%.
+  const visibleColors = useMemo(() => {
+    const out = [...baseVisibleColors];
+    const primary = baseVisibleColors[0] ?? '#34d399';
+    if (rollingSeries) out.push(`${primary}99`);
+    if (trendlineSeries) out.push(`${primary}cc`);
+    return out;
+  }, [baseVisibleColors, rollingSeries, trendlineSeries]);
+
+  const visibleSeriesDefsAugmented = useMemo(() => {
+    const out = [...visibleSeriesDefs];
+    if (rollingSeries) {
+      out.push({
+        entityId: rollingSeries.entityId,
+        attribute: rollingSeries.attribute,
+        source: rollingSeries.source,
+        yAxis: visibleSeriesDefs[0]?.yAxis,
+      });
+    }
+    if (trendlineSeries) {
+      out.push({
+        entityId: trendlineSeries.entityId,
+        attribute: trendlineSeries.attribute,
+        source: trendlineSeries.source,
+        yAxis: visibleSeriesDefs[0]?.yAxis,
+      });
+    }
+    return out;
+  }, [visibleSeriesDefs, rollingSeries, trendlineSeries]);
+
+  const visibleScales = useMemo(() => {
+    const out = [...baseVisibleScales];
+    const primaryScale = baseVisibleScales[0] ?? 'y';
+    if (rollingSeries) out.push(primaryScale);
+    if (trendlineSeries) out.push(primaryScale);
+    return out;
+  }, [baseVisibleScales, rollingSeries, trendlineSeries]);
+
+  // ──────── Phase 7: correlation mode (Pearson r) ────────
+  const correlation = useMemo(() => {
+    if (appearance.viewMode !== 'correlation' || baseVisibleWorkerSeries.length < 2) {
+      return null;
+    }
+    const xIdx = Math.min(
+      Math.max(0, appearance.correlationXSeries),
+      baseVisibleWorkerSeries.length - 1
+    );
+    const yIdx = Math.min(
+      Math.max(0, appearance.correlationYSeries),
+      baseVisibleWorkerSeries.length - 1
+    );
+    if (xIdx === yIdx) return null;
+    return pearsonCorrelation(
+      baseVisibleWorkerSeries[xIdx],
+      baseVisibleWorkerSeries[yIdx]
+    );
+  }, [
+    appearance.viewMode,
+    appearance.correlationXSeries,
+    appearance.correlationYSeries,
+    baseVisibleWorkerSeries,
+  ]);
 
   // Per-axis value pool for Y range computation — VISIBLE series only.
   const { leftValues, rightValues, leftUnit, rightUnit, hasRightAxis } = useMemo(() => {
@@ -431,6 +519,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
           zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
           zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
+          trendline: t('canvasPanel.trendline'),
+          rollingAvg: t('canvasPanel.rollingAvg', { defaultValue: 'Media móvil' }),
+          rollingOff: t('canvasPanel.rollingOff', { defaultValue: 'Off' }),
+          viewMode: t('canvasPanel.viewMode'),
+          viewTimeseries: t('canvasPanel.viewModeTimeseries'),
+          viewCorrelation: t('canvasPanel.viewModeCorrelation'),
         }}
       />
 
@@ -468,7 +562,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         >
           {status === 'ready' && visibleWorkerSeries.length > 0 && (
             <PanelChart
-              series={visibleSeriesDefs}
+              series={visibleSeriesDefsAugmented}
               workerSeries={visibleWorkerSeries}
               appearance={appearance}
               effectiveScales={visibleScales}
@@ -482,6 +576,20 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               onVisibleXChange={handleVisibleXChange}
               zoomCommand={zoomCommand ?? undefined}
             />
+          )}
+          {appearance.viewMode === 'correlation' && correlation && (
+            <div className="absolute top-2 left-2 z-20 px-2 py-1 text-[10px] rounded-md bg-purple-500/15 border border-purple-500/40 text-purple-200 flex items-center gap-1.5 shadow-lg pointer-events-none font-mono tabular-nums">
+              <span className="font-semibold">r =</span>
+              <span>{Number.isFinite(correlation.r) ? correlation.r.toFixed(4) : '—'}</span>
+              <span className="text-purple-300/70">·</span>
+              <span>n =</span>
+              <span>{correlation.n}</span>
+            </div>
+          )}
+          {appearance.viewMode === 'correlation' && !correlation && status === 'ready' && (
+            <div className="absolute top-2 left-2 z-20 px-2 py-1 text-[10px] rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-200 flex items-center gap-1.5 shadow-lg pointer-events-none">
+              {t('canvasPanel.correlationNeed2', { defaultValue: 'Correlación necesita 2 series' })}
+            </div>
           )}
           {showOutlierBadge && (
             <button

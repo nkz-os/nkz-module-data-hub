@@ -86,6 +86,9 @@
     "showAll": "Mostrar todos",
     "zoomUndo": "Deshacer zoom (clic derecho)",
     "zoomReset": "Restablecer zoom",
+    "rollingAvg": "Media móvil",
+    "rollingOff": "Off",
+    "correlationNeed2": "Correlación necesita 2 series",
     "outliersHiddenTitle": "Valores extremos detectados (MAD/IQR) y ocultos del trazo para no comprimir la escala. Cambia el modo en Ajustes si quieres verlos.",
     "trendline": "Tendencia (MCO)",
     "styleLockedWithPrediction": "El estilo del gráfico queda fijo mientras se muestra la predicción IA."

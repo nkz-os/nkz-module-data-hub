@@ -11,11 +11,25 @@
  */
 
 import React, { useState } from 'react';
-import { Settings2, Sliders, Maximize2, Activity, RotateCcw, Undo2, ZoomOut } from 'lucide-react';
+import {
+  Settings2,
+  Sliders,
+  Maximize2,
+  Activity,
+  RotateCcw,
+  Undo2,
+  ZoomOut,
+  TrendingUp,
+  Waves,
+  LineChart,
+  GitCompare,
+} from 'lucide-react';
 
 import type {
   ChartAppearance,
   ChartRenderMode,
+  ChartViewMode,
+  RollingAvgWindow,
   YScaleMode,
 } from '../../types/dashboard';
 
@@ -53,6 +67,12 @@ export interface PanelToolbarProps {
     reset: string;
     zoomUndo: string;
     zoomReset: string;
+    trendline: string;
+    rollingAvg: string;
+    rollingOff: string;
+    viewMode: string;
+    viewTimeseries: string;
+    viewCorrelation: string;
   };
 }
 
@@ -120,6 +140,81 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
       >
         <ZoomOut size={13} aria-hidden />
       </button>
+
+      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+
+      {/* View mode (timeseries / correlation) — only shown when 2+ series */}
+      <div
+        className="inline-flex items-center rounded-md border border-slate-700 overflow-hidden"
+        role="group"
+        aria-label={labels.viewMode}
+      >
+        <button
+          type="button"
+          onClick={() => onAppearanceChange({ viewMode: 'timeseries' as ChartViewMode })}
+          className={[
+            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-slate-700',
+            appearance.viewMode === 'timeseries'
+              ? 'bg-emerald-500/20 text-emerald-200'
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+          ].join(' ')}
+          title={labels.viewTimeseries}
+          aria-pressed={appearance.viewMode === 'timeseries'}
+        >
+          <LineChart size={11} aria-hidden />
+          {labels.viewTimeseries}
+        </button>
+        <button
+          type="button"
+          onClick={() => onAppearanceChange({ viewMode: 'correlation' as ChartViewMode })}
+          className={[
+            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors',
+            appearance.viewMode === 'correlation'
+              ? 'bg-purple-500/20 text-purple-200'
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+          ].join(' ')}
+          title={labels.viewCorrelation}
+          aria-pressed={appearance.viewMode === 'correlation'}
+        >
+          <GitCompare size={11} aria-hidden />
+          {labels.viewCorrelation}
+        </button>
+      </div>
+
+      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+
+      {/* Trendline toggle */}
+      <button
+        type="button"
+        onClick={() => onAppearanceChange({ showTrendline: !appearance.showTrendline })}
+        className={[
+          'flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded border transition-colors',
+          appearance.showTrendline
+            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
+            : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+        ].join(' ')}
+        aria-pressed={appearance.showTrendline}
+        title={labels.trendline}
+      >
+        <TrendingUp size={11} aria-hidden />
+        {labels.trendline}
+      </button>
+
+      {/* Rolling average dropdown */}
+      <label className="flex items-center gap-1.5">
+        <Waves size={11} className="text-slate-500" aria-hidden />
+        <span className="text-slate-500">{labels.rollingAvg}</span>
+        <select
+          value={appearance.rollingAverage ?? 'off'}
+          onChange={(e) => onAppearanceChange({ rollingAverage: e.target.value as RollingAvgWindow })}
+          className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px]"
+        >
+          <option value="off">{labels.rollingOff}</option>
+          <option value="1h">1h</option>
+          <option value="24h">24h</option>
+          <option value="7d">7d</option>
+        </select>
+      </label>
 
       <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
 
