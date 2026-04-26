@@ -37,6 +37,9 @@ import {
   buildRollingAverageSeries,
   pearsonCorrelation,
 } from './derivedSeries';
+import { resolveThresholds } from './thresholds';
+import { PanelOverlays } from './PanelOverlays';
+import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
 import { usePanelTimeSync } from './hooks/usePanelTimeSync';
@@ -84,6 +87,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   startTime,
   endTime,
   resolution,
+  prediction,
   chartAppearance,
   onAppearanceChange,
   onSeriesAxisChange,
@@ -103,6 +107,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     nonce: number;
   } | null>(null);
   const viewportHistory = useViewportHistory(null);
+  const plotInstanceRef = React.useRef<uPlot | null>(null);
+  const [lifecycleTick, setLifecycleTick] = useState(0);
+  const bumpLifecycle = useCallback(() => setLifecycleTick((n) => n + 1), []);
 
   const { status, series: workerSeries, refetch, error, stats, stage } = useWorkerSeries({
     panelId,
@@ -575,6 +582,23 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               onCursor={handleCursor}
               onVisibleXChange={handleVisibleXChange}
               zoomCommand={zoomCommand ?? undefined}
+              plotInstanceRef={plotInstanceRef}
+              onLifecycleTick={bumpLifecycle}
+            />
+          )}
+          {status === 'ready' && visibleWorkerSeries.length > 0 && (
+            <PanelOverlays
+              plotRef={plotInstanceRef}
+              resizeNonce={lifecycleTick}
+              thresholds={resolveThresholds(
+                visibleSeriesDefs,
+                baseVisibleScales,
+                appearance.thresholds ?? []
+              )}
+              annotations={[]}
+              prediction={prediction ?? null}
+              predictionColor={baseVisibleColors[0] ?? '#34d399'}
+              xDomain={visibleX}
             />
           )}
           {appearance.viewMode === 'correlation' && correlation && (

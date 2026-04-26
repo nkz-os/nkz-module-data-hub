@@ -48,6 +48,10 @@ export interface PanelChartProps {
    * domain. Setting both null is a no-op.
    */
   zoomCommand?: { range: { min: number; max: number } | null; reset?: boolean; nonce: number };
+  /** Exposes the live uPlot instance so overlays can valToPos against scales. */
+  plotInstanceRef?: React.MutableRefObject<uPlot | null>;
+  /** Bumped after each lifecycle event (init/resize) so overlays re-render. */
+  onLifecycleTick?: () => void;
 }
 
 function formatNumberShort(v: number): string {
@@ -73,6 +77,8 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   onCursor,
   onVisibleXChange,
   zoomCommand,
+  plotInstanceRef,
+  onLifecycleTick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const onCursorRef = useRef(onCursor);
@@ -270,6 +276,12 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     options,
     resetKey,
   });
+
+  // Expose the instance to the orchestrator (overlays).
+  useEffect(() => {
+    if (plotInstanceRef) plotInstanceRef.current = plotRef.current;
+    onLifecycleTick?.();
+  }, [resetKey, plotInstanceRef, onLifecycleTick, plotRef]);
 
   // Apply incoming zoom commands (reset or set range) without rebuilding uPlot.
   useEffect(() => {
