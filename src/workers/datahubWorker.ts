@@ -405,7 +405,12 @@ async function fetchSingleSeries(
     attribute: item.attribute,
   });
   const path = `/api/datahub/timeseries/entities/${encodeURIComponent(item.entityId)}/data?${params}`;
-  const url = req.baseUrl ? `${req.baseUrl}${path}` : path;
+  // Web Workers do not resolve relative URLs — fetch() requires an absolute one.
+  // When the orchestrator does not pass an explicit baseUrl (same-origin case),
+  // we fall back to the worker's own origin (which equals the spawning page's
+  // origin since this is an inline worker).
+  const base = req.baseUrl || self.location.origin;
+  const url = `${base}${path}`;
   const response = await fetch(url, {
     method: 'GET',
     headers: req.headers,
