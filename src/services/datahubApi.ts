@@ -206,7 +206,7 @@ export async function requestExport(
 // Workspaces (Phase 5) — NGSI-LD DataHubWorkspace persist/load
 // ---------------------------------------------------------------------------
 
-/** Mirrors DashboardPanel chart options for workspace round-trip. */
+/** Mirrors DashboardPanel chart options for workspace round-trip. Schema v2. */
 export interface WorkspaceChartAppearance {
   viewMode?: 'timeseries' | 'correlation';
   mode?: 'line' | 'bars' | 'points';
@@ -215,6 +215,24 @@ export interface WorkspaceChartAppearance {
   showTrendline?: boolean;
   correlationXSeries?: number;
   correlationYSeries?: number;
+  /** Schema v2 fields (Phase 5/7/8). All optional for forward/back compat. */
+  yScaleMode?: 'auto' | 'fit-visible' | 'focus' | 'manual';
+  yScaleManual?: {
+    left?: { min: number; max: number };
+    right?: { min: number; max: number };
+  };
+  seriesConfig?: Record<
+    string,
+    { visible?: boolean; colorOverride?: string; yAxis?: 'left' | 'right' }
+  >;
+  thresholds?: Array<{
+    value: number;
+    color: string;
+    label: string;
+    axis: 'left' | 'right';
+    style?: 'solid' | 'dash' | 'dot';
+  }>;
+  rollingAverage?: 'off' | '1h' | '24h' | '7d';
 }
 
 export interface WorkspaceLayoutPanel {
@@ -232,6 +250,10 @@ export interface DataHubWorkspacePayload {
   name: { type: 'Property'; value: string };
   timeContext: { type: 'Property'; value: { startTime: string; endTime: string; resolution: number } };
   layout: { type: 'Property'; value: WorkspaceLayoutPanel[] };
+  /** Workspace schema version. v2 added Y-scale modes, series config,
+   *  thresholds and rolling-average overlays. v1 payloads load as v2 with
+   *  defaults applied through mergeChartAppearance. */
+  version?: { type: 'Property'; value: number };
 }
 
 export interface DataHubWorkspaceStored {

@@ -10,7 +10,9 @@
     "build": "vite build",
     "build:module": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "playwright test",
+    "smoke:install": "playwright install chromium firefox"
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",

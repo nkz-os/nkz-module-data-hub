@@ -93,12 +93,41 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
         </span>
       )}
 
-      {/* Telemetry strip — always visible, always discreet */}
-      <span className="ml-auto tabular-nums text-slate-500 whitespace-nowrap font-mono text-[9px]">
-        {telemetry.plotted}/{telemetry.received} pts · {telemetry.viewportWidth}×
-        {telemetry.viewportHeight} · {telemetry.scaleMode} · {telemetry.stage}
-      </span>
+      {/* Telemetry strip — always present but compact. Devs can hide it with
+          ?datahub_debug=0 or boost it (per-series breakdown) with =2. */}
+      <TelemetryStrip telemetry={telemetry} />
     </div>
+  );
+};
+
+const TelemetryStrip: React.FC<{ telemetry: PanelFooterProps['telemetry'] }> = ({ telemetry }) => {
+  const debugLevel = (() => {
+    if (typeof window === 'undefined') return 1;
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('datahub_debug');
+      if (fromUrl != null) return Number.parseInt(fromUrl, 10) || 0;
+      const stored = window.localStorage.getItem('datahub.debug');
+      if (stored != null) return Number.parseInt(stored, 10) || 0;
+    } catch {
+      // ignore (private mode, etc.)
+    }
+    return 1;
+  })();
+  if (debugLevel <= 0) return <span className="ml-auto" aria-hidden />;
+  const fullDetail = debugLevel >= 2;
+  return (
+    <span
+      className="ml-auto tabular-nums text-slate-500 whitespace-nowrap font-mono text-[9px]"
+      title={`debug=${debugLevel}`}
+    >
+      {telemetry.plotted}/{telemetry.received} pts · {telemetry.viewportWidth}×
+      {telemetry.viewportHeight} · {telemetry.scaleMode} · {telemetry.stage}
+      {fullDetail && (
+        <>
+          {' '}· dpr {typeof window !== 'undefined' ? window.devicePixelRatio : 1}
+        </>
+      )}
+    </span>
   );
 };
 
