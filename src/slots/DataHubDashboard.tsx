@@ -714,6 +714,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             rowHeight={120}
             width={layoutWidth}
             onLayoutChange={onLayoutChange}
+            isDraggable={true}
             draggableHandle=".panel-drag-handle"
             isResizable={true}
             resizeHandles={['se']}
@@ -722,94 +723,53 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             droppingItem={defaultDroppingItem}
           >
             {panels.map((panel) => (
-              <div
-                key={panel.id}
-                onMouseDown={() => setActivePanelId(panel.id)}
-                className={`relative flex flex-col bg-transparent border-none rounded-none overflow-visible p-0 ${
-                  activePanelId === panel.id
-                    ? 'ring-1 ring-emerald-400/30'
-                    : ''
-                }`}
-              >
-                <div
-                  className={`panel-header panel-drag-handle absolute top-1 right-1 z-50 flex justify-between items-center bg-slate-950/85 backdrop-blur-sm rounded-md h-7 px-2 border border-slate-600/30 pointer-events-auto ${
-                    predictingPanelId === panel.id ? 'ring-1 ring-amber-500/70' : ''
-                  }`}
-                >
-                  <div
-                    className="cursor-move flex-1 truncate text-[10px] text-slate-300 min-w-0 max-w-[180px]"
-                    title={panel.title ??
-                      (panel.series.length === 1
-                        ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
-                        : t('dashboard.multiSeriesShort', { count: panel.series.length }))}
-                  >
-                    {panel.title ??
-                      (panel.series.length === 1
-                        ? `${panel.series[0].entityId} / ${panel.series[0].attribute}`
-                        : t('dashboard.multiSeriesShort', { count: panel.series.length }))}
-                  </div>
-                  <div className="panel-actions flex gap-1 shrink-0 items-center">
+              <div key={panel.id} className="relative" onMouseDown={() => setActivePanelId(panel.id)}>
+                {/* Floating actions — top right */}
+                <div className="absolute top-1 right-1 z-20 flex gap-0.5 pointer-events-none">
+                  <div className="pointer-events-auto flex gap-0.5 bg-slate-950/80 backdrop-blur-sm rounded-md px-1 py-0.5 border border-slate-700/50">
                     {panel.series.length === 1 && (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePredict(panel);
-                        }}
+                        onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
                         disabled={predictingPanelId === panel.id}
-                        className="p-1.5 text-amber-500 hover:text-amber-400 disabled:opacity-70"
+                        className="p-1 text-amber-400 hover:text-amber-300 disabled:opacity-50 rounded"
                         title={t('dashboard.predictTitle')}
-                        aria-label={t('dashboard.predictAria')}
                       >
-                        {predictingPanelId === panel.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Brain size={14} />
-                        )}
+                        {predictingPanelId === panel.id ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />}
                       </button>
                     )}
                     {panel.series.length > 0 && (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExportModalPanel(panel);
-                        }}
-                        className="p-1.5 text-blue-400 hover:text-blue-300"
+                        onClick={(e) => { e.stopPropagation(); setExportModalPanel(panel); }}
+                        className="p-1 text-blue-400 hover:text-blue-300 rounded"
                         title={t('dashboard.exportTitle')}
-                        aria-label={t('dashboard.exportAria')}
                       >
-                        <Download size={14} />
+                        <Download size={12} />
                       </button>
                     )}
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removePanel(panel.id);
-                      }}
-                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700/80 rounded"
+                      onClick={(e) => { e.stopPropagation(); removePanel(panel.id); }}
+                      className="p-1 text-slate-500 hover:text-red-400 rounded"
                       title={t('dashboard.removePanel')}
-                      aria-label={t('dashboard.removePanelAria')}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
-                <div className="absolute inset-0 min-h-0 rounded-none overflow-hidden">
-                  <DataCanvasPanelMemo
-                    panelId={panel.id}
-                    series={panel.series}
-                    startTime={timeContext.startTime}
-                    endTime={timeContext.endTime}
-                    resolution={timeContext.resolution}
-                    prediction={panel.prediction ?? null}
-                    chartAppearance={panel.chartAppearance}
-                    onAppearanceChange={updatePanelAppearance}
-                    onSeriesAxisChange={updatePanelSeriesAxis}
-                    onSeriesRemove={removePanelSeries}
-                  />
-                </div>
+                <DataCanvasPanelMemo
+                  panelId={panel.id}
+                  series={panel.series}
+                  startTime={timeContext.startTime}
+                  endTime={timeContext.endTime}
+                  resolution={timeContext.resolution}
+                  prediction={panel.prediction ?? null}
+                  chartAppearance={panel.chartAppearance}
+                  onAppearanceChange={updatePanelAppearance}
+                  onSeriesAxisChange={updatePanelSeriesAxis}
+                  onSeriesRemove={removePanelSeries}
+                />
               </div>
             ))}
           </ReactGridLayout>

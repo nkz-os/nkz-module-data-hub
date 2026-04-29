@@ -65,19 +65,12 @@ export function quantile(sorted: number[], q: number): number {
  *
  * Rule (in order of precedence):
  *   1. Explicit user choice (yAxis === 'right') is always honored.
- *   2. The first series with implicit/'left' axis goes to 'y' and seeds the
- *      left "bucket" with its unit and magnitude.
+ *   2. The first implicit series goes to 'y' and seeds the left bucket.
  *   3. A subsequent series joins an existing axis ONLY if BOTH:
  *      - its unit is compatible with the axis's units, AND
- *      - its magnitude is within 5× of an existing series on that axis.
+ *      - its P90 magnitude is within 3× of at least one existing series.
  *   4. Otherwise it goes to the OTHER axis.
  *   5. As last resort: whichever axis has fewer series.
- *
- * Why both checks: temperature (°C, 3–30) and relativeHumidity (%, 0–100) have
- * a magnitude ratio of ~2.7× — within 5× — so a magnitude-only check kept
- * them on the same axis and the resulting [0, 105] Y range squashed the
- * temperature trace to the bottom 30% of the canvas. Different unit ⇒
- * different axis is the only safe semantics.
  */
 export function distributeAxes(
   defs: ChartSeriesDef[],
@@ -107,15 +100,15 @@ export function distributeAxes(
       if (mag === 0 && r === 0) return true;
       if (r === 0 || mag === 0) continue;
       const ratio = Math.max(mag, r) / Math.min(mag, r);
-      if (ratio <= 5) return true;
+      if (ratio <= 3) return true;
     }
     return false;
   }
 
   function unitCompatible(unit: string, axisUnits: Set<string>): boolean {
     if (axisUnits.size === 0) return true;
-    if (!unit) return true; // unitless series can sit anywhere
-    if (axisUnits.has('')) return true; // axis already has unitless members
+    if (!unit) return true;
+    if (axisUnits.has('')) return true;
     return axisUnits.has(unit);
   }
 
@@ -171,24 +164,18 @@ export interface YRangeResult {
 /**
  * Compute Y range for one axis given the value pool on that axis and the
  * current scale mode. Outliers stay in the data; only the *range* is shaped.
- *
- * Returns the computed range plus the number of values that fall outside it
- * (used by the outlier badge in focus mode).
  */
 export function computeYRange(
   values: number[],
   mode: YScaleMode,
   manual?: { min: number; max: number },
   visibleX?: {
-    /** Per-series Y arrays — same order as Y series on this axis. */
     perSeriesY: Float64Array[];
-    /** Per-series X arrays. */
     perSeriesX: Float64Array[];
     xMin: number;
     xMax: number;
   }
 ): YRangeResult {
-  // Manual: caller specifies the range. Pool size / outliers don't matter for UI.
   if (mode === 'manual' && manual && Number.isFinite(manual.min) && Number.isFinite(manual.max)) {
     if (manual.max <= manual.min) {
       return { range: [manual.min - 1, manual.min + 1], poolSize: 0, outliersExcluded: 0 };
@@ -200,7 +187,6 @@ export function computeYRange(
     return { range: [manual.min, manual.max], poolSize: values.length, outliersExcluded: outsideCount };
   }
 
-  // Build the working pool: fit-visible filters by X range, others use full pool.
   let pool = values;
   if (mode === 'fit-visible' && visibleX) {
     const filtered: number[] = [];
@@ -248,7 +234,6 @@ export function computeYRange(
     return { range: [lower, upper], poolSize: pool.length, outliersExcluded: outsideCount };
   }
 
-  // 'auto' and 'fit-visible' (after pool filtering) → simple min/max + 5% pad.
   const lo = sorted[0];
   const hi = sorted[sorted.length - 1];
   if (lo === hi) {

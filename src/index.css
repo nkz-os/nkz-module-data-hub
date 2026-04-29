@@ -1,3 +1,33 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* RGL resize handle */
+.react-resizable-handle {
+  position: absolute !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  cursor: se-resize !important;
+  z-index: 100 !important;
+  background: none !important;
+  display: block !important;
+}
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-right: 2px solid rgba(203,213,225,0.6);
+  border-bottom: 2px solid rgba(203,213,225,0.6);
+}
+.react-resizable-handle:hover::after {
+  border-color: rgba(203,213,225,1);
+  width: 16px;
+  height: 16px;
+  bottom: 5px;
+  right: 5px;
+}

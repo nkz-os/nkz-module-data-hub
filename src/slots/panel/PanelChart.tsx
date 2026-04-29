@@ -1,20 +1,12 @@
 /**
- * PanelChart — uPlot mode-2 renderer fed by V2.1 worker payloads.
- *
- * Pure rendering surface. State machine (loading/empty/error) lives in the
- * orchestrator; the chart only mounts when status === 'ready' and series.length>0.
- *
- * Why mode 2: each series owns its own xs/ys array. With V2.1 there is no
- * cross-series alignment NaN, so spanGaps:false is honest — a NaN in ys means
- * a real sensor outage, not an alignment hole.
+ * PanelChart — uPlot mode-1, created manually in a plain div.
  */
-
 import React, { useEffect, useMemo, useRef } from 'react';
 import uPlot from 'uplot';
+import 'uplot/dist/uPlot.min.css';
 
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
 import type { ChartAppearance, ChartSeriesDef } from '../../types/dashboard';
-import { useUPlotInstance } from './hooks/useUPlotInstance';
 
 const TEXT_AXIS = '#cbd5e1';
 const TEXT_AXIS_LEFT = '#34d399';
@@ -25,32 +17,17 @@ export interface PanelChartProps {
   series: ChartSeriesDef[];
   workerSeries: WorkerSeriesPayload[];
   appearance: ChartAppearance;
-  /** Effective scale per series (computed by orchestrator: respects user override + auto-distribute). */
   effectiveScales: Array<'y' | 'y2'>;
-  /** Resolved colour per series (after user override and palette assignment). */
   colors: string[];
-  /** Y range per axis (orchestrator-computed; varies by yScaleMode). */
   leftRange: [number, number] | null;
   rightRange: [number, number] | null;
-  /** Should the right axis be rendered at all? */
   hasRightAxis: boolean;
-  /** Unit summary per axis to render in tick values. */
   leftUnit: string;
   rightUnit: string;
-  /** Cursor moved → orchestrator uses this to update tooltip + emit time-hover. */
   onCursor?: (info: { left: number; top: number; xEpoch: number } | null) => void;
-  /** Fired whenever uPlot updates the X scale (zoom/pan). Epoch seconds. */
   onVisibleXChange?: (range: { min: number; max: number }) => void;
-  /**
-   * Forwarded zoom commands from the toolbar / right-click handler.
-   * When this changes (and includes a non-null range), the chart calls
-   * u.setScale('x', range). Pass `{ reset: true }` to restore the full data
-   * domain. Setting both null is a no-op.
-   */
   zoomCommand?: { range: { min: number; max: number } | null; reset?: boolean; nonce: number };
-  /** Exposes the live uPlot instance so overlays can valToPos against scales. */
   plotInstanceRef?: React.MutableRefObject<uPlot | null>;
-  /** Bumped after each lifecycle event (init/resize) so overlays re-render. */
   onLifecycleTick?: () => void;
 }
 
@@ -61,6 +38,30 @@ function formatNumberShort(v: number): string {
   if (abs >= 100) return v.toFixed(1);
   if (abs >= 10) return v.toFixed(2);
   return v.toFixed(3);
+}
+
+function buildAlignedData(ws: WorkerSeriesPayload[]): uPlot.AlignedData | null {
+  if (ws.length === 0) return null;
+  if (ws.length === 1) {
+    const s = ws[0];
+    if (s.xs.length === 0) return null;
+    return [Array.from(s.xs), Array.from(s.ys)];
+  }
+  const tsSet = new Set<number>();
+  for (const s of ws) for (let i = 0; i < s.xs.length; i++) tsSet.add(s.xs[i]);
+  const xs = Array.from(tsSet).sort((a, b) => a - b);
+  if (xs.length === 0) return null;
+  const xIndex = new Map<number, number>();
+  for (let i = 0; i < xs.length; i++) xIndex.set(xs[i], i);
+  const yArrays = ws.map(() => new Array<number>(xs.length).fill(Number.NaN));
+  for (let sIdx = 0; sIdx < ws.length; sIdx++) {
+    const s = ws[sIdx];
+    for (let i = 0; i < s.xs.length; i++) {
+      const dst = xIndex.get(s.xs[i]);
+      if (dst != null) yArrays[sIdx][dst] = s.ys[i];
+    }
+  }
+  return [xs, ...yArrays];
 }
 
 export const PanelChart: React.FC<PanelChartProps> = ({
@@ -81,278 +82,163 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   onLifecycleTick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<uPlot | null>(null);
   const onCursorRef = useRef(onCursor);
   onCursorRef.current = onCursor;
   const onVisibleXChangeRef = useRef(onVisibleXChange);
   onVisibleXChangeRef.current = onVisibleXChange;
 
-  // Build a stable reset key so uPlot is rebuilt only when series shape changes.
-  const resetKey = useMemo(() => {
-    const seriesShape = workerSeries.map((s) => s.key).join('|');
-    return [
-      seriesShape,
-      appearance.mode,
-      hasRightAxis ? '2axes' : '1axis',
-      effectiveScales.join(''),
-      leftUnit,
-      rightUnit,
-    ].join('::');
-  }, [workerSeries, appearance.mode, hasRightAxis, effectiveScales, leftUnit, rightUnit]);
-
-  // Build uPlot mode-2 data only when all input arrays are aligned in length;
-  // otherwise return null and skip render. This avoids 't[g] is undefined'
-  // from inside uPlot when, for example, a newly added series exists in
-  // `series` but its worker payload hasn't landed yet.
-  const data = useMemo<uPlot.AlignedData | null>(() => {
-    if (workerSeries.length === 0) return null;
-    if (
-      workerSeries.length !== series.length ||
-      workerSeries.length !== effectiveScales.length ||
-      workerSeries.length !== colors.length
-    ) {
-      return null;
-    }
-    return [
-      null as unknown as number[],
-      ...workerSeries.map(
-        (s) => [Array.from(s.xs), Array.from(s.ys)] as unknown as uPlot.AlignedData
-      ),
-    ] as unknown as uPlot.AlignedData;
+  const data = useMemo(() => {
+    if (workerSeries.length !== series.length ||
+        workerSeries.length !== effectiveScales.length ||
+        workerSeries.length !== colors.length) return null;
+    return buildAlignedData(workerSeries);
   }, [workerSeries, series.length, effectiveScales.length, colors.length]);
 
-  // Compute global X domain across all series.
   const xDomain = useMemo<[number, number] | null>(() => {
-    let xMin = Number.POSITIVE_INFINITY;
-    let xMax = Number.NEGATIVE_INFINITY;
-    for (const s of workerSeries) {
-      if (s.xs.length === 0) continue;
-      if (s.xs[0] < xMin) xMin = s.xs[0];
-      if (s.xs[s.xs.length - 1] > xMax) xMax = s.xs[s.xs.length - 1];
-    }
+    if (!data) return null;
+    const xs = data[0];
+    if (!xs || xs.length === 0) return null;
+    const xMin = xs[0], xMax = xs[xs.length - 1];
     if (!Number.isFinite(xMin) || !Number.isFinite(xMax)) return null;
     if (xMin === xMax) return [xMin - 1, xMax + 1];
     return [xMin, xMax];
-  }, [workerSeries]);
+  }, [data]);
 
-  const options = useMemo<uPlot.Options>(() => {
-    const fallbackRange: [number, number] = [0, 1];
-    const xRange = xDomain ?? fallbackRange;
+  // Create uPlot manually — one shot, no hook
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!c || !data) return;
 
-    return {
-      width: 800,
-      height: 400,
-      mode: 2,
+    const w = c.clientWidth;
+    const h = c.clientHeight;
+    if (w <= 0 || h <= 0) return;
+
+    const fallback: [number, number] = [0, 1];
+    const xR = xDomain ?? fallback;
+    const opts: uPlot.Options = {
+      width: w,
+      height: h,
       pxAlign: false,
       legend: { show: false },
       scales: {
-        x: { time: true, range: () => xRange },
-        y: { range: () => leftRange ?? fallbackRange },
-        y2: { range: () => rightRange ?? fallbackRange },
+        x: { time: true, range: () => xR },
+        y: { range: () => leftRange ?? fallback },
+        y2: { range: () => rightRange ?? fallback },
       },
       series: [
         {},
-        ...series.map((def, i) => {
-          const color = colors[i] ?? '#34d399';
-          const baseSeries: uPlot.Series = {
-            label: def.attribute,
-            scale: effectiveScales[i],
-            stroke: color,
-            width: appearance.mode === 'points' ? 0 : Math.max(1, appearance.lineWidth),
-            points: {
-              show:
-                appearance.mode === 'points' || (appearance.pointRadius ?? 0) > 0,
-              size: Math.max(
-                2,
-                appearance.mode === 'points'
-                  ? Math.max(appearance.pointRadius || 4, 4)
-                  : appearance.pointRadius
-              ),
-              stroke: '#0f172a',
-              fill: color,
-              width: 1,
-            },
-            paths: uPlot.paths.linear?.(),
-            spanGaps: false,
-          };
-          return baseSeries;
-        }),
+        ...series.map((def, i) => ({
+          label: def.attribute,
+          scale: effectiveScales[i],
+          stroke: colors[i] ?? '#34d399',
+          width: appearance.mode === 'points' ? 0 : Math.max(1, appearance.lineWidth),
+          points: {
+            show: appearance.mode === 'points' || (appearance.pointRadius ?? 0) > 0,
+            size: Math.max(2, appearance.mode === 'points' ? Math.max(appearance.pointRadius || 4, 4) : appearance.pointRadius),
+            stroke: '#0f172a',
+            fill: colors[i] ?? '#34d399',
+            width: 1,
+          },
+          paths: uPlot.paths.linear?.(),
+          spanGaps: true,
+        } as uPlot.Series)),
       ],
       axes: [
+        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '12px ui-sans-serif, system-ui', gap: 8 },
         {
-          stroke: TEXT_AXIS,
-          grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 },
-          font: '11px ui-sans-serif, system-ui',
-          gap: 6,
+          scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
+          ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
+          font: '12px ui-sans-serif, system-ui', gap: 8,
+          values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
         },
-        {
-          scale: 'y',
-          stroke: TEXT_AXIS_LEFT,
-          grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 },
-          size: 60,
-          font: '11px ui-sans-serif, system-ui',
-          gap: 6,
-          values: leftUnit
-            ? (_u, splits) => splits.map((v) => `${formatNumberShort(v)} ${leftUnit}`)
-            : undefined,
-        },
-        ...(hasRightAxis
-          ? [
-              {
-                scale: 'y2',
-                side: 1 as const,
-                stroke: TEXT_AXIS_RIGHT,
-                grid: { show: false },
-                ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 },
-                size: 60,
-                font: '11px ui-sans-serif, system-ui',
-                gap: 6,
-                values: rightUnit
-                  ? (_u: uPlot, splits: number[]) =>
-                      splits.map((v) => `${formatNumberShort(v)} ${rightUnit}`)
-                  : undefined,
-              } as uPlot.Axis,
-            ]
-          : []),
+        ...(hasRightAxis ? [{
+          scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
+          ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
+          font: '12px ui-sans-serif, system-ui', gap: 8,
+          values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
+        } as uPlot.Axis] : []),
       ],
-      cursor: {
-        x: true,
-        y: false,
-        drag: { x: true, y: false, setScale: true },
-        points: {
-          show: true,
-          size: 6,
-          stroke: (u, i) => (u.series[i].stroke as string) ?? '#34d399',
-          fill: '#0f172a',
-          width: 2,
-        },
-      },
-      padding: [12, hasRightAxis ? 8 : 16, 4, 4] as [number, number, number, number],
+      padding: [28, 4, 4, 4] as [number, number, number, number],
+      cursor: { x: true, y: false, drag: { x: true, y: false, setScale: true }, points: { show: true, size: 6, stroke: (u, i) => (u.series[i].stroke as string) ?? '#34d399', fill: '#0f172a', width: 2 } },
       hooks: {
-        setCursor: [
-          (u: uPlot) => {
-            const left = u.cursor.left ?? -1;
-            const top = u.cursor.top ?? -1;
-            if (left < 0 || top < 0) {
-              onCursorRef.current?.(null);
-              return;
-            }
-            const xEpoch = u.posToVal(left, 'x');
-            if (!Number.isFinite(xEpoch)) {
-              onCursorRef.current?.(null);
-              return;
-            }
-            onCursorRef.current?.({ left, top, xEpoch });
-          },
-        ],
-        setScale: [
-          (u: uPlot, key: string) => {
-            if (key !== 'x') return;
-            const scale = u.scales.x;
-            const min = scale?.min;
-            const max = scale?.max;
-            if (
-              typeof min === 'number' &&
-              typeof max === 'number' &&
-              Number.isFinite(min) &&
-              Number.isFinite(max) &&
-              max > min
-            ) {
-              onVisibleXChangeRef.current?.({ min, max });
-            }
-          },
-        ],
+        setCursor: [(u: uPlot) => {
+          const l = u.cursor.left ?? -1, t = u.cursor.top ?? -1;
+          if (l < 0 || t < 0) { onCursorRef.current?.(null); return; }
+          const x = u.posToVal(l, 'x');
+          if (!Number.isFinite(x)) { onCursorRef.current?.(null); return; }
+          onCursorRef.current?.({ left: l, top: t, xEpoch: x });
+          // Null the cached rect so RGL transform changes are picked up next move
+          (u as any).syncRect(true);
+        }],
+        setScale: [(u: uPlot, key: string) => {
+          if (key !== 'x') return;
+          const s = u.scales.x;
+          if (typeof s.min === 'number' && typeof s.max === 'number' && Number.isFinite(s.min) && Number.isFinite(s.max) && s.max > s.min) {
+            onVisibleXChangeRef.current?.({ min: s.min, max: s.max });
+          }
+        }],
       },
-    } as uPlot.Options;
-  }, [
-    appearance.mode,
-    appearance.lineWidth,
-    appearance.pointRadius,
-    series,
-    workerSeries,
-    effectiveScales,
-    colors,
-    leftRange,
-    rightRange,
-    leftUnit,
-    rightUnit,
-    hasRightAxis,
-    xDomain,
-  ]);
+    };
 
-  const plotRef = useUPlotInstance({
-    containerRef,
-    data,
-    options,
-    resetKey,
-  });
-
-  // Expose the instance + the props we computed for this render to window
-  // so the user can inspect from devtools and tell us exactly what mismatch
-  // is happening between the orchestrator's intent and uPlot's reality.
-  useEffect(() => {
-    if (plotInstanceRef) plotInstanceRef.current = plotRef.current;
+    const plot = new uPlot(opts, data, c);
+    plotRef.current = plot;
+    if (plotInstanceRef) plotInstanceRef.current = plot;
     onLifecycleTick?.();
-    if (typeof window !== 'undefined' && plotRef.current) {
+    (window as unknown as { __nkz_chart?: unknown }).__nkz_chart = plot;
+
+    // .u-under breaks layout — kill it permanently
+    const under = c.querySelector('.u-under') as HTMLElement | null;
+    if (under) under.remove();
+
+    // Keep canvas sized to container
+    const ro = new ResizeObserver(() => {
       const inst = plotRef.current;
-      (window as unknown as { __nkz_chart?: unknown }).__nkz_chart = inst;
-      // eslint-disable-next-line no-console
-      console.log('[nkz datahub] uPlot ready', {
-        propsLeftRange: leftRange,
-        propsRightRange: rightRange,
-        propsHasRightAxis: hasRightAxis,
-        scales: {
-          y: { min: inst.scales.y?.min, max: inst.scales.y?.max },
-          y2: { min: inst.scales.y2?.min, max: inst.scales.y2?.max },
-          x: { min: inst.scales.x?.min, max: inst.scales.x?.max },
-        },
-        bbox: inst.bbox,
-        canvasSize: { w: inst.width, h: inst.height },
-        seriesCount: inst.series.length,
-        firstSeriesLabel: inst.series[1]?.label,
-      });
-    }
-  }, [resetKey, plotInstanceRef, onLifecycleTick, plotRef, leftRange, rightRange, hasRightAxis]);
-
-  // Y range is read at uPlot init via the `range` callback closure. When
-  // leftRange / rightRange update post-init (e.g. user toggles Y-scale mode,
-  // adds/removes a series, switches axis), the closure keeps the *initial*
-  // range — uPlot never sees the new value because we don't bump resetKey on
-  // range changes (would force an expensive rebuild). Instead, drive the
-  // scale imperatively when the range prop changes.
-  useEffect(() => {
-    const inst = plotRef.current;
-    if (!inst || !leftRange) return;
-    inst.setScale('y', { min: leftRange[0], max: leftRange[1] });
-  }, [leftRange, plotRef]);
-
-  useEffect(() => {
-    const inst = plotRef.current;
-    if (!inst || !rightRange || !hasRightAxis) return;
-    inst.setScale('y2', { min: rightRange[0], max: rightRange[1] });
-  }, [rightRange, hasRightAxis, plotRef]);
-
-  // Apply incoming zoom commands (reset or set range) without rebuilding uPlot.
-  useEffect(() => {
-    if (!zoomCommand) return;
-    const inst = plotRef.current;
-    if (!inst) return;
-    if (zoomCommand.reset) {
-      // Full data domain is currently options.scales.x.range() — undefined → uPlot
-      // recomputes to data extents.
-      const xs = data?.[1] as number[] | undefined;
-      if (xs && xs.length > 0) {
-        inst.setScale('x', { min: xs[0], max: xs[xs.length - 1] });
+      if (!inst) return;
+      const cw = c.clientWidth;
+      const ch = c.clientHeight;
+      if (cw > 0 && ch > 0 && (cw !== inst.width || ch !== inst.height)) {
+        inst.setSize({ width: cw, height: ch });
       }
+    });
+    ro.observe(c);
+
+    console.log('[nkz datahub] uPlot ready V5', {
+      containerWH: { w, h },
+      propsLR: leftRange,
+      bbox: plot.bbox,
+      canvasWH: { cw: plot.width, ch: plot.height },
+    });
+
+    return () => {
+      ro.disconnect();
+      plot.destroy();
+      plotRef.current = null;
+      if (plotInstanceRef) plotInstanceRef.current = null;
+    };
+    // Rebuild when data, series shape, or appearance changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, series.length, appearance.mode, appearance.yScaleMode, effectiveScales.join(','), hasRightAxis]);
+
+  // Imperative scale updates
+  useEffect(() => {
+    if (plotRef.current && leftRange) plotRef.current.setScale('y', { min: leftRange[0], max: leftRange[1] });
+  }, [leftRange]);
+  useEffect(() => {
+    if (plotRef.current && rightRange && hasRightAxis) plotRef.current.setScale('y2', { min: rightRange[0], max: rightRange[1] });
+  }, [rightRange, hasRightAxis]);
+
+  // Zoom
+  useEffect(() => {
+    if (!zoomCommand || !plotRef.current) return;
+    if (zoomCommand.reset) {
+      const xs = data?.[0] as number[] | undefined;
+      if (xs && xs.length > 0) plotRef.current.setScale('x', { min: xs[0], max: xs[xs.length - 1] });
       return;
     }
-    if (zoomCommand.range) {
-      inst.setScale('x', { min: zoomCommand.range.min, max: zoomCommand.range.max });
-    }
-    // intentionally only re-run on nonce change — same command should not re-fire
+    if (zoomCommand.range) plotRef.current.setScale('x', { min: zoomCommand.range.min, max: zoomCommand.range.max });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomCommand?.nonce]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%' }} />;
 };

@@ -20,7 +20,6 @@ import type {
 } from '../../types/dashboard';
 import { mergeChartAppearance } from '../../utils/chartAppearance';
 
-import { PanelHeader } from './PanelHeader';
 import { PanelToolbar } from './PanelToolbar';
 import { PanelSeriesRail } from './PanelSeriesRail';
 import { PanelChart } from './PanelChart';
@@ -35,7 +34,6 @@ import {
 import {
   buildTrendlineSeries,
   buildRollingAverageSeries,
-  pearsonCorrelation,
 } from './derivedSeries';
 import { resolveThresholds } from './thresholds';
 import { PanelOverlays } from './PanelOverlays';
@@ -231,31 +229,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     return out;
   }, [baseVisibleScales, rollingSeries, trendlineSeries]);
 
-  // ──────── Phase 7: correlation mode (Pearson r) ────────
-  const correlation = useMemo(() => {
-    if (appearance.viewMode !== 'correlation' || baseVisibleWorkerSeries.length < 2) {
-      return null;
-    }
-    const xIdx = Math.min(
-      Math.max(0, appearance.correlationXSeries),
-      baseVisibleWorkerSeries.length - 1
-    );
-    const yIdx = Math.min(
-      Math.max(0, appearance.correlationYSeries),
-      baseVisibleWorkerSeries.length - 1
-    );
-    if (xIdx === yIdx) return null;
-    return pearsonCorrelation(
-      baseVisibleWorkerSeries[xIdx],
-      baseVisibleWorkerSeries[yIdx]
-    );
-  }, [
-    appearance.viewMode,
-    appearance.correlationXSeries,
-    appearance.correlationYSeries,
-    baseVisibleWorkerSeries,
-  ]);
-
   // Per-axis value pool for Y range computation — VISIBLE series only.
   const { leftValues, rightValues, leftUnit, rightUnit, hasRightAxis } = useMemo(() => {
     const lvs: number[] = [];
@@ -319,30 +292,49 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
 
   const leftRange = leftResult.range;
   const rightRange = rightResult.range;
-  const totalOutliersExcluded = leftResult.outliersExcluded + rightResult.outliersExcluded;
-  const totalPool = leftResult.poolSize + rightResult.poolSize;
-  const showOutlierBadge =
-    appearance.yScaleMode === 'focus' &&
-    totalPool > 0 &&
-    totalOutliersExcluded / totalPool >= 0.01;
-
   // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
     () => (visibleWorkerSeries.length > 0 ? computeFooterStats(visibleWorkerSeries[0]) : null),
     [visibleWorkerSeries]
   );
 
-  // Cursor → tooltip rows (nearest sample per series at the cursor's xEpoch).
+  // Track mouse position via capture phase — fires BEFORE uPlot's bubble listener
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const mousePosRef = React.useRef<{ left: number; top: number }>({ left: 0, top: 0 });
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (r) mousePosRef.current = { left: e.clientX - r.left, top: e.clientY - r.top };
+    };
+    window.addEventListener('mousemove', onMove, true); // capture phase
+    (window as any).__nkz_mousePosRef = mousePosRef;
+    return () => window.removeEventListener('mousemove', onMove, true);
+  }, []);
+
+  // Cursor → tooltip rows using real mouse coords + plotRef for data lookup
   const handleCursor = useCallback(
     (info: { left: number; top: number; xEpoch: number } | null) => {
       if (!info) {
         setCursor((prev) => (prev.visible ? EMPTY_CURSOR : prev));
         return;
       }
+      const mp = mousePosRef.current;
+      const plot = plotInstanceRef.current;
+      if (!plot || mp.left === 0) {
+        setCursor((prev) => (prev.visible ? EMPTY_CURSOR : prev));
+        return;
+      }
+      // Convert real mouse X to data value. posToVal expects bbox-relative coords.
+      const bbox = plot.bbox;
+      const xEpoch = plot.posToVal(mp.left - (bbox?.left ?? 0), 'x');
+      if (!Number.isFinite(xEpoch)) {
+        setCursor((prev) => (prev.visible ? EMPTY_CURSOR : prev));
+        return;
+      }
       const rows: TooltipRow[] = [];
-      let nearestEpoch = info.xEpoch;
+      let nearestEpoch = xEpoch;
       visibleWorkerSeries.forEach((s, idx) => {
-        const i = nearestIndex(s.xs, info.xEpoch);
+        const i = nearestIndex(s.xs, xEpoch);
         if (i < 0) return;
         const y = s.ys[i];
         if (!Number.isFinite(y)) return;
@@ -358,9 +350,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         setCursor((prev) => (prev.visible ? EMPTY_CURSOR : prev));
         return;
       }
-      setCursor({ visible: true, left: info.left, top: info.top, xEpoch: nearestEpoch, rows });
+      setCursor({ visible: true, left: mp.left, top: mp.top, xEpoch: nearestEpoch, rows });
     },
-    [visibleWorkerSeries, visibleColors]
+    [visibleWorkerSeries, visibleColors, plotInstanceRef]
   );
 
   const patchAppearance = useCallback(
@@ -476,13 +468,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   // is now a deliberate user action wired through PanelChart's setSelect hook
   // (shift+drag), not a side-effect of every uPlot setScale.
 
-  // Header subtitle: primary axis units summary.
-  const headerSubtitle = useMemo(() => {
-    if (!leftUnit && !rightUnit) return undefined;
-    if (rightUnit && leftUnit) return `${leftUnit}  ·  ${rightUnit}`;
-    return leftUnit || rightUnit;
-  }, [leftUnit, rightUnit]);
-
   const headerTitle = series.length === 1
     ? series[0].attribute
     : t('canvasPanel.multiSeries', { count: series.length });
@@ -491,203 +476,216 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const containerWidth = containerWidthRef.current?.clientWidth ?? 800;
   const containerHeight = containerWidthRef.current?.clientHeight ?? 400;
 
+  // Force resize handle visibility — module CSS may not reach RGL elements
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .react-resizable-handle {
+        position: absolute !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        width: 28px !important;
+        height: 28px !important;
+        cursor: se-resize !important;
+        z-index: 100 !important;
+        background: none !important;
+        display: block !important;
+      }
+      .react-resizable-handle::after {
+        content: '';
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        width: 12px;
+        height: 12px;
+        border-right: 2px solid rgba(148,163,184,0.5);
+        border-bottom: 2px solid rgba(148,163,184,0.5);
+      }
+      .react-resizable-handle:hover::after {
+        border-color: rgba(203,213,225,0.9);
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
+  const [toolbarOpen, setToolbarOpen] = React.useState(false);
+
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-900/60 via-slate-900/40 to-slate-950/60 rounded-md ring-1 ring-slate-800/60 flex flex-col min-h-0">
-      <PanelHeader
-        title={headerTitle}
-        subtitle={headerSubtitle}
-        status={status}
-        dragHandleClass=""
-      />
-
-      <PanelToolbar
-        appearance={appearance}
-        onAppearanceChange={patchAppearance}
-        seriesRailOpen={railOpen}
-        onToggleSeriesRail={() => setRailOpen((v) => !v)}
-        hasRightAxis={hasRightAxis}
-        canUndoZoom={viewportHistory.hasHistory}
-        canResetZoom={viewportHistory.hasHistory}
-        onZoomUndo={handleZoomUndo}
-        onZoomReset={handleZoomReset}
-        labels={{
-          style: t('canvasPanel.chartStyle'),
-          line: t('canvasPanel.lineWidth'),
-          points: t('canvasPanel.pointSize'),
-          modeLine: t('canvasPanel.modeLine'),
-          modePoints: t('canvasPanel.modePoints'),
-          seriesRail: t('canvasPanel.axisPerSeriesHint'),
-          yScale: t('canvasPanel.yScale', { defaultValue: 'Escala Y' }),
-          yAuto: t('canvasPanel.yAuto', { defaultValue: 'Auto' }),
-          yFitVisible: t('canvasPanel.yFitVisible', { defaultValue: 'Visible' }),
-          yFocus: t('canvasPanel.yFocus', { defaultValue: 'Focus' }),
-          yManual: t('canvasPanel.yManual', { defaultValue: 'Manual' }),
-          manualLeft: t('canvasPanel.axisLeft'),
-          manualRight: t('canvasPanel.axisRight'),
-          manualMin: t('canvasPanel.statMin'),
-          manualMax: t('canvasPanel.statMax'),
-          apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
-          reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
-          zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
-          zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
-          trendline: t('canvasPanel.trendline'),
-          rollingAvg: t('canvasPanel.rollingAvg', { defaultValue: 'Media móvil' }),
-          rollingOff: t('canvasPanel.rollingOff', { defaultValue: 'Off' }),
-          viewMode: t('canvasPanel.viewMode'),
-          viewTimeseries: t('canvasPanel.viewModeTimeseries'),
-          viewCorrelation: t('canvasPanel.viewModeCorrelation'),
-        }}
-      />
-
-      <div className="flex-1 flex min-h-0 relative">
-        {railOpen && (
-          <PanelSeriesRail
-            series={series}
-            workerSeries={workerSeries}
-            colorFor={(_, i) => colors[i] ?? '#34d399'}
-            unitFor={unitFor}
-            seriesKey={seriesKey}
-            config={seriesCfg}
-            onAxisChange={handleAxisChange}
-            onVisibilityChange={handleVisibilityChange}
-            onColorChange={handleColorChange}
-            onRemove={handleRemove}
-            labels={{
-              axisLeft: t('canvasPanel.axisLeft'),
-              axisRight: t('canvasPanel.axisRight'),
-              show: t('canvasPanel.show', { defaultValue: 'Mostrar' }),
-              hide: t('canvasPanel.hide', { defaultValue: 'Ocultar' }),
-              remove: t('canvasPanel.removeSeries', { defaultValue: 'Quitar serie' }),
-              statMin: t('canvasPanel.statMin'),
-              statMax: t('canvasPanel.statMax'),
-              statAvg: t('canvasPanel.statAvg'),
-              statLast: t('canvasPanel.statLast'),
-              emptyHint: t('canvasPanel.dragHere'),
-            }}
-          />
-        )}
-        <div
-          ref={containerWidthRef}
-          className="relative flex-1 min-w-0"
-          onContextMenu={handleContextMenu}
-        >
-          {status === 'ready' && visibleWorkerSeries.length > 0 && (
-            <PanelChart
-              series={visibleSeriesDefsAugmented}
-              workerSeries={visibleWorkerSeries}
-              appearance={appearance}
-              effectiveScales={visibleScales}
-              colors={visibleColors}
-              leftRange={leftRange}
-              rightRange={rightRange}
-              hasRightAxis={hasRightAxis}
-              leftUnit={leftUnit}
-              rightUnit={rightUnit}
-              onCursor={handleCursor}
-              onVisibleXChange={handleVisibleXChange}
-              zoomCommand={zoomCommand ?? undefined}
-              plotInstanceRef={plotInstanceRef}
-              onLifecycleTick={bumpLifecycle}
-            />
-          )}
-          {status === 'ready' && visibleWorkerSeries.length > 0 && (
-            <PanelOverlays
-              plotRef={plotInstanceRef}
-              resizeNonce={lifecycleTick}
-              thresholds={resolveThresholds(
-                visibleSeriesDefs,
-                baseVisibleScales,
-                appearance.thresholds ?? []
-              )}
-              annotations={[]}
-              prediction={prediction ?? null}
-              predictionColor={baseVisibleColors[0] ?? '#34d399'}
-              xDomain={visibleX}
-            />
-          )}
-          {appearance.viewMode === 'correlation' && correlation && (
-            <div className="absolute top-2 left-2 z-20 px-2 py-1 text-[10px] rounded-md bg-purple-500/15 border border-purple-500/40 text-purple-200 flex items-center gap-1.5 shadow-lg pointer-events-none font-mono tabular-nums">
-              <span className="font-semibold">r =</span>
-              <span>{Number.isFinite(correlation.r) ? correlation.r.toFixed(4) : '—'}</span>
-              <span className="text-purple-300/70">·</span>
-              <span>n =</span>
-              <span>{correlation.n}</span>
-            </div>
-          )}
-          {appearance.viewMode === 'correlation' && !correlation && status === 'ready' && (
-            <div className="absolute top-2 left-2 z-20 px-2 py-1 text-[10px] rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-200 flex items-center gap-1.5 shadow-lg pointer-events-none">
-              {t('canvasPanel.correlationNeed2', { defaultValue: 'Correlación necesita 2 series' })}
-            </div>
-          )}
-          {showOutlierBadge && (
-            <button
-              type="button"
-              onClick={() => patchAppearance({ yScaleMode: 'auto' })}
-              className="absolute top-2 right-2 z-20 px-2 py-1 text-[10px] rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-200 hover:bg-amber-500/25 transition-colors flex items-center gap-1.5 shadow-lg"
-              title={t('canvasPanel.outliersHiddenTitle')}
-            >
-              <span className="font-semibold">{totalOutliersExcluded}</span>
-              <span>{t('canvasPanel.outliersOutOfScale', { defaultValue: 'fuera de escala' })}</span>
-              <span className="text-amber-300/70">·</span>
-              <span className="text-amber-300 underline-offset-2 hover:underline">
-                {t('canvasPanel.showAll', { defaultValue: 'Mostrar todos' })}
-              </span>
-            </button>
-          )}
-          {status === 'ready' && visibleWorkerSeries.length === 0 && workerSeries.length > 0 && (
-            <PanelEmptyState message={t('canvasPanel.allHidden', { defaultValue: 'Todas las series ocultas' })} />
-          )}
-          {status === 'loading' && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs">
-                {t('canvasPanel.loading')}
-              </span>
-            </div>
-          )}
-          {status === 'empty' && <PanelEmptyState message={t('canvasPanel.noData')} />}
-          {status === 'error' && (
-            <PanelErrorState
-              message={t('canvasPanel.errorLoad')}
-              detail={error?.message}
-              onRetry={refetch}
-              retryLabel={t('canvasPanel.retry', { defaultValue: 'Reintentar' })}
-            />
-          )}
-          <PanelTooltip
-            visible={cursor.visible}
-            left={cursor.left}
-            top={cursor.top}
-            containerWidth={containerWidth}
-            timestamp={formatLocalTimestamp(cursor.xEpoch)}
-            rows={cursor.rows}
-          />
-        </div>
-      </div>
-
-      {status === 'ready' && stats && (
-        <PanelFooter
+    <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-slate-700/30" onContextMenu={handleContextMenu}>
+      {/* ===== Chart layer — first in DOM ===== */}
+      {status === 'ready' && visibleWorkerSeries.length > 0 && (
+        <PanelChart
+          series={visibleSeriesDefsAugmented}
           workerSeries={visibleWorkerSeries}
-          colorFor={(_, i) => visibleColors[i] ?? '#34d399'}
-          unitFor={unitFor}
-          primaryStats={primaryFooter}
-          telemetry={{
-            plotted: aggregatePoints(visibleWorkerSeries).plotted,
-            received: aggregatePoints(workerSeries).received,
-            viewportWidth: containerWidth,
-            viewportHeight: containerHeight,
-            scaleMode: appearance.yScaleMode,
-            stage,
-          }}
-          labels={{
-            min: t('canvasPanel.statMin'),
-            max: t('canvasPanel.statMax'),
-            mean: t('canvasPanel.statAvg'),
-            last: t('canvasPanel.statLast'),
-          }}
+          appearance={appearance}
+          effectiveScales={visibleScales}
+          colors={visibleColors}
+          leftRange={leftRange}
+          rightRange={rightRange}
+          hasRightAxis={hasRightAxis}
+          leftUnit={leftUnit}
+          rightUnit={rightUnit}
+          onCursor={handleCursor}
+          onVisibleXChange={handleVisibleXChange}
+          zoomCommand={zoomCommand ?? undefined}
+          plotInstanceRef={plotInstanceRef}
+          onLifecycleTick={bumpLifecycle}
         />
       )}
+      {status === 'ready' && visibleWorkerSeries.length > 0 && (
+        <PanelOverlays
+          plotRef={plotInstanceRef}
+          resizeNonce={lifecycleTick}
+          thresholds={resolveThresholds(
+            visibleSeriesDefs,
+            baseVisibleScales,
+            appearance.thresholds ?? []
+          )}
+          annotations={[]}
+          prediction={prediction ?? null}
+          predictionColor={baseVisibleColors[0] ?? '#34d399'}
+          xDomain={visibleX}
+        />
+      )}
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs">
+            {t('canvasPanel.loading')}
+          </span>
+        </div>
+      )}
+      {status === 'empty' && <PanelEmptyState message={t('canvasPanel.noData')} />}
+      {status === 'error' && (
+        <PanelErrorState
+          message={t('canvasPanel.errorLoad')}
+          detail={error?.message}
+          onRetry={refetch}
+          retryLabel={t('canvasPanel.retry', { defaultValue: 'Reintentar' })}
+        />
+      )}
+
+      {/* ===== UI Overlays — after chart in DOM, paint on top ===== */}
+      {/* Header bar */}
+      <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
+        <div className="flex items-center gap-2">
+          {/* Title + drag handle */}
+          <div className="panel-drag-handle cursor-move bg-slate-950/90 backdrop-blur-sm rounded-md pl-3 pr-3 py-1.5 border border-slate-600/40 shadow-lg select-none">
+            <span className="text-xs text-slate-200 font-mono font-medium truncate max-w-[280px] tracking-tight">
+              {headerTitle}
+            </span>
+          </div>
+          {/* Single "More" button — all tools inside */}
+          {status === 'ready' && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); setToolbarOpen(v => !v); }}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
+                toolbarOpen
+                  ? 'text-white bg-slate-700 border-slate-500'
+                  : 'text-slate-300 bg-slate-950/90 border-slate-600/40 hover:text-white hover:bg-slate-800 hover:border-slate-500'
+              }`}
+              title="Chart tools"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              <span className="text-[11px] text-slate-400">Tools</span>
+            </button>
+          )}
+        </div>
+        {toolbarOpen && status === 'ready' && (
+          <div className="pointer-events-auto px-2 pb-1"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-950/95 backdrop-blur-sm rounded-md border border-slate-700/40 shadow-2xl max-h-[80vh] overflow-y-auto">
+              <PanelToolbar
+                appearance={appearance}
+                onAppearanceChange={patchAppearance}
+                seriesRailOpen={railOpen}
+                onToggleSeriesRail={() => setRailOpen((v) => !v)}
+                hasRightAxis={hasRightAxis}
+                canUndoZoom={viewportHistory.hasHistory}
+                canResetZoom={viewportHistory.hasHistory}
+                onZoomUndo={handleZoomUndo}
+                onZoomReset={handleZoomReset}
+                labels={{
+                  style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),
+                  points: t('canvasPanel.pointSize'), modeLine: t('canvasPanel.modeLine'),
+                  modePoints: t('canvasPanel.modePoints'), seriesRail: t('canvasPanel.axisPerSeriesHint'),
+                  yScale: t('canvasPanel.yScale', { defaultValue: 'Escala Y' }),
+                  yAuto: t('canvasPanel.yAuto', { defaultValue: 'Auto' }),
+                  yFitVisible: t('canvasPanel.yFitVisible', { defaultValue: 'Visible' }),
+                  yFocus: t('canvasPanel.yFocus', { defaultValue: 'Focus' }),
+                  yManual: t('canvasPanel.yManual', { defaultValue: 'Manual' }),
+                  manualLeft: t('canvasPanel.axisLeft'), manualRight: t('canvasPanel.axisRight'),
+                  manualMin: t('canvasPanel.statMin'), manualMax: t('canvasPanel.statMax'),
+                  apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
+                  reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
+                  zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
+                  zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
+                  trendline: t('canvasPanel.trendline'),
+                  rollingAvg: t('canvasPanel.rollingAvg', { defaultValue: 'Media móvil' }),
+                  rollingOff: t('canvasPanel.rollingOff', { defaultValue: 'Off' }),
+                  viewMode: t('canvasPanel.viewMode'),
+                  viewTimeseries: t('canvasPanel.viewModeTimeseries'),
+                  viewCorrelation: t('canvasPanel.viewModeCorrelation'),
+                }}
+              />
+              {railOpen && (
+                <div className="border-t border-slate-700/50 p-2 bg-slate-900/95">
+                  <PanelSeriesRail
+                    series={series} workerSeries={workerSeries}
+                    colorFor={(_, i) => colors[i] ?? '#34d399'}
+                    unitFor={unitFor} seriesKey={seriesKey} config={seriesCfg}
+                    onAxisChange={handleAxisChange} onVisibilityChange={handleVisibilityChange}
+                    onColorChange={handleColorChange} onRemove={handleRemove}
+                    labels={{
+                      axisLeft: t('canvasPanel.axisLeft'), axisRight: t('canvasPanel.axisRight'),
+                      show: t('canvasPanel.show', { defaultValue: 'Mostrar' }),
+                      hide: t('canvasPanel.hide', { defaultValue: 'Ocultar' }),
+                      remove: t('canvasPanel.removeSeries', { defaultValue: 'Quitar serie' }),
+                      statMin: t('canvasPanel.statMin'), statMax: t('canvasPanel.statMax'),
+                      statAvg: t('canvasPanel.statAvg'), statLast: t('canvasPanel.statLast'),
+                      emptyHint: t('canvasPanel.dragHere'),
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      {status === 'ready' && stats && (
+        <div className="absolute bottom-0 left-0 right-0">
+          <PanelFooter
+            workerSeries={visibleWorkerSeries}
+            colorFor={(_, i) => visibleColors[i] ?? '#34d399'}
+            unitFor={unitFor}
+            primaryStats={primaryFooter}
+            telemetry={{
+              plotted: aggregatePoints(visibleWorkerSeries).plotted,
+              received: aggregatePoints(workerSeries).received,
+              viewportWidth: containerWidth, viewportHeight: containerHeight,
+              scaleMode: appearance.yScaleMode, stage,
+            }}
+            labels={{
+              min: t('canvasPanel.statMin'), max: t('canvasPanel.statMax'),
+              mean: t('canvasPanel.statAvg'), last: t('canvasPanel.statLast'),
+            }}
+          />
+        </div>
+      )}
+
+      {/* Tooltip */}
+      <PanelTooltip
+        visible={cursor.visible} left={cursor.left} top={cursor.top}
+        containerWidth={containerWidth}
+        timestamp={formatLocalTimestamp(cursor.xEpoch)} rows={cursor.rows}
+      />
     </div>
   );
+
 };
 
 export const DataCanvasPanelMemo = React.memo(DataCanvasPanel);
