@@ -3,7 +3,19 @@
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
+import uPlotCSS from 'uplot/dist/uPlot.min.css?inline';
+
+// Inject uPlot CSS once — IIFE builds may not bundle CSS separately.
+// Critical for positioning: u-wrap (relative), u-under/u-over (absolute).
+if (typeof document !== 'undefined') {
+  const STYLE_ID = '__nkz_uplot_css__';
+  if (!document.getElementById(STYLE_ID)) {
+    const s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = uPlotCSS;
+    document.head.appendChild(s);
+  }
+}
 
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
 import type { ChartAppearance, ChartSeriesDef } from '../../types/dashboard';
