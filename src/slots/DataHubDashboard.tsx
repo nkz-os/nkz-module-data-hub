@@ -724,37 +724,37 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           >
             {panels.map((panel) => (
               <div key={panel.id} className="relative" onMouseDown={() => setActivePanelId(panel.id)}>
-                {/* Floating actions — top right */}
-                <div className="absolute top-1 right-1 z-20 flex gap-0.5 pointer-events-none">
-                  <div className="pointer-events-auto flex gap-0.5 bg-slate-950/80 backdrop-blur-sm rounded-md px-1 py-0.5 border border-slate-700/50">
+                {/* Floating actions — top right pill */}
+                <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
+                  <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950/70 backdrop-blur-md rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
                     {panel.series.length === 1 && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
                         disabled={predictingPanelId === panel.id}
-                        className="p-1 text-amber-400 hover:text-amber-300 disabled:opacity-50 rounded"
+                        className="p-1 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
                         title={t('dashboard.predictTitle')}
                       >
-                        {predictingPanelId === panel.id ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />}
+                        {predictingPanelId === panel.id ? <Loader2 size={11} className="animate-spin" /> : <Brain size={11} />}
                       </button>
                     )}
                     {panel.series.length > 0 && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setExportModalPanel(panel); }}
-                        className="p-1 text-blue-400 hover:text-blue-300 rounded"
+                        className="p-1 text-blue-400 hover:text-blue-300 rounded-full transition-colors"
                         title={t('dashboard.exportTitle')}
                       >
-                        <Download size={12} />
+                        <Download size={11} />
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removePanel(panel.id); }}
-                      className="p-1 text-slate-500 hover:text-red-400 rounded"
+                      className="p-1 text-slate-500 hover:text-red-400 rounded-full transition-colors"
                       title={t('dashboard.removePanel')}
                     >
-                      <Trash2 size={12} />
+                      <Trash2 size={11} />
                     </button>
                   </div>
                 </div>

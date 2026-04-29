@@ -6,6 +6,8 @@
   "tree": {
     "sidebarTitle": "Fuentes de datos",
     "searchPlaceholder": "Buscar entidades (ej. Parcela 4)",
+    "toggleSidebar": "Alternar barra lateral",
+    "closeSidebar": "Cerrar",
     "loading": "Cargando…",
     "errorLoad": "Error al cargar entidades",
     "empty": "No se han encontrado entidades"
@@ -91,6 +93,7 @@
     "correlationNeed2": "Correlación necesita 2 series",
     "outliersHiddenTitle": "Valores extremos detectados (MAD/IQR) y ocultos del trazo para no comprimir la escala. Cambia el modo en Ajustes si quieres verlos.",
     "trendline": "Tendencia (MCO)",
+    "showOutliers": "Mostrar outliers",
     "styleLockedWithPrediction": "El estilo del gráfico queda fijo mientras se muestra la predicción IA."
   },
   "dashboard": {

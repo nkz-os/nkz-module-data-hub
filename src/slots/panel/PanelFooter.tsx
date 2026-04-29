@@ -28,6 +28,14 @@ export interface PanelFooterProps {
   unitFor: (attribute: string) => string;
   /** Primary-series footer stats (computed from cleaned data). */
   primaryStats: FooterStats | null;
+  /** Pearson r between first 2 visible series (timeseries mode only). */
+  pearsonR?: number | null;
+  /** Sample size n for Pearson. */
+  pearsonN?: number | null;
+  /** Outliers excluded by focus Y-scale mode. */
+  outlierCount?: number;
+  /** A3 guardrail: true when Y range was auto-expanded to keep trace visible. */
+  guardrailFired?: boolean;
   /** Telemetry — points, viewport, scale mode, stage. */
   telemetry: {
     plotted: number;
@@ -55,6 +63,10 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   colorFor,
   unitFor,
   primaryStats,
+  pearsonR,
+  pearsonN,
+  outlierCount,
+  guardrailFired,
   telemetry,
   labels,
 }) => {
@@ -90,6 +102,36 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.mean)}</span>
           <span className="text-slate-500 ml-2.5">{labels.last}</span>
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.last)}</span>
+        </span>
+      )}
+
+      {/* Pearson r badge — shows when 2+ series in timeseries mode */}
+      {pearsonR != null && Number.isFinite(pearsonR) && (
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">
+          <span className="text-slate-400">r=</span>
+          <span className={pearsonR >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+            {pearsonR.toFixed(3)}
+          </span>
+          {pearsonN != null && (
+            <span className="text-slate-500 ml-1">n={pearsonN}</span>
+          )}
+        </span>
+      )}
+
+      {/* Outlier count badge */}
+      {outlierCount != null && outlierCount > 0 && (
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-300">
+          {outlierCount} outliers
+        </span>
+      )}
+
+      {/* A3 Guardrail indicator */}
+      {guardrailFired && (
+        <span
+          className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-sky-900/30 border border-sky-700/30 text-sky-300"
+          title="Y range auto-expanded: flat trace detected"
+        >
+          auto-scaled
         </span>
       )}
 

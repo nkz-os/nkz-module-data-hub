@@ -70,6 +70,7 @@ export interface PanelToolbarProps {
     zoomUndo: string;
     zoomReset: string;
     trendline: string;
+    showOutliers: string;
     rollingAvg: string;
     rollingOff: string;
     viewMode: string;
@@ -106,23 +107,23 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   const [manualOpen, setManualOpen] = useState(false);
 
   return (
-    <div className="h-8 flex items-center gap-2 px-2 border-b border-slate-800/80 bg-slate-950/40 text-[11px] text-slate-300 relative">
+    <div className="h-8 flex items-center gap-1.5 px-2 text-[10px] text-slate-300 relative">
       <button
         type="button"
         onClick={onToggleSeriesRail}
         className={[
-          'p-1 rounded-md border transition-colors',
+          'p-1 rounded-md transition-colors',
           seriesRailOpen
-            ? 'bg-slate-800 border-slate-600 text-slate-100'
-            : 'bg-transparent border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100',
+            ? 'bg-white/10 text-slate-100'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
         ].join(' ')}
         aria-pressed={seriesRailOpen}
         title={labels.seriesRail}
       >
-        <Settings2 size={13} />
+        <Settings2 size={12} />
       </button>
 
-      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
 
       {/* Zoom controls (D1) */}
       <button
@@ -144,11 +145,11 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         <ZoomOut size={13} aria-hidden />
       </button>
 
-      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
 
       {/* View mode (timeseries / correlation) — only shown when 2+ series */}
       <div
-        className="inline-flex items-center rounded-md border border-slate-700 overflow-hidden"
+        className="inline-flex items-center rounded-md border border-white/10 overflow-hidden"
         role="group"
         aria-label={labels.viewMode}
       >
@@ -156,7 +157,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           type="button"
           onClick={() => onAppearanceChange({ viewMode: 'timeseries' as ChartViewMode })}
           className={[
-            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-slate-700',
+            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-white/10',
             appearance.viewMode === 'timeseries'
               ? 'bg-emerald-500/20 text-emerald-200'
               : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
@@ -192,7 +193,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
             onChange={(e) =>
               onAppearanceChange({ correlationXSeries: Number.parseInt(e.target.value, 10) })
             }
-            className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
+            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
           >
             {seriesLabels.map((lbl, i) => (
               <option key={`x-${i}`} value={i}>
@@ -206,7 +207,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
             onChange={(e) =>
               onAppearanceChange({ correlationYSeries: Number.parseInt(e.target.value, 10) })
             }
-            className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
+            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
           >
             {seriesLabels.map((lbl, i) => (
               <option key={`y-${i}`} value={i}>
@@ -217,7 +218,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         </div>
       )}
 
-      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
 
       {/* Trendline toggle */}
       <button
@@ -227,7 +228,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           'flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded border transition-colors',
           appearance.showTrendline
             ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
-            : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
+            : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
         ].join(' ')}
         aria-pressed={appearance.showTrendline}
         title={labels.trendline}
@@ -243,7 +244,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         <select
           value={appearance.rollingAverage ?? 'off'}
           onChange={(e) => onAppearanceChange({ rollingAverage: e.target.value as RollingAvgWindow })}
-          className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px]"
+          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px]"
         >
           <option value="off">{labels.rollingOff}</option>
           <option value="1h">1h</option>
@@ -252,11 +253,11 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         </select>
       </label>
 
-      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
 
       {/* Y scale mode segmented */}
       <div
-        className="inline-flex items-center rounded-md border border-slate-700 overflow-hidden"
+        className="inline-flex items-center rounded-md border border-white/10 overflow-hidden"
         role="group"
         aria-label={labels.yScale}
       >
@@ -272,7 +273,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
                 else setManualOpen(false);
               }}
               className={[
-                'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-slate-700 last:border-r-0',
+                'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-white/10 last:border-r-0',
                 active
                   ? 'bg-emerald-500/20 text-emerald-200'
                   : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
@@ -287,24 +288,35 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         })}
       </div>
 
+      {appearance.yScaleMode === 'focus' && (
+        <button
+          type="button"
+          onClick={() => onAppearanceChange({ yScaleMode: 'auto' })}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-700/30 bg-amber-900/20 hover:bg-amber-900/40 text-[10px] text-amber-300 transition-colors"
+          title={labels.showOutliers}
+        >
+          {labels.showOutliers}
+        </button>
+      )}
+
       {appearance.yScaleMode === 'manual' && (
         <button
           type="button"
           onClick={() => setManualOpen((v) => !v)}
-          className="px-1.5 py-0.5 rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-300"
+          className="px-1.5 py-0.5 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-300"
         >
           {manualOpen ? '−' : '+'} {labels.yManual}
         </button>
       )}
 
-      <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
 
       <label className="flex items-center gap-1.5">
         <span className="text-slate-500">{labels.style}</span>
         <select
           value={appearance.mode === 'bars' ? 'line' : appearance.mode}
           onChange={(e) => onAppearanceChange({ mode: e.target.value as ChartRenderMode })}
-          className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5"
+          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5"
         >
           <option value="line">{labels.modeLine}</option>
           <option value="points">{labels.modePoints}</option>
@@ -369,7 +381,7 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
   const right = appearance.yScaleManual?.right;
 
   return (
-    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-slate-950/95 border border-slate-700/70 shadow-2xl backdrop-blur-md flex flex-col gap-2 min-w-[260px]">
+    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-slate-950/95 border border-white/10/70 shadow-2xl backdrop-blur-md flex flex-col gap-2 min-w-[260px]">
       <ManualAxisRow
         label={labels.manualLeft}
         accent="emerald"
@@ -405,7 +417,7 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
             onAppearanceChange({ yScaleMode: 'auto', yScaleManual: undefined });
             onClose();
           }}
-          className="text-[10px] px-2 py-0.5 rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300"
+          className="text-[10px] px-2 py-0.5 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-slate-300"
         >
           {labels.reset}
         </button>
@@ -466,7 +478,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMin}
-        className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
       />
       <span className="text-slate-600">→</span>
       <input
@@ -476,7 +488,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMax}
-        className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
       />
       <span className="text-slate-500 text-[10px]">step</span>
       <input
@@ -486,7 +498,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder="auto"
-        className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-12 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
       />
     </div>
   );

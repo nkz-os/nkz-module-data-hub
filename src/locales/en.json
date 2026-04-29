@@ -6,6 +6,8 @@
   "tree": {
     "sidebarTitle": "Data sources",
     "searchPlaceholder": "Search entities (e.g. Parcel 4)",
+    "toggleSidebar": "Toggle sidebar",
+    "closeSidebar": "Close",
     "loading": "Loading…",
     "errorLoad": "Error loading entities",
     "empty": "No entities found"
@@ -91,6 +93,7 @@
     "correlationNeed2": "Correlation needs 2 series",
     "outliersHiddenTitle": "Extreme values detected (MAD/IQR) and hidden from the trace to avoid scale compression. Switch mode in Settings to view them.",
     "trendline": "Trend (OLS)",
+    "showOutliers": "Show outliers",
     "styleLockedWithPrediction": "Chart style is fixed while AI prediction is shown."
   },
   "dashboard": {

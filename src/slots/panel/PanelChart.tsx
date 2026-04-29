@@ -224,9 +224,8 @@ export const PanelChart: React.FC<PanelChartProps> = ({
       plotRef.current = null;
       if (plotInstanceRef) plotInstanceRef.current = null;
     };
-    // Rebuild when data, series shape, or appearance changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, series.length, appearance.mode, appearance.yScaleMode, effectiveScales.join(','), hasRightAxis, leftStep, rightStep]);
+    // Rebuild when data, series shape, or any appearance property changes
+  }, [data, series.length, appearance.mode, appearance.yScaleMode, appearance.lineWidth, appearance.pointRadius, effectiveScales.join(','), hasRightAxis, leftStep, rightStep]);
 
   // Imperative scale updates
   useEffect(() => {
