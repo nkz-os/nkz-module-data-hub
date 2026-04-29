@@ -203,7 +203,11 @@ async def _fetch_entity_data_raw(
     resolution: int,
     headers: dict,
 ) -> bytes:
-    """Fetch one entity's timeseries as Arrow bytes from platform v2 reader (URN-aware)."""
+    """Fetch one entity's timeseries as Arrow IPC bytes from platform v2 reader.
+
+    Requests JSON from the reader (api-gateway strips non-standard Accept headers,
+    so Arrow negotiation fails) and converts to Arrow IPC locally.
+    """
     path = quote(str(entity_id).strip(), safe="")
     url = f"{base_url}/api/timeseries/v2/entities/{path}/data"
     params = {
@@ -212,9 +216,10 @@ async def _fetch_entity_data_raw(
         "attrs": attribute,
         "resolution": resolution,
     }
-    r = await client.get(url, params=params, headers={**headers, "Accept": ARROW_STREAM_TYPE})
+    r = await client.get(url, params=params, headers={**headers, "Accept": "application/json"})
     r.raise_for_status()
-    return r.content
+    data = r.json()
+    return _json_response_to_arrow_ipc(data, attribute)
 
 
 async def _fetch_from_timescale(
@@ -253,10 +258,11 @@ async def _fetch_from_timescale(
         r = await client.post(
             url,
             json=body,
-            headers={**headers, "Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE},
+            headers={**headers, "Content-Type": "application/json", "Accept": "application/json"},
         )
         r.raise_for_status()
-        return r.content
+        data = r.json()
+        return _json_response_to_arrow_ipc(data)
 
 
 async def _fetch_from_external_module(
@@ -472,6 +478,51 @@ async def proxy_timeseries_align(
     if not json_data.get("timestamps"):
         return Response(status_code=204)
     return JSONResponse(content=json_data)
+
+
+def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> bytes:
+    """Convert reader JSON response to Arrow IPC stream bytes.
+
+    Reader JSON shapes:
+      Single attr:   {timestamps: [...], values: [...]}
+      Multi attr:    {timestamps: [...], attributes: {attr: [vals...]}}
+    """
+    ts_raw = data.get("timestamps") or []
+    from datetime import datetime as _dt
+
+    timestamps: list[float] = []
+    for t in ts_raw:
+        if isinstance(t, (int, float)):
+            timestamps.append(float(t))
+        elif isinstance(t, str):
+            try:
+                timestamps.append(_dt.fromisoformat(t.replace("Z", "+00:00")).timestamp())
+            except Exception:
+                timestamps.append(0.0)
+        else:
+            timestamps.append(0.0)
+
+    if single_attr:
+        vals = data.get("values") or []
+        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64()),
+                          "value": pa.array(vals if vals else [], type=pa.float64())})
+    elif "values" in data:
+        vals = data.get("values") or []
+        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64()),
+                          "value": pa.array(vals if vals else [], type=pa.float64())})
+    elif "attributes" in data:
+        attrs = data["attributes"]
+        cols: dict = {"timestamp": pa.array(timestamps, type=pa.float64())}
+        for i, (attr, vals) in enumerate(attrs.items()):
+            cols[f"value_{i}"] = pa.array(vals if vals else [], type=pa.float64())
+        table = pa.table(cols)
+    else:
+        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64())})
+
+    sink = io.BytesIO()
+    with ipc.new_stream(sink, table.schema) as writer:
+        writer.write_table(table)
+    return sink.getvalue()
 
 
 def _arrow_bytes_to_json(raw: bytes) -> dict:
