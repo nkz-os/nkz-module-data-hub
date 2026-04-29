@@ -217,7 +217,11 @@ async def _fetch_entity_data_raw(
         "resolution": resolution,
     }
     r = await client.get(url, params=params, headers={**headers, "Accept": "application/json"})
-    r.raise_for_status()
+    if r.status_code >= 400:
+        detail = r.text[:500]
+        raise RuntimeError(f"Reader returned {r.status_code} for {entity_id}/{attribute}: {detail}")
+    if r.status_code == 204:
+        return _json_response_to_arrow_ipc({"timestamps": [], "attributes": {}}, attribute)
     data = r.json()
     return _json_response_to_arrow_ipc(data, attribute)
 
@@ -260,7 +264,9 @@ async def _fetch_from_timescale(
             json=body,
             headers={**headers, "Content-Type": "application/json", "Accept": "application/json"},
         )
-        r.raise_for_status()
+        if r.status_code >= 400:
+            detail = r.text[:500]
+            raise RuntimeError(f"Reader /v2/query returned {r.status_code}: {detail}")
         data = r.json()
         return _json_response_to_arrow_ipc(data)
 
@@ -520,7 +526,7 @@ def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> b
         table = pa.table({"timestamp": ts_arr})
 
     sink = io.BytesIO()
-    with ipc.new_stream(sink, table.schema) as writer:
+    with ipc.new_file(sink, table.schema) as writer:
         writer.write_table(table)
     return sink.getvalue()
 
