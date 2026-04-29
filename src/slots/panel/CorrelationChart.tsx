@@ -55,17 +55,24 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
-    const w = c.clientWidth;
-    const h = c.clientHeight;
-    if (w <= 0 || h <= 0) return;
     if (!correlation || correlation.pairs.length < 2) return;
 
-    const xs = correlation.pairs.map((p) => p.x);
-    const ys = correlation.pairs.map((p) => p.y);
+    let cancelled = false;
+    let plotCreated = false;
+    let postRo: ResizeObserver | null = null;
+    let preRo: ResizeObserver | null = null;
 
-    const opts: uPlot.Options = {
-      width: w,
-      height: h,
+    const createChart = (w: number, h: number) => {
+      if (cancelled || plotCreated) return;
+      plotCreated = true;
+      if (preRo) { preRo.disconnect(); preRo = null; }
+
+      const xs = correlation.pairs.map((p) => p.x);
+      const ys = correlation.pairs.map((p) => p.y);
+
+      const opts: uPlot.Options = {
+        width: w,
+        height: h,
       pxAlign: false,
       legend: { show: false },
       scales: {
@@ -103,34 +110,51 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
           values: (_u, splits) => splits.map((v) => (yUnit ? `${fmt(v)} ${yUnit}` : fmt(v))),
         },
       ],
-      padding: [28, 12, 4, 4] as [number, number, number, number],
-      cursor: { x: true, y: true, drag: { x: false, y: false } },
+        padding: [28, 12, 4, 4] as [number, number, number, number],
+        cursor: { x: true, y: true, drag: { x: false, y: false } },
+      };
+
+      const plot = new uPlot(opts, [xs, ys], c);
+      plotRef.current = plot;
+
+      postRo = new ResizeObserver(() => {
+        const inst = plotRef.current;
+        if (!inst) return;
+        const cw = c.clientWidth;
+        const ch = c.clientHeight;
+        if (cw > 0 && ch > 0 && (cw !== inst.width || ch !== inst.height)) {
+          inst.setSize({ width: cw, height: ch });
+        }
+      });
+      postRo.observe(c);
     };
 
-    const plot = new uPlot(opts, [xs, ys], c);
-    plotRef.current = plot;
-
-    const uUnder = c.querySelector('.u-under') as HTMLElement | null;
-    if (uUnder) {
-      uUnder.style.height = '0';
-      uUnder.style.overflow = 'visible';
+    // Try immediately
+    {
+      const w = c.clientWidth;
+      const h = c.clientHeight;
+      if (w > 0 && h > 0) createChart(w, h);
     }
 
-    const ro = new ResizeObserver(() => {
-      const inst = plotRef.current;
-      if (!inst) return;
-      const cw = c.clientWidth;
-      const ch = c.clientHeight;
-      if (cw > 0 && ch > 0 && (cw !== inst.width || ch !== inst.height)) {
-        inst.setSize({ width: cw, height: ch });
-      }
-    });
-    ro.observe(c);
+    // If dimensions aren't available yet, watch and retry
+    if (!plotCreated) {
+      preRo = new ResizeObserver(() => {
+        if (plotCreated || cancelled) { preRo?.disconnect(); return; }
+        const w = c.clientWidth;
+        const h = c.clientHeight;
+        if (w > 0 && h > 0) createChart(w, h);
+      });
+      preRo.observe(c);
+    }
 
     return () => {
-      ro.disconnect();
-      plot.destroy();
-      plotRef.current = null;
+      cancelled = true;
+      preRo?.disconnect();
+      postRo?.disconnect();
+      if (plotRef.current) {
+        plotRef.current.destroy();
+        plotRef.current = null;
+      }
     };
   }, [correlation, pointColor, xLabel, yLabel, xUnit, yUnit]);
 

@@ -122,116 +122,136 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   const leftStep = appearance.yScaleMode === 'manual' ? appearance.yScaleManual?.left?.step : undefined;
   const rightStep = appearance.yScaleMode === 'manual' ? appearance.yScaleManual?.right?.step : undefined;
 
-  // Create uPlot manually — one shot, no hook
+  // Create uPlot — layout-aware deferred init.
+  // If container is 0×0 on first commit (flex layout not yet resolved),
+  // ResizeObserver retries until dimensions are available, then creates once.
   useEffect(() => {
     const c = containerRef.current;
     if (!c || !data) return;
 
-    const w = c.clientWidth;
-    const h = c.clientHeight;
-    if (w <= 0 || h <= 0) return;
+    let cancelled = false;
+    let plotCreated = false;
+    let postRo: ResizeObserver | null = null;
+    let preRo: ResizeObserver | null = null;
 
-    const fallback: [number, number] = [0, 1];
-    const xR = xDomain ?? fallback;
-    const opts: uPlot.Options = {
-      width: w,
-      height: h,
-      pxAlign: false,
-      legend: { show: false },
-      scales: {
-        x: { time: true, range: () => xR },
-        y: { range: () => leftRange ?? fallback },
-        y2: { range: () => rightRange ?? fallback },
-      },
-      series: [
-        {},
-        ...series.map((def, i) => ({
-          label: def.attribute,
-          scale: effectiveScales[i],
-          stroke: colors[i] ?? '#34d399',
-          width: appearance.mode === 'points' ? 0 : Math.max(1, appearance.lineWidth),
-          points: {
-            show: appearance.mode === 'points' || (appearance.pointRadius ?? 0) > 0,
-            size: Math.max(2, appearance.mode === 'points' ? Math.max(appearance.pointRadius || 4, 4) : appearance.pointRadius),
-            stroke: '#0f172a',
-            fill: colors[i] ?? '#34d399',
-            width: 1,
-          },
-          paths: uPlot.paths.linear?.(),
-          spanGaps: true,
-        } as uPlot.Series)),
-      ],
-      axes: [
-        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '12px ui-sans-serif, system-ui', gap: 8 },
-        {
-          scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
-          font: '12px ui-sans-serif, system-ui', gap: 8,
-          values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
-          ...(leftStep && leftStep > 0 ? { incrs: [leftStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(leftRange, leftStep) } : {}),
+    const createChart = (w: number, h: number) => {
+      if (cancelled || plotCreated) return;
+      plotCreated = true;
+      if (preRo) { preRo.disconnect(); preRo = null; }
+
+      const fallback: [number, number] = [0, 1];
+      const xR = xDomain ?? fallback;
+      const opts: uPlot.Options = {
+        width: w,
+        height: h,
+        pxAlign: false,
+        legend: { show: false },
+        scales: {
+          x: { time: true, range: () => xR },
+          y: { range: () => leftRange ?? fallback },
+          y2: { range: () => rightRange ?? fallback },
         },
-        ...(hasRightAxis ? [{
-          scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
-          ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
-          font: '12px ui-sans-serif, system-ui', gap: 8,
-          values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
-          ...(rightStep && rightStep > 0 ? { incrs: [rightStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(rightRange, rightStep) } : {}),
-        } as uPlot.Axis] : []),
-      ],
-      padding: [28, 4, 4, 4] as [number, number, number, number],
-      cursor: { x: true, y: false, drag: { x: true, y: false, setScale: true }, points: { show: true, size: 6, stroke: (u, i) => (u.series[i].stroke as string) ?? '#34d399', fill: '#0f172a', width: 2 } },
-      hooks: {
-        setCursor: [(u: uPlot) => {
-          const l = u.cursor.left ?? -1, t = u.cursor.top ?? -1;
-          if (l < 0 || t < 0) { onCursorRef.current?.(null); return; }
-          const x = u.posToVal(l, 'x');
-          if (!Number.isFinite(x)) { onCursorRef.current?.(null); return; }
-          onCursorRef.current?.({ left: l, top: t, xEpoch: x });
-          // Null the cached rect so RGL transform changes are picked up next move
-          (u as any).syncRect(true);
-        }],
-        setScale: [(u: uPlot, key: string) => {
-          if (key !== 'x') return;
-          const s = u.scales.x;
-          if (typeof s.min === 'number' && typeof s.max === 'number' && Number.isFinite(s.min) && Number.isFinite(s.max) && s.max > s.min) {
-            onVisibleXChangeRef.current?.({ min: s.min, max: s.max });
-          }
-        }],
-      },
+        series: [
+          {},
+          ...series.map((def, i) => ({
+            label: def.attribute,
+            scale: effectiveScales[i],
+            stroke: colors[i] ?? '#34d399',
+            width: appearance.mode === 'points' ? 0 : Math.max(1, appearance.lineWidth),
+            points: {
+              show: appearance.mode === 'points' || (appearance.pointRadius ?? 0) > 0,
+              size: Math.max(2, appearance.mode === 'points' ? Math.max(appearance.pointRadius || 4, 4) : appearance.pointRadius),
+              stroke: '#0f172a',
+              fill: colors[i] ?? '#34d399',
+              width: 1,
+            },
+            paths: uPlot.paths.linear?.(),
+            spanGaps: true,
+          } as uPlot.Series)),
+        ],
+        axes: [
+          { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '12px ui-sans-serif, system-ui', gap: 8 },
+          {
+            scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
+            ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
+            font: '12px ui-sans-serif, system-ui', gap: 8,
+            values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
+            ...(leftStep && leftStep > 0 ? { incrs: [leftStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(leftRange, leftStep) } : {}),
+          },
+          ...(hasRightAxis ? [{
+            scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
+            ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
+            font: '12px ui-sans-serif, system-ui', gap: 8,
+            values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
+            ...(rightStep && rightStep > 0 ? { incrs: [rightStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(rightRange, rightStep) } : {}),
+          } as uPlot.Axis] : []),
+        ],
+        padding: [28, 4, 4, 4] as [number, number, number, number],
+        cursor: { x: true, y: false, drag: { x: true, y: false, setScale: true }, points: { show: true, size: 6, stroke: (u, i) => (u.series[i].stroke as string) ?? '#34d399', fill: '#0f172a', width: 2 } },
+        hooks: {
+          setCursor: [(u: uPlot) => {
+            const l = u.cursor.left ?? -1, t = u.cursor.top ?? -1;
+            if (l < 0 || t < 0) { onCursorRef.current?.(null); return; }
+            const x = u.posToVal(l, 'x');
+            if (!Number.isFinite(x)) { onCursorRef.current?.(null); return; }
+            onCursorRef.current?.({ left: l, top: t, xEpoch: x });
+            (u as any).syncRect(true);
+          }],
+          setScale: [(u: uPlot, key: string) => {
+            if (key !== 'x') return;
+            const s = u.scales.x;
+            if (typeof s.min === 'number' && typeof s.max === 'number' && Number.isFinite(s.min) && Number.isFinite(s.max) && s.max > s.min) {
+              onVisibleXChangeRef.current?.({ min: s.min, max: s.max });
+            }
+          }],
+        },
+      };
+
+      const plot = new uPlot(opts, data, c);
+      plotRef.current = plot;
+      if (plotInstanceRef) plotInstanceRef.current = plot;
+      onLifecycleTick?.();
+
+      // Post-creation resize: cheap setSize path
+      postRo = new ResizeObserver(() => {
+        const inst = plotRef.current;
+        if (!inst) return;
+        const cw = c.clientWidth;
+        const ch = c.clientHeight;
+        if (cw > 0 && ch > 0 && (cw !== inst.width || ch !== inst.height)) {
+          inst.setSize({ width: cw, height: ch });
+        }
+      });
+      postRo.observe(c);
     };
 
-    const plot = new uPlot(opts, data, c);
-    plotRef.current = plot;
-    if (plotInstanceRef) plotInstanceRef.current = plot;
-    onLifecycleTick?.();
-
-    // Lock u-under: prevents it from pushing the data canvas off-screen.
-    // u-under holds grid/axes canvases (all position:absolute), so collapsing
-    // its box to zero height with visible overflow keeps children painted
-    // while taking zero flow space.
-    const uUnder = c.querySelector('.u-under') as HTMLElement | null;
-    if (uUnder) {
-      uUnder.style.height = '0';
-      uUnder.style.overflow = 'visible';
+    // Try immediately
+    {
+      const w = c.clientWidth;
+      const h = c.clientHeight;
+      if (w > 0 && h > 0) createChart(w, h);
     }
 
-    // Keep canvas sized to container
-    const ro = new ResizeObserver(() => {
-      const inst = plotRef.current;
-      if (!inst) return;
-      const cw = c.clientWidth;
-      const ch = c.clientHeight;
-      if (cw > 0 && ch > 0 && (cw !== inst.width || ch !== inst.height)) {
-        inst.setSize({ width: cw, height: ch });
-      }
-    });
-    ro.observe(c);
+    // If dimensions aren't available yet, watch and retry
+    if (!plotCreated) {
+      preRo = new ResizeObserver(() => {
+        if (plotCreated || cancelled) { preRo?.disconnect(); return; }
+        const w = c.clientWidth;
+        const h = c.clientHeight;
+        if (w > 0 && h > 0) createChart(w, h);
+      });
+      preRo.observe(c);
+    }
 
     return () => {
-      ro.disconnect();
-      plot.destroy();
-      plotRef.current = null;
-      if (plotInstanceRef) plotInstanceRef.current = null;
+      cancelled = true;
+      preRo?.disconnect();
+      postRo?.disconnect();
+      if (plotRef.current) {
+        plotRef.current.destroy();
+        plotRef.current = null;
+        if (plotInstanceRef) plotInstanceRef.current = null;
+      }
     };
     // Rebuild when data, series shape, or any appearance property changes
   }, [data, series.length, appearance.mode, appearance.yScaleMode, appearance.lineWidth, appearance.pointRadius, effectiveScales.join(','), hasRightAxis, leftStep, rightStep]);
