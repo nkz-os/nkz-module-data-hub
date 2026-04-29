@@ -483,11 +483,10 @@ async def proxy_timeseries_align(
 def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> bytes:
     """Convert reader JSON response to Arrow IPC stream bytes.
 
-    Reader JSON shapes:
-      Single attr:   {timestamps: [...], values: [...]}
-      Multi attr:    {timestamps: [...], attributes: {attr: [vals...]}}
+    Reader returns: {timestamps: [...], attributes: {attr_name: [vals...]}}
     """
     ts_raw = data.get("timestamps") or []
+    attrs: dict = data.get("attributes") or {}
     from datetime import datetime as _dt
 
     timestamps: list[float] = []
@@ -502,22 +501,23 @@ def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> b
         else:
             timestamps.append(0.0)
 
+    ts_arr = pa.array(timestamps, type=pa.float64())
+
     if single_attr:
-        vals = data.get("values") or []
-        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64()),
+        # Resolve the attribute: reader may return the canonical DB name (e.g. temp_avg
+        # when we asked for 'temperature'). Try exact match first, then any attr.
+        vals = attrs.get(single_attr)
+        if vals is None and attrs:
+            vals = next(iter(attrs.values()))
+        table = pa.table({"timestamp": ts_arr,
                           "value": pa.array(vals if vals else [], type=pa.float64())})
-    elif "values" in data:
-        vals = data.get("values") or []
-        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64()),
-                          "value": pa.array(vals if vals else [], type=pa.float64())})
-    elif "attributes" in data:
-        attrs = data["attributes"]
-        cols: dict = {"timestamp": pa.array(timestamps, type=pa.float64())}
-        for i, (attr, vals) in enumerate(attrs.items()):
+    elif attrs:
+        cols: dict = {"timestamp": ts_arr}
+        for i, (_attr_name, vals) in enumerate(attrs.items()):
             cols[f"value_{i}"] = pa.array(vals if vals else [], type=pa.float64())
         table = pa.table(cols)
     else:
-        table = pa.table({"timestamp": pa.array(timestamps, type=pa.float64())})
+        table = pa.table({"timestamp": ts_arr})
 
     sink = io.BytesIO()
     with ipc.new_stream(sink, table.schema) as writer:
