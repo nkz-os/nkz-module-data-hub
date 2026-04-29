@@ -10,7 +10,7 @@
  * memo'd, callbacks pass-through.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 
 import type {
@@ -107,8 +107,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const plotInstanceRef = React.useRef<uPlot | null>(null);
   const [lifecycleTick, setLifecycleTick] = useState(0);
   const bumpLifecycle = useCallback(() => setLifecycleTick((n) => n + 1), []);
-  /** A3 guardrail: auto-adjusted Y mode once when trace would be invisible. */
-  const guardrailFiredRef = React.useRef(false);
 
   const { status, series: workerSeries, refetch, error, stats, stage } = useWorkerSeries({
     panelId,
@@ -187,7 +185,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     return buildRollingAverageSeries(baseVisibleWorkerSeries[0], window);
   }, [appearance.rollingAverage, baseVisibleWorkerSeries]);
 
-  // ──────── Pearson r between first 2 visible series (shown in footer) ────────
+  // Pearson r between first 2 visible series (shown in footer)
   const pearsonResult = useMemo(() => {
     if (baseVisibleWorkerSeries.length < 2 || appearance.viewMode !== 'timeseries') return null;
     return pearsonCorrelation(baseVisibleWorkerSeries[0], baseVisibleWorkerSeries[1]);
@@ -303,16 +301,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const leftRange = leftResult.range;
   const rightRange = rightResult.range;
 
-  // ──────── A3 Guardrail: "points > 0 must be visible" ────────
-  // When the computed Y range collapses to a flat line (all values identical or
-  // span < 0.1% of magnitude) BUT the series has finite points, auto-expand
-  // to a visible span so the user never sees a blank chart for valid data.
+  // A3 Guardrail: auto-expand collapsed Y range so valid points are always visible
+  const guardrailFiredRef = React.useRef(false);
   const safeLeftRange = useMemo<[number, number] | null>(() => {
     if (!leftRange || leftResult.poolSize === 0) return leftRange;
     const span = leftRange[1] - leftRange[0];
     const mid = (leftRange[0] + leftRange[1]) / 2;
     const mag = Math.max(Math.abs(mid), 1);
-    // Collapsed range: span is zero or < 0.1% of magnitude
     if (span < mag * 0.001) {
       guardrailFiredRef.current = true;
       const pad = Math.max(mag * 0.05, 0.5);
@@ -320,7 +315,6 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     }
     return leftRange;
   }, [leftRange, leftResult.poolSize]);
-
   const safeRightRange = useMemo<[number, number] | null>(() => {
     if (!rightRange || rightResult.poolSize === 0) return rightRange;
     const span = rightRange[1] - rightRange[0];
@@ -333,21 +327,11 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     }
     return rightRange;
   }, [rightRange, rightResult.poolSize]);
-
-  // ──────── Outlier count for focus mode ────────
   const outlierCount = useMemo(() => {
     if (appearance.yScaleMode !== 'focus') return 0;
     return leftResult.outliersExcluded + rightResult.outliersExcluded;
   }, [appearance.yScaleMode, leftResult.outliersExcluded, rightResult.outliersExcluded]);
 
-  // Reset guardrail when series/time change
-  const seriesFingerprint = useMemo(
-    () => series.map((s) => `${s.source ?? 'timescale'}|${s.entityId}|${s.attribute}`).join('§'),
-    [series]
-  );
-  useEffect(() => {
-    guardrailFiredRef.current = false;
-  }, [seriesFingerprint, startTime, endTime]);
   // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
     () => (visibleWorkerSeries.length > 0 ? computeFooterStats(visibleWorkerSeries[0]) : null),
@@ -568,8 +552,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [toolbarOpen, setToolbarOpen] = React.useState(false);
 
   return (
-    <div ref={rootRef} className="relative w-full h-full rounded-lg ring-1 ring-white/5" onContextMenu={handleContextMenu}>
-      {/* ===== Chart layer — first in DOM, full-bleed ===== */}
+    <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-slate-700/30" onContextMenu={handleContextMenu}>
+      {/* ===== Chart layer — first in DOM ===== */}
       {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelChart
           series={visibleSeriesDefsAugmented}
@@ -623,7 +607,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800/60 backdrop-blur-sm border border-slate-700/30 text-slate-300 text-xs">
+          <span className="px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs">
             {t('canvasPanel.loading')}
           </span>
         </div>
@@ -638,93 +622,94 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         />
       )}
 
-      {/* ===== UI Overlays — painted on top of chart ===== */}
-      {/* Header: compact, transparent, non-blocking */}
-      <div className="absolute top-0 left-0 right-0 px-2.5 py-2 pointer-events-none">
+      {/* ===== UI Overlays — after chart in DOM, paint on top ===== */}
+      {/* Header bar */}
+      <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
         <div className="flex items-center gap-2">
-          {/* Drag handle + title — unified pill */}
-          <div className="panel-drag-handle cursor-move pointer-events-auto bg-slate-950/80 backdrop-blur-md rounded-full pl-3 pr-3 py-1 ring-1 ring-white/10 shadow-sm select-none flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80" aria-hidden />
-            <span className="text-[11px] text-slate-300 font-mono font-medium truncate max-w-[260px] tracking-tight">
+          {/* Title + drag handle */}
+          <div className="panel-drag-handle cursor-move bg-slate-950/90 backdrop-blur-sm rounded-md pl-3 pr-3 py-1.5 border border-slate-600/40 shadow-lg select-none">
+            <span className="text-xs text-slate-200 font-mono font-medium truncate max-w-[280px] tracking-tight">
               {headerTitle}
             </span>
           </div>
-          {/* Tools toggle — pill */}
+          {/* Single "More" button — all tools inside */}
           {status === 'ready' && (
             <button
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); setToolbarOpen(v => !v); }}
-              className={`pointer-events-auto px-2.5 py-1 rounded-full text-[11px] transition-all flex items-center gap-1.5 shadow-sm ring-1 backdrop-blur-md ${
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
                 toolbarOpen
-                  ? 'text-white bg-slate-800/90 ring-white/20'
-                  : 'text-slate-400 bg-slate-950/70 ring-white/10 hover:text-slate-200 hover:bg-slate-900/80 hover:ring-white/15'
+                  ? 'text-white bg-slate-700 border-slate-500'
+                  : 'text-slate-300 bg-slate-950/90 border-slate-600/40 hover:text-white hover:bg-slate-800 hover:border-slate-500'
               }`}
               title="Chart tools"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-              <span>Tools</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              <span className="text-[11px] text-slate-400">Tools</span>
             </button>
           )}
         </div>
         {toolbarOpen && status === 'ready' && (
-          <div className="pointer-events-auto mt-1.5 max-h-[75vh] overflow-y-auto rounded-xl bg-slate-950/98 backdrop-blur-xl ring-1 ring-white/10 shadow-2xl"
+          <div className="pointer-events-auto px-2 pb-1"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <PanelToolbar
-              appearance={appearance}
-              onAppearanceChange={patchAppearance}
-              seriesRailOpen={railOpen}
-              onToggleSeriesRail={() => setRailOpen((v) => !v)}
-              hasRightAxis={hasRightAxis}
-              canUndoZoom={viewportHistory.hasHistory}
-              canResetZoom={viewportHistory.hasHistory}
-              onZoomUndo={handleZoomUndo}
-              onZoomReset={handleZoomReset}
-              seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
-              labels={{
-                style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),
-                points: t('canvasPanel.pointSize'), modeLine: t('canvasPanel.modeLine'),
-                modePoints: t('canvasPanel.modePoints'), seriesRail: t('canvasPanel.axisPerSeriesHint'),
-                yScale: t('canvasPanel.yScale', { defaultValue: 'Escala Y' }),
-                yAuto: t('canvasPanel.yAuto', { defaultValue: 'Auto' }),
-                yFitVisible: t('canvasPanel.yFitVisible', { defaultValue: 'Visible' }),
-                yFocus: t('canvasPanel.yFocus', { defaultValue: 'Focus' }),
-                yManual: t('canvasPanel.yManual', { defaultValue: 'Manual' }),
-                manualLeft: t('canvasPanel.axisLeft'), manualRight: t('canvasPanel.axisRight'),
-                manualMin: t('canvasPanel.statMin'), manualMax: t('canvasPanel.statMax'),
-                apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
-                reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
-                zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
-                zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
-                trendline: t('canvasPanel.trendline'),
-                showOutliers: t('canvasPanel.showOutliers'),
-                rollingAvg: t('canvasPanel.rollingAvg', { defaultValue: 'Media móvil' }),
-                rollingOff: t('canvasPanel.rollingOff', { defaultValue: 'Off' }),
-                viewMode: t('canvasPanel.viewMode'),
-                viewTimeseries: t('canvasPanel.viewModeTimeseries'),
-                viewCorrelation: t('canvasPanel.viewModeCorrelation'),
-              }}
-            />
-            {railOpen && (
-              <div className="border-t border-white/5 bg-slate-950/95">
-                <PanelSeriesRail
-                  series={series} workerSeries={workerSeries}
-                  colorFor={(_, i) => colors[i] ?? '#34d399'}
-                  unitFor={unitFor} seriesKey={seriesKey} config={seriesCfg}
-                  onAxisChange={handleAxisChange} onVisibilityChange={handleVisibilityChange}
-                  onColorChange={handleColorChange} onRemove={handleRemove}
-                  labels={{
-                    axisLeft: t('canvasPanel.axisLeft'), axisRight: t('canvasPanel.axisRight'),
-                    show: t('canvasPanel.show', { defaultValue: 'Mostrar' }),
-                    hide: t('canvasPanel.hide', { defaultValue: 'Ocultar' }),
-                    remove: t('canvasPanel.removeSeries', { defaultValue: 'Quitar serie' }),
-                    statMin: t('canvasPanel.statMin'), statMax: t('canvasPanel.statMax'),
-                    statAvg: t('canvasPanel.statAvg'), statLast: t('canvasPanel.statLast'),
-                    emptyHint: t('canvasPanel.dragHere'),
-                  }}
-                />
-              </div>
-            )}
+            <div className="bg-slate-950/95 backdrop-blur-sm rounded-md border border-slate-700/40 shadow-2xl max-h-[80vh] overflow-y-auto">
+              <PanelToolbar
+                appearance={appearance}
+                onAppearanceChange={patchAppearance}
+                seriesRailOpen={railOpen}
+                onToggleSeriesRail={() => setRailOpen((v) => !v)}
+                hasRightAxis={hasRightAxis}
+                canUndoZoom={viewportHistory.hasHistory}
+                canResetZoom={viewportHistory.hasHistory}
+                onZoomUndo={handleZoomUndo}
+                onZoomReset={handleZoomReset}
+                seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
+                labels={{
+                  style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),
+                  points: t('canvasPanel.pointSize'), modeLine: t('canvasPanel.modeLine'),
+                  modePoints: t('canvasPanel.modePoints'), seriesRail: t('canvasPanel.axisPerSeriesHint'),
+                  yScale: t('canvasPanel.yScale', { defaultValue: 'Escala Y' }),
+                  yAuto: t('canvasPanel.yAuto', { defaultValue: 'Auto' }),
+                  yFitVisible: t('canvasPanel.yFitVisible', { defaultValue: 'Visible' }),
+                  yFocus: t('canvasPanel.yFocus', { defaultValue: 'Focus' }),
+                  yManual: t('canvasPanel.yManual', { defaultValue: 'Manual' }),
+                  manualLeft: t('canvasPanel.axisLeft'), manualRight: t('canvasPanel.axisRight'),
+                  manualMin: t('canvasPanel.statMin'), manualMax: t('canvasPanel.statMax'),
+                  apply: t('canvasPanel.apply', { defaultValue: 'Aplicar' }),
+                  reset: t('canvasPanel.reset', { defaultValue: 'Restablecer' }),
+                  zoomUndo: t('canvasPanel.zoomUndo', { defaultValue: 'Deshacer zoom' }),
+                  zoomReset: t('canvasPanel.zoomReset', { defaultValue: 'Restablecer zoom' }),
+                  trendline: t('canvasPanel.trendline'),
+                  showOutliers: t('canvasPanel.showOutliers'),
+                  rollingAvg: t('canvasPanel.rollingAvg', { defaultValue: 'Media móvil' }),
+                  rollingOff: t('canvasPanel.rollingOff', { defaultValue: 'Off' }),
+                  viewMode: t('canvasPanel.viewMode'),
+                  viewTimeseries: t('canvasPanel.viewModeTimeseries'),
+                  viewCorrelation: t('canvasPanel.viewModeCorrelation'),
+                }}
+              />
+              {railOpen && (
+                <div className="border-t border-slate-700/50 p-2 bg-slate-900/95">
+                  <PanelSeriesRail
+                    series={series} workerSeries={workerSeries}
+                    colorFor={(_, i) => colors[i] ?? '#34d399'}
+                    unitFor={unitFor} seriesKey={seriesKey} config={seriesCfg}
+                    onAxisChange={handleAxisChange} onVisibilityChange={handleVisibilityChange}
+                    onColorChange={handleColorChange} onRemove={handleRemove}
+                    labels={{
+                      axisLeft: t('canvasPanel.axisLeft'), axisRight: t('canvasPanel.axisRight'),
+                      show: t('canvasPanel.show', { defaultValue: 'Mostrar' }),
+                      hide: t('canvasPanel.hide', { defaultValue: 'Ocultar' }),
+                      remove: t('canvasPanel.removeSeries', { defaultValue: 'Quitar serie' }),
+                      statMin: t('canvasPanel.statMin'), statMax: t('canvasPanel.statMax'),
+                      statAvg: t('canvasPanel.statAvg'), statLast: t('canvasPanel.statLast'),
+                      emptyHint: t('canvasPanel.dragHere'),
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
