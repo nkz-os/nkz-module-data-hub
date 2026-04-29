@@ -30,6 +30,15 @@ export interface SeriesConfig {
   yAxis?: 'left' | 'right';
 }
 
+/** Point-in-time annotation marker. */
+export interface ChartAnnotation {
+  id: string;
+  xEpoch: number;
+  label: string;
+  color: string;
+  createdAt: string;
+}
+
 /** Threshold line displayed across the chart (Phase 8). */
 export interface ThresholdLine {
   /** Y value where the line is drawn. */
@@ -68,6 +77,8 @@ export interface ChartAppearance {
   seriesConfig?: Record<string, SeriesConfig>;
   /** User-defined threshold lines (overlays platform defaults from attribute → threshold dictionary). */
   thresholds?: ThresholdLine[];
+  /** Point-in-time annotation markers. */
+  annotations?: ChartAnnotation[];
   /** Rolling-average overlay window (Phase 7). */
   rollingAverage?: RollingAvgWindow;
   /** Live IoT mode: auto-advances time range and refetches data. */

@@ -14,6 +14,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 
 import type {
+  ChartAnnotation,
   ChartAppearance,
   ChartSeriesDef,
   PredictionPayload,
@@ -42,6 +43,7 @@ import { PanelOverlays } from './PanelOverlays';
 import { GapOverlay, detectGaps } from './GapOverlay';
 import { copyChartToClipboard } from './exportImage';
 import { LiveIndicator } from './LiveIndicator';
+import { AnnotationEditor } from './AnnotationEditor';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
@@ -522,6 +524,40 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     });
   }, [liveMode, patchAppearance]);
 
+  // ──────── Annotations ────────
+  const handleAddAnnotation = useCallback(
+    (label: string, color: string) => {
+      const now = new Date();
+      const mid = visibleX
+        ? (visibleX.min + visibleX.max) / 2
+        : now.getTime() / 1000;
+      const next: ChartAnnotation = {
+        id: crypto.randomUUID(),
+        xEpoch: mid,
+        label,
+        color,
+        createdAt: now.toISOString(),
+      };
+      patchAppearance({ annotations: [...(appearance.annotations ?? []), next] });
+    },
+    [appearance.annotations, visibleX, patchAppearance]
+  );
+
+  const handleDeleteAnnotation = useCallback(
+    (id: string) => {
+      patchAppearance({
+        annotations: (appearance.annotations ?? []).filter((a) => a.id !== id),
+      });
+    },
+    [appearance.annotations, patchAppearance]
+  );
+
+  // Build annotation pins for PanelOverlays (convert ChartAnnotation → AnnotationPin)
+  const annotationPins = useMemo(
+    () => (appearance.annotations ?? []).map((a) => ({ xEpoch: a.xEpoch, label: a.label, color: a.color })),
+    [appearance.annotations]
+  );
+
   // Right-click anywhere on the chart area undoes the last zoom (Grafana-style).
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -675,7 +711,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             baseVisibleScales,
             appearance.thresholds ?? []
           )}
-          annotations={[]}
+          annotations={annotationPins}
           prediction={prediction ?? null}
           predictionColor={baseVisibleColors[0] ?? '#34d399'}
           xDomain={visibleX}
@@ -794,6 +830,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                   />
                 </div>
               )}
+              <div className="border-t border-slate-700/50">
+                <AnnotationEditor
+                  annotations={appearance.annotations ?? []}
+                  onAdd={handleAddAnnotation}
+                  onDelete={handleDeleteAnnotation}
+                />
+              </div>
             </div>
           </div>
         )}
