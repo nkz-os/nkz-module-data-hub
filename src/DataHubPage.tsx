@@ -66,6 +66,14 @@ const DataHubPageInner: React.FC = () => {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
 
+  const [hasActivePanel, setHasActivePanel] = useState(false);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHasActivePanel(dashboardRef.current?.hasActivePanel?.() ?? false);
+    }, 400);
+    return () => clearInterval(id);
+  }, []);
+
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   const sidebarContent = (
@@ -91,6 +99,7 @@ const DataHubPageInner: React.FC = () => {
           selectedAttribute={selectedAttribute}
           onSelect={handleSelect}
           onAddToCanvas={handleAddToCanvas}
+          hasActivePanel={hasActivePanel}
         />
       </div>
     </aside>

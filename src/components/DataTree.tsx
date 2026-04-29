@@ -43,6 +43,8 @@ export interface DataTreeProps {
   onSelect: (entity: DataHubEntity, attribute: string) => void;
   /** Called when an attribute is added to the canvas (click or drag). */
   onAddToCanvas?: (entity: DataHubEntity, attribute: string) => void;
+  /** Whether a panel is active — shows "+" badge on attributes for multi-series add. */
+  hasActivePanel?: boolean;
 }
 
 export const DataTree: React.FC<DataTreeProps> = ({
@@ -50,6 +52,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
   selectedAttribute,
   onSelect,
   onAddToCanvas,
+  hasActivePanel = false,
 }) => {
   const { t } = useTranslation('datahub');
   const [search, setSearch] = useState('');
@@ -158,6 +161,11 @@ export const DataTree: React.FC<DataTreeProps> = ({
                           {attr.source && attr.source !== 'timescale' && (
                             <span className="text-slate-600 ml-1 text-[10px]">
                               [{attr.source}]
+                            </span>
+                          )}
+                          {hasActivePanel && (
+                            <span className="ml-auto text-[10px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                              + {t('tree.addToPanel')}
                             </span>
                           )}
                         </li>

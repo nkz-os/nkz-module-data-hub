@@ -8,6 +8,7 @@
     "searchPlaceholder": "Search entities (e.g. Parcel 4)",
     "toggleSidebar": "Toggle sidebar",
     "closeSidebar": "Close",
+    "addToPanel": "Add to panel",
     "loading": "Loading…",
     "errorLoad": "Error loading entities",
     "empty": "No entities found"

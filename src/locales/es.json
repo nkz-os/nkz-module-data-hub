@@ -8,6 +8,7 @@
     "searchPlaceholder": "Buscar entidades (ej. Parcela 4)",
     "toggleSidebar": "Alternar barra lateral",
     "closeSidebar": "Cerrar",
+    "addToPanel": "Añadir al panel",
     "loading": "Cargando…",
     "errorLoad": "Error al cargar entidades",
     "empty": "No se han encontrado entidades"

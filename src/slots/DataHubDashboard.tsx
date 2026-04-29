@@ -82,6 +82,7 @@ export interface DataHubDashboardProps {
 /** Imperative API so the host page can add a chart when the user picks an attribute in the tree. */
 export interface DataHubDashboardHandle {
   addSeriesFromTree: (entity: DataHubEntity, attribute: string) => void;
+  hasActivePanel: () => boolean;
 }
 
 function isTimeRangeDetail(d: unknown): d is DataHubTimeRangeDetail {
@@ -591,6 +592,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         setActivePanelId(id);
         setMainView('canvas');
       },
+      hasActivePanel: () => activePanelId !== null,
     }),
     [showBanner, t, activePanelId]
   );
