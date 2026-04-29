@@ -39,6 +39,7 @@ import {
 } from './derivedSeries';
 import { resolveThresholds, computeThresholdAlerts } from './thresholds';
 import { PanelOverlays } from './PanelOverlays';
+import { GapOverlay, detectGaps } from './GapOverlay';
 import { copyChartToClipboard } from './exportImage';
 import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
@@ -341,6 +342,12 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     return computeThresholdAlerts(baseVisibleWorkerSeries, baseVisibleScales, resolved);
   }, [visibleSeriesDefs, baseVisibleWorkerSeries, baseVisibleScales, appearance.thresholds]);
 
+  // Gap zones from first visible series
+  const gapZones = useMemo(() => {
+    if (baseVisibleWorkerSeries.length === 0) return [];
+    return detectGaps(baseVisibleWorkerSeries[0].xs);
+  }, [baseVisibleWorkerSeries]);
+
   // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
     () => (visibleWorkerSeries.length > 0 ? computeFooterStats(visibleWorkerSeries[0]) : null),
@@ -636,6 +643,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           predictionColor={baseVisibleColors[0] ?? '#34d399'}
           xDomain={visibleX}
         />
+      )}
+      {status === 'ready' && gapZones.length > 0 && appearance.viewMode !== 'correlation' && (
+        <GapOverlay plotRef={plotInstanceRef} gaps={gapZones} />
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
