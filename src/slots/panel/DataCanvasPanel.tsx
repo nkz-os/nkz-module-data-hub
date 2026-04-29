@@ -41,6 +41,8 @@ import { resolveThresholds, computeThresholdAlerts } from './thresholds';
 import { PanelOverlays } from './PanelOverlays';
 import { GapOverlay, detectGaps } from './GapOverlay';
 import { copyChartToClipboard } from './exportImage';
+import { LiveIndicator } from './LiveIndicator';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
@@ -111,11 +113,27 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [lifecycleTick, setLifecycleTick] = useState(0);
   const bumpLifecycle = useCallback(() => setLifecycleTick((n) => n + 1), []);
 
+  // Live IoT mode: dynamic time range
+  const liveMode = appearance.liveMode ?? false;
+  const liveLookback = Math.max(1, appearance.liveLookbackMinutes ?? 60);
+  const [liveTick, setLiveTick] = useState(0);
+
+  const effectiveStartTime = useMemo(() => {
+    if (!liveMode) return startTime;
+    void liveTick;
+    return new Date(Date.now() - liveLookback * 60 * 1000).toISOString();
+  }, [liveMode, liveLookback, startTime, liveTick]);
+  const effectiveEndTime = useMemo(() => {
+    if (!liveMode) return endTime;
+    void liveTick;
+    return new Date().toISOString();
+  }, [liveMode, endTime, liveTick]);
+
   const { status, series: workerSeries, refetch, error, stats, stage } = useWorkerSeries({
     panelId,
     series,
-    startTime,
-    endTime,
+    startTime: effectiveStartTime,
+    endTime: effectiveEndTime,
     resolution,
   });
 
@@ -485,6 +503,25 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     setZoomCommand({ range: null, reset: true, nonce: Date.now() });
   }, [viewportHistory]);
 
+  // ──────── Live mode: periodic refresh ────────
+  const handleLiveTick = useCallback(() => {
+    setLiveTick((n) => n + 1);
+    refetch();
+  }, [refetch]);
+
+  useLiveRefresh({
+    enabled: liveMode,
+    intervalMs: 30_000,
+    onTick: handleLiveTick,
+  });
+
+  const handleToggleLive = useCallback(() => {
+    patchAppearance({
+      liveMode: !liveMode,
+      ...(liveMode ? {} : { yScaleMode: 'auto' }),
+    });
+  }, [liveMode, patchAppearance]);
+
   // Right-click anywhere on the chart area undoes the last zoom (Grafana-style).
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -674,7 +711,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               {headerTitle}
             </span>
           </div>
-          {/* Single "More" button — all tools inside */}
+          {/* Live indicator + More button */}
+          <LiveIndicator active={liveMode} secondsSinceRefresh={0} />
           {status === 'ready' && (
             <button
               onMouseDown={(e) => e.stopPropagation()}
@@ -709,6 +747,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 onExportImage={() => {
                   if (rootRef.current) copyChartToClipboard(rootRef.current);
                 }}
+                liveMode={liveMode}
+                onToggleLive={handleToggleLive}
                 seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
                 labels={{
                   style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),

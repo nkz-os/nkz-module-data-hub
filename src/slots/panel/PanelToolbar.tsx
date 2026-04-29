@@ -51,6 +51,9 @@ export interface PanelToolbarProps {
   seriesLabels?: string[];
   /** Image export callback. When omitted, the button is hidden. */
   onExportImage?: () => void;
+  /** Live mode state + toggle. */
+  liveMode?: boolean;
+  onToggleLive?: () => void;
   /** Localized labels. */
   labels: {
     style: string;
@@ -106,6 +109,8 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   onZoomReset,
   seriesLabels,
   onExportImage,
+  liveMode,
+  onToggleLive,
   labels,
 }) => {
   const [manualOpen, setManualOpen] = useState(false);
@@ -157,6 +162,22 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           title="Copy chart as PNG"
         >
           <Image size={13} aria-hidden />
+        </button>
+      )}
+
+      {onToggleLive && (
+        <button
+          type="button"
+          onClick={onToggleLive}
+          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+            liveMode
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+              : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
+          }`}
+          title="Live IoT refresh"
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${liveMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+          LIVE
         </button>
       )}
 

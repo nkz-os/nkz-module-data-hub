@@ -70,6 +70,10 @@ export interface ChartAppearance {
   thresholds?: ThresholdLine[];
   /** Rolling-average overlay window (Phase 7). */
   rollingAverage?: RollingAvgWindow;
+  /** Live IoT mode: auto-advances time range and refetches data. */
+  liveMode?: boolean;
+  /** Lookback window in minutes for live mode (default: 60). */
+  liveLookbackMinutes?: number;
 }
 
 export const DEFAULT_CHART_APPEARANCE: ChartAppearance = {
@@ -82,6 +86,8 @@ export const DEFAULT_CHART_APPEARANCE: ChartAppearance = {
   correlationYSeries: 1,
   yScaleMode: 'auto',
   rollingAverage: 'off',
+  liveMode: false,
+  liveLookbackMinutes: 60,
 };
 
 /** Result of SSE prediction stream (epoch seconds + values) for merge in worker. */
