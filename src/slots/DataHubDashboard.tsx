@@ -779,7 +779,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             droppingItem={defaultDroppingItem}
           >
             {panels.map((panel) => (
-              <div key={panel.id} className="relative" onMouseDown={() => setActivePanelId(panel.id)}>
+              <div key={panel.id} className="relative h-full" onMouseDown={() => setActivePanelId(panel.id)}>
                 {/* Floating actions — top right pill */}
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
                   <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950/70 backdrop-blur-md rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
