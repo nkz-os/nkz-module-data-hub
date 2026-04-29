@@ -36,6 +36,7 @@ import {
 import {
   buildTrendlineSeries,
   buildRollingAverageSeries,
+  parseDerivedSeries,
   pearsonCorrelation,
 } from './derivedSeries';
 import { resolveThresholds, computeThresholdAlerts } from './thresholds';
@@ -44,6 +45,7 @@ import { GapOverlay, detectGaps } from './GapOverlay';
 import { copyChartToClipboard } from './exportImage';
 import { LiveIndicator } from './LiveIndicator';
 import { AnnotationEditor } from './AnnotationEditor';
+import { DerivedSeriesInput } from './DerivedSeriesInput';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
@@ -214,22 +216,32 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     return pearsonCorrelation(baseVisibleWorkerSeries[0], baseVisibleWorkerSeries[1]);
   }, [baseVisibleWorkerSeries, appearance.viewMode]);
 
+  // Derived formula series
+  const [derivedFormula, setDerivedFormula] = useState('');
+  const derivedSeries = useMemo(() => {
+    if (!derivedFormula.trim() || baseVisibleWorkerSeries.length === 0) return null;
+    const result = parseDerivedSeries(derivedFormula, baseVisibleWorkerSeries);
+    return 'error' in result ? null : result;
+  }, [derivedFormula, baseVisibleWorkerSeries]);
+
   // Compose final visible series list: real series first, then overlays.
   const visibleWorkerSeries = useMemo(() => {
     const out = [...baseVisibleWorkerSeries];
+    if (derivedSeries) out.push(derivedSeries);
     if (rollingSeries) out.push(rollingSeries);
     if (trendlineSeries) out.push(trendlineSeries);
     return out;
-  }, [baseVisibleWorkerSeries, rollingSeries, trendlineSeries]);
+  }, [baseVisibleWorkerSeries, derivedSeries, rollingSeries, trendlineSeries]);
 
   // Synthetic series colours: rolling = primary 60% alpha; trend = primary 80%.
   const visibleColors = useMemo(() => {
     const out = [...baseVisibleColors];
     const primary = baseVisibleColors[0] ?? '#34d399';
+    if (derivedSeries) out.push('#fbbf24'); // amber-400 for derived
     if (rollingSeries) out.push(`${primary}99`);
     if (trendlineSeries) out.push(`${primary}cc`);
     return out;
-  }, [baseVisibleColors, rollingSeries, trendlineSeries]);
+  }, [baseVisibleColors, derivedSeries, rollingSeries, trendlineSeries]);
 
   const visibleSeriesDefsAugmented = useMemo(() => {
     const out = [...visibleSeriesDefs];
@@ -830,6 +842,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                   />
                 </div>
               )}
+              <div className="border-t border-slate-700/50">
+                <DerivedSeriesInput
+                  formula={derivedFormula}
+                  seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
+                  onSubmit={setDerivedFormula}
+                />
+              </div>
               <div className="border-t border-slate-700/50">
                 <AnnotationEditor
                   annotations={appearance.annotations ?? []}

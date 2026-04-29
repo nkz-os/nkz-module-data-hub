@@ -216,3 +216,149 @@ export function pearsonCorrelation(
   const r = cov / Math.sqrt(varX * varY);
   return { r, n, pairs };
 }
+
+// ──────── Formula-based derived series ────────
+
+type FormulaToken =
+  | { type: 'number'; value: number }
+  | { type: 'series'; index: number }
+  | { type: 'op'; value: '+' | '-' | '*' | '/' }
+  | { type: 'paren'; value: '(' | ')' };
+
+function tokenize(expr: string): FormulaToken[] | { error: string } {
+  const tokens: FormulaToken[] = [];
+  let i = 0;
+  while (i < expr.length) {
+    const ch = expr[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (/[\+\-\*\/]/.test(ch)) {
+      tokens.push({ type: 'op', value: ch as '+' | '-' | '*' | '/' });
+      i++;
+      continue;
+    }
+    if (ch === '(' || ch === ')') {
+      tokens.push({ type: 'paren', value: ch });
+      i++;
+      continue;
+    }
+    if (ch === 's' && expr.slice(i, i + 7) === 'series[') {
+      const end = expr.indexOf(']', i + 7);
+      if (end === -1) return { error: 'Missing closing bracket after series[N]' };
+      const numStr = expr.slice(i + 7, end);
+      const num = Number.parseInt(numStr, 10);
+      if (!Number.isFinite(num) || num < 0) return { error: `Invalid series index: ${numStr}` };
+      tokens.push({ type: 'series', index: num });
+      i = end + 1;
+      continue;
+    }
+    if (/[\d\.]/.test(ch)) {
+      let j = i;
+      while (j < expr.length && /[\d\.]/.test(expr[j])) j++;
+      const v = Number.parseFloat(expr.slice(i, j));
+      if (!Number.isFinite(v)) return { error: `Invalid number: ${expr.slice(i, j)}` };
+      tokens.push({ type: 'number', value: v });
+      i = j;
+      continue;
+    }
+    return { error: `Unexpected character: '${ch}' at position ${i}` };
+  }
+  return tokens;
+}
+
+function evaluate(tokens: FormulaToken[], seriesValues: number[]): number {
+  // Shunting-yard for simple infix: number | series[N] | binop
+  let pos = 0;
+  function primary(): number {
+    const t = tokens[pos];
+    if (!t) return Number.NaN;
+    if (t.type === 'number') { pos++; return t.value; }
+    if (t.type === 'series') {
+      pos++;
+      const v = seriesValues[t.index];
+      return Number.isFinite(v) ? v : Number.NaN;
+    }
+    if (t.type === 'paren' && t.value === '(') {
+      pos++; // skip '('
+      const v = expression();
+      if (tokens[pos]?.type === 'paren' && (tokens[pos] as FormulaToken & {value:string}).value === ')') pos++;
+      return v;
+    }
+    return Number.NaN;
+  }
+  function term(): number {
+    let v = primary();
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (t.type === 'op' && (t.value === '*' || t.value === '/')) {
+        pos++;
+        const rhs = primary();
+        if (t.value === '*') v *= rhs;
+        else if (Number.isFinite(rhs) && rhs !== 0) v /= rhs;
+        else v = Number.NaN;
+      } else break;
+    }
+    return v;
+  }
+  function expression(): number {
+    let v = term();
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (t.type === 'op' && (t.value === '+' || t.value === '-')) {
+        pos++;
+        const rhs = term();
+        if (t.value === '+') v += rhs;
+        else v -= rhs;
+      } else break;
+    }
+    return v;
+  }
+  return expression();
+}
+
+export function parseDerivedSeries(
+  formula: string,
+  baseSeries: WorkerSeriesPayload[],
+): WorkerSeriesPayload | { error: string } {
+  const tokens = tokenize(formula);
+  if ('error' in tokens) return tokens;
+
+  const ref = baseSeries[0];
+  if (!ref) return { error: 'No base series for derived formula' };
+
+  const n = ref.xs.length;
+  const outX = new Float64Array(n);
+  const outY = new Float64Array(n);
+
+  let plotted = 0;
+  for (let i = 0; i < n; i++) {
+    outX[i] = ref.xs[i];
+    const values = baseSeries.map((s) => (i < s.ys.length ? s.ys[i] : Number.NaN));
+    const result = evaluate(tokens, values);
+    if (Number.isFinite(result)) {
+      outY[i] = result;
+      plotted++;
+    } else {
+      outY[i] = Number.NaN;
+    }
+  }
+
+  if (plotted === 0 && n > 0) return { error: 'Formula produced no finite results' };
+
+  return {
+    key: `derived:${btoa(formula).slice(0, 40)}`,
+    entityId: 'derived',
+    attribute: formula.slice(0, 40),
+    source: 'derived',
+    xs: outX,
+    ys: outY,
+    stats: {
+      rawPointsFetched: 0,
+      pointsPlotted: plotted,
+      gapsInjected: 0,
+      pointsDiscarded: 0,
+      downsampleRatio: 1,
+      domainX: null,
+      domainY: null,
+    },
+  };
+}
