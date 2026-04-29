@@ -508,11 +508,12 @@ def _json_to_dataframe(data: dict, single_attr: str | None = None) -> pl.DataFra
         else:
             timestamps.append(0.0)
 
+    # Build with Float64 first, then cast timestamp to Datetime for CSV/Parquet readability
     if single_attr:
         vals = attrs.get(single_attr)
         if vals is None and attrs:
             vals = next(iter(attrs.values()))
-        return pl.DataFrame({
+        df = pl.DataFrame({
             "timestamp": timestamps,
             "value": vals if vals else [],
         }, schema={"timestamp": pl.Float64, "value": pl.Float64})
@@ -523,9 +524,16 @@ def _json_to_dataframe(data: dict, single_attr: str | None = None) -> pl.DataFra
             name = f"value_{i}"
             cols[name] = vals if vals else []
             schema[name] = pl.Float64
-        return pl.DataFrame(cols, schema=schema)
+        df = pl.DataFrame(cols, schema=schema)
     else:
-        return pl.DataFrame({"timestamp": timestamps}, schema={"timestamp": pl.Float64})
+        df = pl.DataFrame({"timestamp": timestamps}, schema={"timestamp": pl.Float64})
+
+    # Convert epoch seconds to datetime for human-readable exports
+    if df.height > 0:
+        df = df.with_columns(
+            pl.from_epoch(pl.col("timestamp"), time_unit="s").alias("timestamp")
+        )
+    return df
 
 
 def _df_to_arrow_ipc(df: pl.DataFrame) -> bytes:
