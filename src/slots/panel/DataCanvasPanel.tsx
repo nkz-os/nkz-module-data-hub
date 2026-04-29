@@ -568,7 +568,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [toolbarOpen, setToolbarOpen] = React.useState(false);
 
   return (
-    <div ref={rootRef} className="relative w-full h-full rounded-lg overflow-hidden ring-1 ring-white/5 bg-slate-950/70" onContextMenu={handleContextMenu}>
+    <div ref={rootRef} className="relative w-full h-full rounded-lg ring-1 ring-white/5" onContextMenu={handleContextMenu}>
       {/* ===== Chart layer — first in DOM, full-bleed ===== */}
       {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelChart
