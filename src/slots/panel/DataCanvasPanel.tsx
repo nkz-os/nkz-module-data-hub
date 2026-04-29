@@ -39,6 +39,7 @@ import {
 } from './derivedSeries';
 import { resolveThresholds } from './thresholds';
 import { PanelOverlays } from './PanelOverlays';
+import { copyChartToClipboard } from './exportImage';
 import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
@@ -688,6 +689,9 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 canResetZoom={viewportHistory.hasHistory}
                 onZoomUndo={handleZoomUndo}
                 onZoomReset={handleZoomReset}
+                onExportImage={() => {
+                  if (rootRef.current) copyChartToClipboard(rootRef.current);
+                }}
                 seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
                 labels={{
                   style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),

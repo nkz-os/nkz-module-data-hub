@@ -23,6 +23,7 @@ import {
   Waves,
   LineChart,
   GitCompare,
+  Image,
 } from 'lucide-react';
 
 import type {
@@ -48,6 +49,8 @@ export interface PanelToolbarProps {
   onZoomReset: () => void;
   /** Labels for the currently visible series — used by correlation X/Y selectors. */
   seriesLabels?: string[];
+  /** Image export callback. When omitted, the button is hidden. */
+  onExportImage?: () => void;
   /** Localized labels. */
   labels: {
     style: string;
@@ -102,6 +105,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   onZoomUndo,
   onZoomReset,
   seriesLabels,
+  onExportImage,
   labels,
 }) => {
   const [manualOpen, setManualOpen] = useState(false);
@@ -144,6 +148,17 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
       >
         <ZoomOut size={13} aria-hidden />
       </button>
+
+      {onExportImage && (
+        <button
+          type="button"
+          onClick={onExportImage}
+          className="p-1 rounded-md text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 transition-colors"
+          title="Copy chart as PNG"
+        >
+          <Image size={13} aria-hidden />
+        </button>
+      )}
 
       <div className="w-px h-3 bg-white/10 mx-0.5" />
 
