@@ -110,6 +110,12 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
     const plot = new uPlot(opts, [xs, ys], c);
     plotRef.current = plot;
 
+    const uUnder = c.querySelector('.u-under') as HTMLElement | null;
+    if (uUnder) {
+      uUnder.style.height = '0';
+      uUnder.style.overflow = 'visible';
+    }
+
     const ro = new ResizeObserver(() => {
       const inst = plotRef.current;
       if (!inst) return;

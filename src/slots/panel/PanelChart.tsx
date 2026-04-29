@@ -204,7 +204,16 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     plotRef.current = plot;
     if (plotInstanceRef) plotInstanceRef.current = plot;
     onLifecycleTick?.();
-    (window as unknown as { __nkz_chart?: unknown }).__nkz_chart = plot;
+
+    // Lock u-under: prevents it from pushing the data canvas off-screen.
+    // u-under holds grid/axes canvases (all position:absolute), so collapsing
+    // its box to zero height with visible overflow keeps children painted
+    // while taking zero flow space.
+    const uUnder = c.querySelector('.u-under') as HTMLElement | null;
+    if (uUnder) {
+      uUnder.style.height = '0';
+      uUnder.style.overflow = 'visible';
+    }
 
     // Keep canvas sized to container
     const ro = new ResizeObserver(() => {
