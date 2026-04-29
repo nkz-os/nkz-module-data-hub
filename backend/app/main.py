@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.entities import router as entities_router
+from app.api.integrations import router as integrations_router
 from app.api.timeseries import router as timeseries_router
 from app.api.workspaces import router as workspaces_router
 from app.common.logging_setup import (
@@ -179,6 +180,7 @@ app.add_middleware(
 )
 
 app.include_router(entities_router)
+app.include_router(integrations_router)
 app.include_router(timeseries_router)
 app.include_router(workspaces_router)
 

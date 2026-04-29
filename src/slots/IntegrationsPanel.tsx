@@ -46,7 +46,11 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
   const [newToken, setNewToken] = useState<string | null>(null);
 
   const apiRoot = getBaseUrl().replace(/\/$/, '');
-  const queryUrl = apiRoot ? `${apiRoot}/api/timeseries/v2/query` : '/api/timeseries/v2/query';
+  // For external tools (Power BI, Excel), always show the full API URL.
+  // When same-origin, use the base; otherwise use the env-configured API URL.
+  const queryUrl = apiRoot
+    ? `${apiRoot}/api/timeseries/v2/query`
+    : `${(window as any).__ENV__?.VITE_API_URL ?? 'https://nkz.robotika.cloud'}/api/timeseries/v2/query`;
   const firstSeries =
     panels.find((p) => p.series && p.series.length > 0)?.series ?? [];
   const exampleBody = buildExampleQueryBody(

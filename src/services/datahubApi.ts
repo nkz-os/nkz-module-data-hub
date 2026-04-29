@@ -298,10 +298,10 @@ export interface TenantPatMeta {
   created_by_sub?: string | null;
 }
 
-/** GET /api/tenant/api-keys — list PATs for current tenant (cookie auth). */
+/** GET /api/datahub/integrations/api-keys — list PATs for current tenant (cookie auth). */
 export async function listTenantPats(): Promise<TenantPatMeta[]> {
   const base = getBaseUrl().replace(/\/$/, '');
-  const path = '/api/tenant/api-keys';
+  const path = '/api/datahub/integrations/api-keys';
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, { headers: withTenantHeaders({ Accept: 'application/json' }), credentials: 'include' });
   if (!res.ok) throw new Error(`PAT list: ${res.status} ${await res.text()}`);
@@ -309,14 +309,14 @@ export async function listTenantPats(): Promise<TenantPatMeta[]> {
   return Array.isArray(data) ? data : [];
 }
 
-/** POST /api/tenant/api-keys — create PAT; returns raw token once. */
+/** POST /api/datahub/integrations/api-keys — create PAT; returns raw token once. */
 export async function createTenantPat(body: {
   name: string;
   description?: string;
   expires_at?: string;
 }): Promise<{ id: string; token: string; name: string; warning?: string }> {
   const base = getBaseUrl().replace(/\/$/, '');
-  const path = '/api/tenant/api-keys';
+  const path = '/api/datahub/integrations/api-keys';
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, {
     method: 'POST',
@@ -328,10 +328,10 @@ export async function createTenantPat(body: {
   return res.json();
 }
 
-/** DELETE /api/tenant/api-keys/:id — revoke PAT. */
+/** DELETE /api/datahub/integrations/api-keys/:id — revoke PAT. */
 export async function revokeTenantPat(id: string): Promise<void> {
   const base = getBaseUrl().replace(/\/$/, '');
-  const path = `/api/tenant/api-keys/${encodeURIComponent(id)}`;
+  const path = `/api/datahub/integrations/api-keys/${encodeURIComponent(id)}`;
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
   if (!res.ok) throw new Error(`PAT revoke: ${res.status} ${await res.text()}`);
