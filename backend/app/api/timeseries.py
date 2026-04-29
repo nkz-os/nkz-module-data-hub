@@ -221,9 +221,9 @@ async def _fetch_entity_data_raw(
         detail = r.text[:500]
         raise RuntimeError(f"Reader returned {r.status_code} for {entity_id}/{attribute}: {detail}")
     if r.status_code == 204:
-        return _json_response_to_arrow_ipc({"timestamps": [], "attributes": {}}, attribute)
+        return _df_to_arrow_ipc(_json_to_dataframe({"timestamps": [], "attributes": {}}, attribute))
     data = r.json()
-    return _json_response_to_arrow_ipc(data, attribute)
+    return _df_to_arrow_ipc(_json_to_dataframe(data, attribute))
 
 
 async def _fetch_from_timescale(
@@ -268,7 +268,7 @@ async def _fetch_from_timescale(
             detail = r.text[:500]
             raise RuntimeError(f"Reader /v2/query returned {r.status_code}: {detail}")
         data = r.json()
-        return _json_response_to_arrow_ipc(data)
+        return _df_to_arrow_ipc(_json_to_dataframe(data))
 
 
 async def _fetch_from_external_module(
@@ -486,10 +486,11 @@ async def proxy_timeseries_align(
     return JSONResponse(content=json_data)
 
 
-def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> bytes:
-    """Convert reader JSON response to Arrow IPC stream bytes.
+def _json_to_dataframe(data: dict, single_attr: str | None = None) -> pl.DataFrame:
+    """Convert reader JSON response to Polars DataFrame.
 
     Reader returns: {timestamps: [...], attributes: {attr_name: [vals...]}}
+    Returns DataFrame with 'timestamp' column + 'value' (single) or 'value_0'...'value_N' (multi).
     """
     ts_raw = data.get("timestamps") or []
     attrs: dict = data.get("attributes") or {}
@@ -507,24 +508,29 @@ def _json_response_to_arrow_ipc(data: dict, single_attr: str | None = None) -> b
         else:
             timestamps.append(0.0)
 
-    ts_arr = pa.array(timestamps, type=pa.float64())
-
     if single_attr:
-        # Resolve the attribute: reader may return the canonical DB name (e.g. temp_avg
-        # when we asked for 'temperature'). Try exact match first, then any attr.
         vals = attrs.get(single_attr)
         if vals is None and attrs:
             vals = next(iter(attrs.values()))
-        table = pa.table({"timestamp": ts_arr,
-                          "value": pa.array(vals if vals else [], type=pa.float64())})
+        return pl.DataFrame({
+            "timestamp": timestamps,
+            "value": vals if vals else [],
+        }, schema={"timestamp": pl.Float64, "value": pl.Float64})
     elif attrs:
-        cols: dict = {"timestamp": ts_arr}
+        cols: dict = {"timestamp": timestamps}
+        schema: dict = {"timestamp": pl.Float64}
         for i, (_attr_name, vals) in enumerate(attrs.items()):
-            cols[f"value_{i}"] = pa.array(vals if vals else [], type=pa.float64())
-        table = pa.table(cols)
+            name = f"value_{i}"
+            cols[name] = vals if vals else []
+            schema[name] = pl.Float64
+        return pl.DataFrame(cols, schema=schema)
     else:
-        table = pa.table({"timestamp": ts_arr})
+        return pl.DataFrame({"timestamp": timestamps}, schema={"timestamp": pl.Float64})
 
+
+def _df_to_arrow_ipc(df: pl.DataFrame) -> bytes:
+    """Serialize Polars DataFrame to Arrow IPC file bytes (readable by pl.read_ipc)."""
+    table = df.to_arrow()
     sink = io.BytesIO()
     with ipc.new_file(sink, table.schema) as writer:
         writer.write_table(table)
