@@ -178,6 +178,19 @@
     "header": "Cabecera",
     "bodyExample": "Ejemplo de cuerpo JSON (ajusta las series a tus entidades)"
   },
+  "templates": {
+    "title": "Plantillas",
+    "selectEntity": "Selecciona una entidad para los marcadores",
+    "apply": "Aplicar plantilla",
+    "parcelMonitor": "Monitor de parcela",
+    "parcelMonitorDesc": "NDVI, temperatura, humedad, precipitación y GDD acumulado",
+    "weatherStation": "Estación meteorológica",
+    "weatherStationDesc": "Temperatura, humedad, presión, viento y precipitación",
+    "cropHealth": "Salud del cultivo",
+    "cropHealthDesc": "Estrés hídrico e índices de vegetación",
+    "sensorLive": "Sensor en vivo",
+    "sensorLiveDesc": "Temperatura y humedad del suelo"
+  },
   "lab": {
     "tab": "Laboratorio",
     "loading": "Iniciando entorno Python (WebAssembly)...",

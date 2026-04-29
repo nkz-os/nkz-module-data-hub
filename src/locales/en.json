@@ -178,6 +178,19 @@
     "header": "Header",
     "bodyExample": "Example JSON body (adjust series to your entities)"
   },
+  "templates": {
+    "title": "Templates",
+    "selectEntity": "Select an entity to replace placeholders",
+    "apply": "Apply template",
+    "parcelMonitor": "Parcel monitor",
+    "parcelMonitorDesc": "NDVI, temperature, humidity, precipitation and GDD",
+    "weatherStation": "Weather station",
+    "weatherStationDesc": "Temperature, humidity, pressure, wind and precipitation",
+    "cropHealth": "Crop health",
+    "cropHealthDesc": "Water stress and vegetation indices",
+    "sensorLive": "Live sensor",
+    "sensorLiveDesc": "Soil temperature and moisture"
+  },
   "lab": {
     "tab": "Lab",
     "loading": "Starting Python environment (WebAssembly)...",
