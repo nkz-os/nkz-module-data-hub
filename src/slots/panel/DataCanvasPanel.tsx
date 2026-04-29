@@ -37,7 +37,7 @@ import {
   buildRollingAverageSeries,
   pearsonCorrelation,
 } from './derivedSeries';
-import { resolveThresholds } from './thresholds';
+import { resolveThresholds, computeThresholdAlerts } from './thresholds';
 import { PanelOverlays } from './PanelOverlays';
 import { copyChartToClipboard } from './exportImage';
 import type uPlot from 'uplot';
@@ -333,6 +333,13 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
     if (appearance.yScaleMode !== 'focus') return 0;
     return leftResult.outliersExcluded + rightResult.outliersExcluded;
   }, [appearance.yScaleMode, leftResult.outliersExcluded, rightResult.outliersExcluded]);
+
+  // ──────── Threshold alerts ────────
+  const thresholdAlerts = useMemo(() => {
+    const resolved = resolveThresholds(visibleSeriesDefs, baseVisibleScales, appearance.thresholds ?? []);
+    if (resolved.length === 0) return [];
+    return computeThresholdAlerts(baseVisibleWorkerSeries, baseVisibleScales, resolved);
+  }, [visibleSeriesDefs, baseVisibleWorkerSeries, baseVisibleScales, appearance.thresholds]);
 
   // Footer primary stats: first visible series.
   const primaryFooter = useMemo(
@@ -753,6 +760,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             pearsonR={pearsonResult?.r ?? null}
             pearsonN={pearsonResult?.n ?? null}
             outlierCount={outlierCount}
+            thresholdAlerts={thresholdAlerts}
             guardrailFired={guardrailFiredRef.current}
             telemetry={{
               plotted: aggregatePoints(visibleWorkerSeries).plotted,

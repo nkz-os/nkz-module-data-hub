@@ -10,6 +10,7 @@ import React from 'react';
 
 import type { PerSeriesStats, WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
 import type { FallbackStage } from './hooks/useWorkerSeries';
+import type { ThresholdAlert } from './thresholds';
 
 export interface FooterStats {
   min: number;
@@ -36,6 +37,8 @@ export interface PanelFooterProps {
   outlierCount?: number;
   /** A3 guardrail: true when Y range was auto-expanded to keep trace visible. */
   guardrailFired?: boolean;
+  /** Threshold alerts computed from visible series. */
+  thresholdAlerts?: ThresholdAlert[];
   /** Telemetry — points, viewport, scale mode, stage. */
   telemetry: {
     plotted: number;
@@ -67,6 +70,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   pearsonN,
   outlierCount,
   guardrailFired,
+  thresholdAlerts,
   telemetry,
   labels,
 }) => {
@@ -124,6 +128,19 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
           {outlierCount} outliers
         </span>
       )}
+
+      {/* Threshold alert badges */}
+      {thresholdAlerts && thresholdAlerts.length > 0 && thresholdAlerts.map((a, i) => (
+        <span
+          key={`alert-${i}`}
+          className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1"
+          style={{ background: `${a.threshold.color}15`, border: `1px solid ${a.threshold.color}40`, color: a.threshold.color }}
+        >
+          <span className="text-[10px]">⚠</span>
+          {a.threshold.label}
+          <span className="opacity-60">{a.crossedCount} pts</span>
+        </span>
+      ))}
 
       {/* A3 Guardrail indicator */}
       {guardrailFired && (

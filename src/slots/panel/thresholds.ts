@@ -65,3 +65,46 @@ export function resolveThresholds(
 
   return out;
 }
+
+// ──────── Threshold Alerts ────────
+
+export interface ThresholdAlert {
+  threshold: ThresholdLine;
+  crossedCount: number;
+  extremeValue: number;
+}
+
+export function computeThresholdAlerts(
+  series: Array<{ ys: Float64Array; xs: Float64Array }>,
+  effectiveScales: Array<'y' | 'y2'>,
+  thresholds: ThresholdLine[],
+): ThresholdAlert[] {
+  const alerts: ThresholdAlert[] = [];
+  for (const t of thresholds) {
+    let crossedCount = 0;
+    let extremeValue = t.value;
+    for (let i = 0; i < series.length; i++) {
+      const s = series[i];
+      const axis = effectiveScales[i] === 'y2' ? 'right' : 'left';
+      if (axis !== t.axis) continue;
+      for (let j = 0; j < s.ys.length; j++) {
+        const y = s.ys[j];
+        if (!Number.isFinite(y)) continue;
+        const crossed =
+          (t.value > 0 && y > t.value) ||
+          (t.value < 0 && y < t.value) ||
+          (t.value === 0 && y < 0);
+        if (crossed) {
+          crossedCount++;
+          if (Math.abs(y - t.value) > Math.abs(extremeValue - t.value)) {
+            extremeValue = y;
+          }
+        }
+      }
+    }
+    if (crossedCount > 0) {
+      alerts.push({ threshold: t, crossedCount, extremeValue });
+    }
+  }
+  return alerts;
+}
