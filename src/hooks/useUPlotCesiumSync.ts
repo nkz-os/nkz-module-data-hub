@@ -33,6 +33,13 @@ export const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
 export const DATAHUB_EVENT_SET_TIME_RANGE = 'nekazari:datahub:setTimeRange';
 export const DATAHUB_EVENT_RENDER_DEBUG = 'nekazari:datahub:renderDebug';
 
+/** Keyboard shortcut action targetting a specific panel. */
+export const DATAHUB_EVENT_KEYBOARD_ACTION = 'nekazari:datahub:keyboardAction';
+export interface DataHubKeyboardActionDetail {
+  panelId: string;
+  action: 'undoZoom' | 'resetZoom' | 'toggleSeriesRail' | 'toggleTrendline' | 'toggleRollingAvg' | 'openExport';
+}
+
 export interface DataHubRenderDebugDetail {
   key?: string;
   stage: 'init' | 'resize';

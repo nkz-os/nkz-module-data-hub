@@ -19,8 +19,9 @@ import { Download, Brain, Loader2, Save, FolderOpen, Trash2 } from 'lucide-react
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-import { DATAHUB_EVENT_TIME_SELECT } from '../hooks/useUPlotCesiumSync';
-import type { DataHubTimeRangeDetail } from '../hooks/useUPlotCesiumSync';
+import { DATAHUB_EVENT_KEYBOARD_ACTION, DATAHUB_EVENT_TIME_SELECT } from '../hooks/useUPlotCesiumSync';
+import type { DataHubKeyboardActionDetail, DataHubTimeRangeDetail } from '../hooks/useUPlotCesiumSync';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import type {
   ChartAppearance,
   ChartSeriesDef,
@@ -482,6 +483,59 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
     setPanels((p) => p.filter((x) => x.id !== panelId));
     setActivePanelId((current) => (current === panelId ? null : current));
   }, []);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    removeActivePanel: () => {
+      if (activePanelId) removePanel(activePanelId);
+    },
+    undoZoom: () => {
+      if (activePanelId) {
+        window.dispatchEvent(new CustomEvent<DataHubKeyboardActionDetail>(
+          DATAHUB_EVENT_KEYBOARD_ACTION,
+          { detail: { panelId: activePanelId, action: 'undoZoom' } }
+        ));
+      }
+    },
+    resetZoom: () => {
+      if (activePanelId) {
+        window.dispatchEvent(new CustomEvent<DataHubKeyboardActionDetail>(
+          DATAHUB_EVENT_KEYBOARD_ACTION,
+          { detail: { panelId: activePanelId, action: 'resetZoom' } }
+        ));
+      }
+    },
+    openExport: () => {
+      const currentPanels = panelsRef.current;
+      const active = currentPanels.find((p) => p.id === activePanelId);
+      if (active && active.series.length > 0) setExportModalPanel(active);
+    },
+    toggleSeriesRail: () => {
+      if (activePanelId) {
+        window.dispatchEvent(new CustomEvent<DataHubKeyboardActionDetail>(
+          DATAHUB_EVENT_KEYBOARD_ACTION,
+          { detail: { panelId: activePanelId, action: 'toggleSeriesRail' } }
+        ));
+      }
+    },
+    toggleTrendline: () => {
+      if (activePanelId) {
+        window.dispatchEvent(new CustomEvent<DataHubKeyboardActionDetail>(
+          DATAHUB_EVENT_KEYBOARD_ACTION,
+          { detail: { panelId: activePanelId, action: 'toggleTrendline' } }
+        ));
+      }
+    },
+    toggleRollingAvg: () => {
+      if (activePanelId) {
+        window.dispatchEvent(new CustomEvent<DataHubKeyboardActionDetail>(
+          DATAHUB_EVENT_KEYBOARD_ACTION,
+          { detail: { panelId: activePanelId, action: 'toggleRollingAvg' } }
+        ));
+      }
+    },
+    setTimeRange: applyPreset,
+  });
 
   useImperativeHandle(
     ref,

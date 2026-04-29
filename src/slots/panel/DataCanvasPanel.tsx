@@ -43,7 +43,8 @@ import type uPlot from 'uplot';
 import { useWorkerSeries } from './hooks/useWorkerSeries';
 import { useViewportHistory, type Viewport } from './hooks/useViewportHistory';
 import { usePanelTimeSync } from './hooks/usePanelTimeSync';
-import { DATAHUB_EVENT_TIME_HOVER } from '../../hooks/useUPlotCesiumSync';
+import { DATAHUB_EVENT_KEYBOARD_ACTION, DATAHUB_EVENT_TIME_HOVER } from '../../hooks/useUPlotCesiumSync';
+import type { DataHubKeyboardActionDetail } from '../../hooks/useUPlotCesiumSync';
 import {
   colorForIndex,
   computeYRange,
@@ -500,6 +501,29 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       })
     );
   }, [cursor.visible, cursor.xEpoch]);
+
+  // Keyboard shortcuts — listen for actions targeting this panel
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as DataHubKeyboardActionDetail | undefined;
+      if (!detail || detail.panelId !== panelId) return;
+      switch (detail.action) {
+        case 'undoZoom': handleZoomUndo(); break;
+        case 'resetZoom': handleZoomReset(); break;
+        case 'toggleSeriesRail': setRailOpen((v) => !v); break;
+        case 'toggleTrendline':
+          patchAppearance({ showTrendline: !appearance.showTrendline });
+          break;
+        case 'toggleRollingAvg':
+          patchAppearance({
+            rollingAverage: (appearance.rollingAverage ?? 'off') === 'off' ? '24h' : 'off',
+          });
+          break;
+      }
+    };
+    window.addEventListener(DATAHUB_EVENT_KEYBOARD_ACTION, handler);
+    return () => window.removeEventListener(DATAHUB_EVENT_KEYBOARD_ACTION, handler);
+  }, [panelId, handleZoomUndo, handleZoomReset, patchAppearance, appearance.showTrendline, appearance.rollingAverage]);
 
   // NOTE: do NOT auto-emit DATAHUB_EVENT_TIME_SELECT on every visibleX change.
   // DataHubDashboard listens to that event to update its global timeContext,
