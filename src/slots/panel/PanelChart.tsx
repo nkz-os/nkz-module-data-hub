@@ -40,6 +40,20 @@ function formatNumberShort(v: number): string {
   return v.toFixed(3);
 }
 
+function buildSplitsFor(range: [number, number] | null, step: number): ((u: uPlot, axisIdx: number) => number[]) {
+  return (u, axisIdx) => {
+    const sc = u.axes[axisIdx]?.scale ?? 'y';
+    const scale = u.scales[sc];
+    const lo = scale.min ?? range?.[0];
+    const hi = scale.max ?? range?.[1];
+    if (lo == null || hi == null || !Number.isFinite(lo) || !Number.isFinite(hi)) return [];
+    const out: number[] = [];
+    const start = Math.ceil(lo / step) * step;
+    for (let v = start; v <= hi + 1e-9; v += step) out.push(Number(v.toFixed(10)));
+    return out;
+  };
+}
+
 function buildAlignedData(ws: WorkerSeriesPayload[]): uPlot.AlignedData | null {
   if (ws.length === 0) return null;
   if (ws.length === 1) {
@@ -105,6 +119,9 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     return [xMin, xMax];
   }, [data]);
 
+  const leftStep = appearance.yScaleMode === 'manual' ? appearance.yScaleManual?.left?.step : undefined;
+  const rightStep = appearance.yScaleMode === 'manual' ? appearance.yScaleManual?.right?.step : undefined;
+
   // Create uPlot manually — one shot, no hook
   useEffect(() => {
     const c = containerRef.current;
@@ -151,12 +168,14 @@ export const PanelChart: React.FC<PanelChartProps> = ({
           ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
           font: '12px ui-sans-serif, system-ui', gap: 8,
           values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
+          ...(leftStep && leftStep > 0 ? { incrs: [leftStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(leftRange, leftStep) } : {}),
         },
         ...(hasRightAxis ? [{
           scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
           ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
           font: '12px ui-sans-serif, system-ui', gap: 8,
           values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
+          ...(rightStep && rightStep > 0 ? { incrs: [rightStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(rightRange, rightStep) } : {}),
         } as uPlot.Axis] : []),
       ],
       padding: [28, 4, 4, 4] as [number, number, number, number],
@@ -187,10 +206,6 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     onLifecycleTick?.();
     (window as unknown as { __nkz_chart?: unknown }).__nkz_chart = plot;
 
-    // .u-under breaks layout — kill it permanently
-    const under = c.querySelector('.u-under') as HTMLElement | null;
-    if (under) under.remove();
-
     // Keep canvas sized to container
     const ro = new ResizeObserver(() => {
       const inst = plotRef.current;
@@ -203,13 +218,6 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     });
     ro.observe(c);
 
-    console.log('[nkz datahub] uPlot ready V5', {
-      containerWH: { w, h },
-      propsLR: leftRange,
-      bbox: plot.bbox,
-      canvasWH: { cw: plot.width, ch: plot.height },
-    });
-
     return () => {
       ro.disconnect();
       plot.destroy();
@@ -218,7 +226,7 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     };
     // Rebuild when data, series shape, or appearance changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, series.length, appearance.mode, appearance.yScaleMode, effectiveScales.join(','), hasRightAxis]);
+  }, [data, series.length, appearance.mode, appearance.yScaleMode, effectiveScales.join(','), hasRightAxis, leftStep, rightStep]);
 
   // Imperative scale updates
   useEffect(() => {

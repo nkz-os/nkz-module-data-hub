@@ -59,8 +59,11 @@ export interface ChartAppearance {
   correlationYSeries: number;
   /** Y-scale strategy (Phase 5). */
   yScaleMode: YScaleMode;
-  /** Manual Y range when yScaleMode === 'manual'. Per-axis. */
-  yScaleManual?: { left?: { min: number; max: number }; right?: { min: number; max: number } };
+  /** Manual Y range when yScaleMode === 'manual'. Per-axis. `step` is optional tick spacing. */
+  yScaleManual?: {
+    left?: { min: number; max: number; step?: number };
+    right?: { min: number; max: number; step?: number };
+  };
   /** Per-series UI overrides keyed by `${entityId}|${attribute}|${source}`. */
   seriesConfig?: Record<string, SeriesConfig>;
   /** User-defined threshold lines (overlays platform defaults from attribute → threshold dictionary). */

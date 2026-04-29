@@ -46,6 +46,8 @@ export interface PanelToolbarProps {
   canResetZoom: boolean;
   onZoomUndo: () => void;
   onZoomReset: () => void;
+  /** Labels for the currently visible series — used by correlation X/Y selectors. */
+  seriesLabels?: string[];
   /** Localized labels. */
   labels: {
     style: string;
@@ -98,6 +100,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   canResetZoom,
   onZoomUndo,
   onZoomReset,
+  seriesLabels,
   labels,
 }) => {
   const [manualOpen, setManualOpen] = useState(false);
@@ -180,6 +183,39 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           {labels.viewCorrelation}
         </button>
       </div>
+
+      {appearance.viewMode === 'correlation' && seriesLabels && seriesLabels.length >= 2 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-500 text-[10px]">X</span>
+          <select
+            value={appearance.correlationXSeries}
+            onChange={(e) =>
+              onAppearanceChange({ correlationXSeries: Number.parseInt(e.target.value, 10) })
+            }
+            className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
+          >
+            {seriesLabels.map((lbl, i) => (
+              <option key={`x-${i}`} value={i}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+          <span className="text-slate-500 text-[10px]">Y</span>
+          <select
+            value={appearance.correlationYSeries}
+            onChange={(e) =>
+              onAppearanceChange({ correlationYSeries: Number.parseInt(e.target.value, 10) })
+            }
+            className="rounded border border-slate-700 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
+          >
+            {seriesLabels.map((lbl, i) => (
+              <option key={`y-${i}`} value={i}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="w-px h-4 bg-slate-700/70 mx-0.5" />
 
@@ -339,9 +375,10 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
         accent="emerald"
         min={left?.min}
         max={left?.max}
-        onApply={(min, max) =>
+        step={left?.step}
+        onApply={(min, max, step) =>
           onAppearanceChange({
-            yScaleManual: { ...(appearance.yScaleManual ?? {}), left: { min, max } },
+            yScaleManual: { ...(appearance.yScaleManual ?? {}), left: { min, max, step } },
           })
         }
         labels={labels}
@@ -352,9 +389,10 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
           accent="purple"
           min={right?.min}
           max={right?.max}
-          onApply={(min, max) =>
+          step={right?.step}
+          onApply={(min, max, step) =>
             onAppearanceChange({
-              yScaleManual: { ...(appearance.yScaleManual ?? {}), right: { min, max } },
+              yScaleManual: { ...(appearance.yScaleManual ?? {}), right: { min, max, step } },
             })
           }
           labels={labels}
@@ -388,26 +426,31 @@ interface ManualAxisRowProps {
   accent: 'emerald' | 'purple';
   min: number | undefined;
   max: number | undefined;
-  onApply: (min: number, max: number) => void;
+  step: number | undefined;
+  onApply: (min: number, max: number, step?: number) => void;
   labels: PanelToolbarProps['labels'];
 }
 
-const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, onApply, labels }) => {
+const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, step, onApply, labels }) => {
   const [draftMin, setDraftMin] = useState<string>(min != null ? String(min) : '');
   const [draftMax, setDraftMax] = useState<string>(max != null ? String(max) : '');
+  const [draftStep, setDraftStep] = useState<string>(step != null ? String(step) : '');
 
   // Reset drafts when external value changes (mode switch, reset).
   React.useEffect(() => {
     setDraftMin(min != null ? String(min) : '');
     setDraftMax(max != null ? String(max) : '');
-  }, [min, max]);
+    setDraftStep(step != null ? String(step) : '');
+  }, [min, max, step]);
 
   const apply = () => {
     const a = Number.parseFloat(draftMin);
     const b = Number.parseFloat(draftMax);
     if (!Number.isFinite(a) || !Number.isFinite(b)) return;
     if (b <= a) return;
-    onApply(a, b);
+    const s = Number.parseFloat(draftStep);
+    const stepVal = Number.isFinite(s) && s > 0 ? s : undefined;
+    onApply(a, b, stepVal);
   };
 
   const dotClass = accent === 'emerald' ? 'bg-emerald-400' : 'bg-purple-400';
@@ -423,7 +466,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMin}
-        className="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
       />
       <span className="text-slate-600">→</span>
       <input
@@ -433,7 +476,17 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMax}
-        className="w-20 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+      />
+      <span className="text-slate-500 text-[10px]">step</span>
+      <input
+        type="number"
+        value={draftStep}
+        onChange={(e) => setDraftStep(e.target.value)}
+        onBlur={apply}
+        onKeyDown={(e) => e.key === 'Enter' && apply()}
+        placeholder="auto"
+        className="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
       />
     </div>
   );

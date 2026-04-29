@@ -59,7 +59,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   labels,
 }) => {
   return (
-    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-gradient-to-t from-slate-950/85 to-transparent pointer-events-none">
+    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-slate-950/90 border-t border-slate-800/60 pointer-events-none">
       {/* Legend */}
       {workerSeries.length > 0 && (
         <div className="flex items-center gap-3 truncate min-w-0">

@@ -23,6 +23,7 @@ import { mergeChartAppearance } from '../../utils/chartAppearance';
 import { PanelToolbar } from './PanelToolbar';
 import { PanelSeriesRail } from './PanelSeriesRail';
 import { PanelChart } from './PanelChart';
+import { CorrelationChart } from './CorrelationChart';
 import { PanelEmptyState } from './PanelEmptyState';
 import { PanelErrorState } from './PanelErrorState';
 import { PanelTooltip, type TooltipRow } from './PanelTooltip';
@@ -514,7 +515,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   return (
     <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-slate-700/30" onContextMenu={handleContextMenu}>
       {/* ===== Chart layer — first in DOM ===== */}
-      {status === 'ready' && visibleWorkerSeries.length > 0 && (
+      {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelChart
           series={visibleSeriesDefsAugmented}
           workerSeries={visibleWorkerSeries}
@@ -533,7 +534,24 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           onLifecycleTick={bumpLifecycle}
         />
       )}
-      {status === 'ready' && visibleWorkerSeries.length > 0 && (
+      {status === 'ready' && appearance.viewMode === 'correlation' && baseVisibleWorkerSeries.length >= 2 && (() => {
+        const xIdx = Math.min(Math.max(0, appearance.correlationXSeries), baseVisibleWorkerSeries.length - 1);
+        const yIdx = Math.min(Math.max(0, appearance.correlationYSeries), baseVisibleWorkerSeries.length - 1);
+        const xS = baseVisibleWorkerSeries[xIdx];
+        const yS = baseVisibleWorkerSeries[yIdx];
+        return (
+          <CorrelationChart
+            xSeries={xS}
+            ySeries={yS}
+            xLabel={xS?.attribute ?? ''}
+            yLabel={yS?.attribute ?? ''}
+            xUnit={xS ? unitFor(xS.attribute) : ''}
+            yUnit={yS ? unitFor(yS.attribute) : ''}
+            pointColor={baseVisibleColors[yIdx] ?? '#34d399'}
+          />
+        );
+      })()}
+      {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelOverlays
           plotRef={plotInstanceRef}
           resizeNonce={lifecycleTick}
@@ -607,6 +625,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 canResetZoom={viewportHistory.hasHistory}
                 onZoomUndo={handleZoomUndo}
                 onZoomReset={handleZoomReset}
+                seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
                 labels={{
                   style: t('canvasPanel.chartStyle'), line: t('canvasPanel.lineWidth'),
                   points: t('canvasPanel.pointSize'), modeLine: t('canvasPanel.modeLine'),

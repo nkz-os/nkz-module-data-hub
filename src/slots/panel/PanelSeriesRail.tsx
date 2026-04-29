@@ -100,14 +100,14 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
 }) => {
   if (series.length === 0) {
     return (
-      <div className="w-44 shrink-0 border-r border-slate-800/80 bg-slate-950/30 px-3 py-2 text-[11px] text-slate-500">
+      <div className="w-44 shrink-0 border-r border-slate-800/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-500">
         {labels.emptyHint}
       </div>
     );
   }
 
   return (
-    <div className="w-44 shrink-0 border-r border-slate-800/80 bg-slate-950/40 overflow-y-auto">
+    <div className="w-44 shrink-0 border-r border-slate-800/80 bg-slate-950/95 backdrop-blur-sm overflow-y-auto">
       <ul className="flex flex-col">
         {series.map((s, i) => {
           const key = seriesKey(s);

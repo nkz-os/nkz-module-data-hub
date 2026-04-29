@@ -121,6 +121,12 @@ export function distributeAxes(
       rightUnits.add(unit);
       return;
     }
+    if (def.yAxis === 'left') {
+      result.push('y');
+      leftMags.push(mag);
+      leftUnits.add(unit);
+      return;
+    }
     if (i === 0) {
       result.push('y');
       leftMags.push(mag);
