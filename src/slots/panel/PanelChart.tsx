@@ -174,18 +174,18 @@ export const PanelChart: React.FC<PanelChartProps> = ({
         } as uPlot.Series)),
       ],
       axes: [
-        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '12px ui-sans-serif, system-ui', gap: 8 },
+        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '13px ui-sans-serif, system-ui', gap: 8 },
         {
           scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
           ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
-          font: '12px ui-sans-serif, system-ui', gap: 8,
+          font: '13px ui-sans-serif, system-ui', gap: 8,
           values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
           ...(leftStep && leftStep > 0 ? { incrs: [leftStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(leftRange, leftStep) } : {}),
         },
         ...(hasRightAxis ? [{
           scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
           ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
-          font: '12px ui-sans-serif, system-ui', gap: 8,
+          font: '13px ui-sans-serif, system-ui', gap: 8,
           values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
           ...(rightStep && rightStep > 0 ? { incrs: [rightStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(rightRange, rightStep) } : {}),
         } as uPlot.Axis] : []),

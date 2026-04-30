@@ -52,7 +52,7 @@ export const PanelTooltip: React.FC<PanelTooltipProps> = ({
 
   return (
     <div
-      className="absolute z-30 pointer-events-none px-2.5 py-2 rounded-lg bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md min-w-[160px] max-w-[280px]"
+      className="absolute z-30 pointer-events-none px-2.5 py-2 rounded-lg bg-slate-900 border border-slate-600 shadow-2xl min-w-[160px] max-w-[280px]"
       style={{
         left: left + offsetX,
         top: Math.max(8, top - 8),
