@@ -7,6 +7,6 @@
     "federated_extensions": []
   },
   "PyodideAddon": {
-    "pyodide_url": "/jupyterlite/pyodide/v0.26.4/full/pyodide.js"
+    "pyodide_url": "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"
   }
 }
