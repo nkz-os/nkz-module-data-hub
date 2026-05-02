@@ -28,6 +28,8 @@ ENTITY_TYPES_WITH_DATA = [
     "LivestockAnimal",
     "AgriculturalMachine",
     "Device",
+    "CropHealthAssessment",
+    "VegetationIndex",
 ]
 
 
@@ -74,6 +76,10 @@ _TELEMETRY_VALID_ATTRS = frozenset({
     "rainGauge", "illuminance", "depth", "conductance", "batteryLevel",
     "humidity", "temperature",
     "panelInclination",
+    # Crop Health Assessment attributes (via telemetry_events)
+    "cwsiValue", "mdsValue", "mdsRatio", "vpdKpa",
+    "waterBalanceDeficit", "vigorIndex", "compositeStressIndex",
+    "yieldUtilizationPct",
 })
 _TELEMETRY_UI_ALIASES = {
     "sensorsinsolation": "solarRadiation",
