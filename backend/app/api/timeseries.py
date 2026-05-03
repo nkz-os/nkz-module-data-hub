@@ -25,7 +25,83 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/datahub", tags=["datahub"])
 
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
+ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager-service:5000")
 ARROW_STREAM_TYPE = "application/vnd.apache.arrow.stream"
+
+# Weather columns resolvable via the parcel weather API (spatially downscaled)
+_WEATHER_COLUMNS = frozenset({
+    "temp_avg", "temp_min", "temp_max", "humidity_avg", "precip_mm",
+    "solar_rad_w_m2", "solar_rad_ghi_w_m2", "solar_rad_dni_w_m2",
+    "eto_mm", "soil_moisture_0_10cm", "soil_moisture_10_40cm",
+    "wind_speed_ms", "wind_direction_deg", "pressure_hpa",
+    "gdd_accumulated", "delta_t",
+})
+
+
+def _is_parcel_weather_query(entity_id: str, attrs: str) -> bool:
+    """True if this query should use the parcel weather API for corrected data."""
+    if not entity_id or not attrs:
+        return False
+    # Only for AgriParcel entities (WeatherObserved passes through timeseries-reader)
+    if "AgriParcel" not in entity_id:
+        return False
+    # Check that all requested attributes are weather columns
+    requested = {a.strip() for a in attrs.split(",")}
+    return bool(requested and requested.issubset(_WEATHER_COLUMNS))
+
+
+async def _fetch_from_parcel_weather_api(
+    entity_id: str,
+    attrs: str,
+    time_from: Optional[str],
+    time_to: Optional[str],
+    headers: dict,
+) -> dict:
+    """
+    Fetch weather data from the platform's canonical parcel endpoint.
+    Returns DataHub-compatible JSON format with corrected observations.
+    """
+    params = {
+        "source": "OPEN-METEO",
+        "data_type": "HISTORY",
+        "limit": 72,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.get(
+            f"{ENTITY_MANAGER_URL}/api/weather/parcel/{quote(entity_id, safe='')}",
+            params=params,
+            headers=headers,
+        )
+        if r.status_code >= 400:
+            logger.warning(
+                "parcel_weather_api_error",
+                extra={"entity_id": entity_id, "status": r.status_code},
+            )
+            return {"timestamps": [], "values": []}
+
+        data = r.json()
+        observations = data.get("observations", [])
+        if not observations:
+            return {"timestamps": [], "values": []}
+
+        requested_attrs = [a.strip() for a in attrs.split(",")]
+        timestamps = []
+        values = {attr: [] for attr in requested_attrs}
+
+        for obs in observations:
+            ts = obs.get("observed_at", "")
+            if ts:
+                timestamps.append(ts)
+                for attr in requested_attrs:
+                    val = obs.get(attr)
+                    values[attr].append(val if val is not None else None)
+
+        return {
+            "timestamps": timestamps,
+            "values": values,
+            "_source": "parcel_weather_api",
+            "_downscaling": data.get("downscaling", "unknown"),
+        }
 
 
 def _auth_headers(authorization: Optional[str], x_tenant_id: Optional[str]) -> dict:
@@ -641,8 +717,6 @@ async def proxy_timeseries_data(
         )
 
     headers = _auth_headers(authorization, x_tenant_id)
-    path = quote(str(entity_id).strip(), safe="")
-    url = f"{PLATFORM_API_URL}/api/timeseries/v2/entities/{path}/data"
     qp = dict(request.query_params)
     if "start_time" in qp and "time_from" not in qp:
         qp["time_from"] = qp["start_time"]
@@ -652,6 +726,27 @@ async def proxy_timeseries_data(
         qp["attrs"] = qp["attribute"]
     for redundant in ("start_time", "end_time", "attribute", "format"):
         qp.pop(redundant, None)
+
+    attrs_param = qp.get("attrs", "")
+    time_from = qp.get("time_from")
+    time_to = qp.get("time_to")
+
+    # Route parcel weather queries to the corrected parcel API
+    if _is_parcel_weather_query(entity_id, attrs_param):
+        try:
+            result = await _fetch_from_parcel_weather_api(
+                entity_id, attrs_param, time_from, time_to, headers
+            )
+            return JSONResponse(content=result)
+        except Exception as exc:
+            logger.warning(
+                "parcel_weather_routing_fallback",
+                extra={"entity_id": entity_id, "error": str(exc)},
+            )
+            # Fall through to generic timeseries-reader
+
+    path = quote(str(entity_id).strip(), safe="")
+    url = f"{PLATFORM_API_URL}/api/timeseries/v2/entities/{path}/data"
 
     # Request JSON from reader (api-gateway strips Accept header, so Arrow negotiation fails).
     req_headers = {**headers, "Accept": "application/json"}
