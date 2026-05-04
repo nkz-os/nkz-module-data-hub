@@ -11,6 +11,8 @@
  */
 
 import React, { useState } from 'react';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Select, Slider } from '@nekazari/ui-kit';
 import {
   Settings2,
   Sliders,
@@ -25,6 +27,8 @@ import {
   GitCompare,
   Image,
 } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 import type {
   ChartAppearance,
@@ -116,272 +120,206 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   const [manualOpen, setManualOpen] = useState(false);
 
   return (
-    <div className="h-8 flex items-center gap-1.5 px-2 text-[10px] text-slate-300 relative">
-      <button
-        type="button"
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <div className="h-8 flex items-center gap-1.5 px-2 text-[10px] text-foreground relative">
+      <Button
+        variant={seriesRailOpen ? 'primary' : 'ghost'}
+        size="xs"
         onClick={onToggleSeriesRail}
-        className={[
-          'p-1 rounded-md transition-colors',
-          seriesRailOpen
-            ? 'bg-white/10 text-slate-100'
-            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
-        ].join(' ')}
         aria-pressed={seriesRailOpen}
         title={labels.seriesRail}
       >
         <Settings2 size={12} />
-      </button>
+      </Button>
 
-      <div className="w-px h-3 bg-white/10 mx-0.5" />
+      <div className="w-px h-3 bg-border mx-0.5" />
 
       {/* Zoom controls (D1) */}
-      <button
-        type="button"
-        onClick={onZoomUndo}
-        disabled={!canUndoZoom}
-        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-        title={labels.zoomUndo}
-      >
-        <Undo2 size={13} aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={onZoomReset}
-        disabled={!canResetZoom}
-        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-        title={labels.zoomReset}
-      >
-        <ZoomOut size={13} aria-hidden />
-      </button>
+      <Button variant="ghost" size="xs" onClick={onZoomUndo} disabled={!canUndoZoom} title={labels.zoomUndo}>
+        <Undo2 size={13} />
+      </Button>
+      <Button variant="ghost" size="xs" onClick={onZoomReset} disabled={!canResetZoom} title={labels.zoomReset}>
+        <ZoomOut size={13} />
+      </Button>
 
       {onExportImage && (
-        <button
-          type="button"
-          onClick={onExportImage}
-          className="p-1 rounded-md text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 transition-colors"
-          title="Copy chart as PNG"
-        >
-          <Image size={13} aria-hidden />
-        </button>
+        <Button variant="ghost" size="xs" onClick={onExportImage} title="Copy chart as PNG">
+          <Image size={13} />
+        </Button>
       )}
 
       {onToggleLive && (
-        <button
-          type="button"
+        <Button
+          variant={liveMode ? 'primary' : 'ghost'}
+          size="xs"
           onClick={onToggleLive}
-          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${
-            liveMode
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
-          }`}
           title="Live IoT refresh"
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${liveMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+          <span className={`h-1.5 w-1.5 rounded-full mr-1 ${liveMode ? 'bg-accent animate-pulse' : 'bg-muted'}`} />
           LIVE
-        </button>
+        </Button>
       )}
 
-      <div className="w-px h-3 bg-white/10 mx-0.5" />
+      <div className="w-px h-3 bg-border mx-0.5" />
 
       {/* View mode (timeseries / correlation) — only shown when 2+ series */}
       <div
-        className="inline-flex items-center rounded-md border border-white/10 overflow-hidden"
+        className="inline-flex items-center rounded-md border border-border/50 overflow-hidden"
         role="group"
         aria-label={labels.viewMode}
       >
-        <button
-          type="button"
+        <Button
+          variant={appearance.viewMode === 'timeseries' ? 'primary' : 'ghost'}
+          size="xs"
+          className="rounded-none border-r border-border/50"
           onClick={() => onAppearanceChange({ viewMode: 'timeseries' as ChartViewMode })}
-          className={[
-            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-white/10',
-            appearance.viewMode === 'timeseries'
-              ? 'bg-emerald-500/20 text-emerald-200'
-              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
-          ].join(' ')}
           title={labels.viewTimeseries}
           aria-pressed={appearance.viewMode === 'timeseries'}
         >
-          <LineChart size={11} aria-hidden />
+          <LineChart size={11} />
           {labels.viewTimeseries}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant={appearance.viewMode === 'correlation' ? 'primary' : 'ghost'}
+          size="xs"
+          className="rounded-none"
           onClick={() => onAppearanceChange({ viewMode: 'correlation' as ChartViewMode })}
-          className={[
-            'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors',
-            appearance.viewMode === 'correlation'
-              ? 'bg-purple-500/20 text-purple-200'
-              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
-          ].join(' ')}
           title={labels.viewCorrelation}
           aria-pressed={appearance.viewMode === 'correlation'}
         >
-          <GitCompare size={11} aria-hidden />
+          <GitCompare size={11} />
           {labels.viewCorrelation}
-        </button>
+        </Button>
       </div>
 
       {appearance.viewMode === 'correlation' && seriesLabels && seriesLabels.length >= 2 && (
         <div className="flex items-center gap-1.5">
-          <span className="text-slate-500 text-[10px]">X</span>
-          <select
+          <span className="text-muted-foreground text-[10px]">X</span>
+          <Select
             value={appearance.correlationXSeries}
-            onChange={(e) =>
-              onAppearanceChange({ correlationXSeries: Number.parseInt(e.target.value, 10) })
-            }
-            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
-          >
-            {seriesLabels.map((lbl, i) => (
-              <option key={`x-${i}`} value={i}>
-                {lbl}
-              </option>
-            ))}
-          </select>
-          <span className="text-slate-500 text-[10px]">Y</span>
-          <select
+            onChange={(v) => onAppearanceChange({ correlationXSeries: Number(v) })}
+            options={seriesLabels.map((lbl, i) => ({ value: String(i), label: lbl }))}
+            className="max-w-[120px] text-[10px]"
+          />
+          <span className="text-muted-foreground text-[10px]">Y</span>
+          <Select
             value={appearance.correlationYSeries}
-            onChange={(e) =>
-              onAppearanceChange({ correlationYSeries: Number.parseInt(e.target.value, 10) })
-            }
-            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px] max-w-[120px]"
-          >
-            {seriesLabels.map((lbl, i) => (
-              <option key={`y-${i}`} value={i}>
-                {lbl}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onAppearanceChange({ correlationYSeries: Number(v) })}
+            options={seriesLabels.map((lbl, i) => ({ value: String(i), label: lbl }))}
+            className="max-w-[120px] text-[10px]"
+          />
         </div>
       )}
 
-      <div className="w-px h-3 bg-white/10 mx-0.5" />
+      <div className="w-px h-3 bg-border mx-0.5" />
 
       {/* Trendline toggle */}
-      <button
-        type="button"
+      <Button
+        variant={appearance.showTrendline ? 'primary' : 'ghost'}
+        size="xs"
         onClick={() => onAppearanceChange({ showTrendline: !appearance.showTrendline })}
-        className={[
-          'flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded border transition-colors',
-          appearance.showTrendline
-            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
-            : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
-        ].join(' ')}
         aria-pressed={appearance.showTrendline}
         title={labels.trendline}
       >
-        <TrendingUp size={11} aria-hidden />
+        <TrendingUp size={11} />
         {labels.trendline}
-      </button>
+      </Button>
 
       {/* Rolling average dropdown */}
       <label className="flex items-center gap-1.5">
-        <Waves size={11} className="text-slate-500" aria-hidden />
-        <span className="text-slate-500">{labels.rollingAvg}</span>
-        <select
+        <Waves size={11} className="text-muted-foreground" />
+        <span className="text-muted-foreground">{labels.rollingAvg}</span>
+        <Select
           value={appearance.rollingAverage ?? 'off'}
-          onChange={(e) => onAppearanceChange({ rollingAverage: e.target.value as RollingAvgWindow })}
-          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5 text-[10px]"
-        >
-          <option value="off">{labels.rollingOff}</option>
-          <option value="1h">1h</option>
-          <option value="24h">24h</option>
-          <option value="7d">7d</option>
-        </select>
+          onChange={(v) => onAppearanceChange({ rollingAverage: v as RollingAvgWindow })}
+          options={[
+            { value: 'off', label: labels.rollingOff },
+            { value: '1h', label: '1h' },
+            { value: '24h', label: '24h' },
+            { value: '7d', label: '7d' },
+          ]}
+          className="text-[10px]"
+        />
       </label>
 
-      <div className="w-px h-3 bg-white/10 mx-0.5" />
+      <div className="w-px h-3 bg-border mx-0.5" />
 
       {/* Y scale mode segmented */}
       <div
-        className="inline-flex items-center rounded-md border border-white/10 overflow-hidden"
+        className="inline-flex items-center rounded-md border border-border/50 overflow-hidden"
         role="group"
         aria-label={labels.yScale}
       >
         {Y_MODE_DEFS.map(({ value, labelKey, Icon, hint }) => {
           const active = appearance.yScaleMode === value;
           return (
-            <button
+            <Button
               key={value}
-              type="button"
+              variant={active ? 'primary' : 'ghost'}
+              size="xs"
+              className="rounded-none border-r border-border/50 last:border-r-0"
               onClick={() => {
                 onAppearanceChange({ yScaleMode: value });
                 if (value === 'manual') setManualOpen(true);
                 else setManualOpen(false);
               }}
-              className={[
-                'flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-colors border-r border-white/10 last:border-r-0',
-                active
-                  ? 'bg-emerald-500/20 text-emerald-200'
-                  : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100',
-              ].join(' ')}
               title={hint}
               aria-pressed={active}
             >
-              <Icon size={11} aria-hidden />
+              <Icon size={11} />
               {labels[labelKey]}
-            </button>
+            </Button>
           );
         })}
       </div>
 
       {appearance.yScaleMode === 'focus' && (
-        <button
-          type="button"
-          onClick={() => onAppearanceChange({ yScaleMode: 'auto' })}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-700/30 bg-amber-900/20 hover:bg-amber-900/40 text-[10px] text-amber-300 transition-colors"
-          title={labels.showOutliers}
-        >
+        <Button variant="outline" size="xs" onClick={() => onAppearanceChange({ yScaleMode: 'auto' })} title={labels.showOutliers}>
           {labels.showOutliers}
-        </button>
+        </Button>
       )}
 
       {appearance.yScaleMode === 'manual' && (
-        <button
-          type="button"
-          onClick={() => setManualOpen((v) => !v)}
-          className="px-1.5 py-0.5 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-300"
-        >
+        <Button variant="outline" size="xs" onClick={() => setManualOpen((v) => !v)}>
           {manualOpen ? '−' : '+'} {labels.yManual}
-        </button>
+        </Button>
       )}
 
-      <div className="w-px h-3 bg-white/10 mx-0.5" />
+      <div className="w-px h-3 bg-border mx-0.5" />
 
       <label className="flex items-center gap-1.5">
-        <span className="text-slate-500">{labels.style}</span>
-        <select
+        <span className="text-muted-foreground">{labels.style}</span>
+        <Select
           value={appearance.mode === 'bars' ? 'line' : appearance.mode}
-          onChange={(e) => onAppearanceChange({ mode: e.target.value as ChartRenderMode })}
-          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-1.5 py-0.5"
-        >
-          <option value="line">{labels.modeLine}</option>
-          <option value="points">{labels.modePoints}</option>
-        </select>
-      </label>
-
-      <label className="flex items-center gap-1.5">
-        <span className="text-slate-500">{labels.line}</span>
-        <input
-          type="range"
-          min={1}
-          max={4}
-          step={1}
-          value={appearance.lineWidth}
-          onChange={(e) => onAppearanceChange({ lineWidth: Number(e.target.value) })}
-          className="w-12 accent-emerald-500"
+          onChange={(v) => onAppearanceChange({ mode: v as ChartRenderMode })}
+          options={[
+            { value: 'line', label: labels.modeLine },
+            { value: 'points', label: labels.modePoints },
+          ]}
         />
       </label>
 
       <label className="flex items-center gap-1.5">
-        <span className="text-slate-500">{labels.points}</span>
-        <input
-          type="range"
+        <span className="text-muted-foreground">{labels.line}</span>
+        <Slider
+          min={1}
+          max={4}
+          step={1}
+          value={appearance.lineWidth}
+          onChange={(v) => onAppearanceChange({ lineWidth: v })}
+          className="w-12"
+        />
+      </label>
+
+      <label className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{labels.points}</span>
+        <Slider
           min={0}
           max={8}
           step={1}
           value={appearance.pointRadius}
-          onChange={(e) => onAppearanceChange({ pointRadius: Number(e.target.value) })}
-          className="w-12 accent-emerald-500"
+          onChange={(v) => onAppearanceChange({ pointRadius: v })}
+          className="w-12"
         />
       </label>
 
@@ -395,6 +333,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         />
       )}
     </div>
+    </SlotShell>
   );
 };
 
@@ -417,7 +356,7 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
   const right = appearance.yScaleManual?.right;
 
   return (
-    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-slate-950/95 border border-white/10/70 shadow-2xl backdrop-blur-md flex flex-col gap-2 min-w-[260px]">
+    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-background/95 border border-border/70 shadow-2xl backdrop-blur-md flex flex-col gap-2 min-w-[260px]">
       <ManualAxisRow
         label={labels.manualLeft}
         accent="emerald"
@@ -447,23 +386,15 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
         />
       )}
       <div className="flex items-center gap-2 mt-1">
-        <button
-          type="button"
-          onClick={() => {
+        <Button variant="outline" size="xs" onClick={() => {
             onAppearanceChange({ yScaleMode: 'auto', yScaleManual: undefined });
             onClose();
-          }}
-          className="text-[10px] px-2 py-0.5 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-slate-300"
-        >
+          }}>
           {labels.reset}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-auto text-[10px] text-slate-500 hover:text-slate-200"
-        >
+        </Button>
+        <Button variant="ghost" size="xs" onClick={onClose} className="ml-auto">
           ✕
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -506,7 +437,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
   return (
     <div className="flex items-center gap-2">
       <span aria-hidden className={`inline-block w-2 h-2 rounded-full ${dotClass} shrink-0`} />
-      <span className="text-[11px] text-slate-300 w-12 shrink-0">{label}</span>
+      <span className="text-[11px] text-foreground w-12 shrink-0">{label}</span>
       <input
         type="number"
         value={draftMin}
@@ -514,9 +445,9 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMin}
-        className="w-16 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground tabular-nums font-mono"
       />
-      <span className="text-slate-600">→</span>
+      <span className="text-muted-foreground">→</span>
       <input
         type="number"
         value={draftMax}
@@ -524,9 +455,9 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMax}
-        className="w-16 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground tabular-nums font-mono"
       />
-      <span className="text-slate-500 text-[10px]">step</span>
+      <span className="text-muted-foreground text-[10px]">step</span>
       <input
         type="number"
         value={draftStep}
@@ -534,7 +465,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder="auto"
-        className="w-12 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-slate-100 tabular-nums font-mono"
+        className="w-12 bg-background border border-border rounded px-1.5 py-0.5 text-[11px] text-foreground tabular-nums font-mono"
       />
     </div>
   );

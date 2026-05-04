@@ -5,7 +5,11 @@
 
 import React, { useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Select, Spinner } from '@nekazari/ui-kit';
 import { X } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 import type { DashboardPanel, GlobalTimeContext } from '../types/dashboard';
 import {
   requestExport,
@@ -79,54 +83,52 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       aria-modal="true"
       aria-labelledby="export-modal-title"
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-md mx-4 p-4">
+      <SlotShell moduleId="datahub" accent={datahubAccent}>
+      <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-md mx-4 p-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 id="export-modal-title" className="text-sm font-semibold text-slate-200">
+          <h2 id="export-modal-title" className="text-sm font-semibold text-foreground">
             {t('exportModal.title')}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 p-1"
-            aria-label={t('exportModal.close')}
-          >
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label={t('exportModal.close')}>
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {!canExport ? (
-          <p className="text-slate-400 text-sm mb-4">
+          <p className="text-muted-foreground text-sm mb-4">
             {t('exportModal.noSeries')}
           </p>
         ) : (
           <>
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">{t('exportModal.format')}</label>
-                <select
+                <label className="block text-xs text-muted-foreground mb-1">{t('exportModal.format')}</label>
+                <Select
                   value={format}
-                  onChange={(e) => setFormat(e.target.value as 'csv' | 'parquet')}
-                  className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
-                >
-                  <option value="csv">{t('exportModal.formatCsv')}</option>
-                  <option value="parquet">{t('exportModal.formatParquet')}</option>
-                </select>
+                  onChange={(v) => setFormat(v as 'csv' | 'parquet')}
+                  options={[
+                    { value: 'csv', label: t('exportModal.formatCsv') },
+                    { value: 'parquet', label: t('exportModal.formatParquet') },
+                  ]}
+                  className="w-full"
+                />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">{t('exportModal.granularity')}</label>
-                <select
+                <label className="block text-xs text-muted-foreground mb-1">{t('exportModal.granularity')}</label>
+                <Select
                   value={aggregation}
-                  onChange={(e) => setAggregation(e.target.value as ExportAggregation)}
-                  className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200"
-                >
-                  <option value="raw">{t('exportModal.rawHighFreq')}</option>
-                  <option value="1 hour">{t('exportModal.oneHour')}</option>
-                  <option value="1 day">{t('exportModal.oneDay')}</option>
-                </select>
+                  onChange={(v) => setAggregation(v as ExportAggregation)}
+                  options={[
+                    { value: 'raw', label: t('exportModal.rawHighFreq') },
+                    { value: '1 hour', label: t('exportModal.oneHour') },
+                    { value: '1 day', label: t('exportModal.oneDay') },
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
             {error && (
-              <p className="text-red-400 text-xs mb-4" role="alert">
+              <p className="text-destructive text-xs mb-4" role="alert">
                 {error}
               </p>
             )}
@@ -134,23 +136,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         )}
 
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
-          >
+          <Button variant="outline" size="sm" onClick={onClose}>
             {t('exportModal.cancel')}
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={!canExport || loading}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? t('exportModal.exporting') : t('exportModal.export')}
-          </button>
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleExport} disabled={!canExport || loading}>
+            {loading ? <><Spinner /> {t('exportModal.exporting')}</> : t('exportModal.export')}
+          </Button>
         </div>
       </div>
+      </SlotShell>
     </div>
   );
 };

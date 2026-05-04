@@ -12,12 +12,16 @@ import React, {
   forwardRef,
 } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Tabs, Input, Badge, Inline } from '@nekazari/ui-kit';
 import ReactGridLayout from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Download, Brain, Loader2, Save, FolderOpen, Trash2 } from 'lucide-react';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 import { DATAHUB_EVENT_KEYBOARD_ACTION, DATAHUB_EVENT_TIME_SELECT } from '../hooks/useUPlotCesiumSync';
 import type { DataHubKeyboardActionDetail, DataHubTimeRangeDetail } from '../hooks/useUPlotCesiumSync';
@@ -598,132 +602,92 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
   );
 
   return (
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
     <div
-      className="w-full h-full min-h-screen bg-slate-950 flex flex-col overflow-x-hidden"
+      className="w-full h-full min-h-screen flex flex-col overflow-x-hidden"
       style={{ isolation: 'isolate', zIndex: 0 }}
     >
-      <div className="shrink-0 border-b border-slate-800 bg-slate-900 flex flex-col">
-      <div className="dashboard-global-toolbar h-12 flex items-center justify-between px-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <h2 className="text-slate-200 font-semibold shrink-0">{t('dashboard.tacticalCanvas')}</h2>
-          <span className="text-slate-500 text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
+      <div className="shrink-0 border-b border-border bg-card flex flex-col">
+      <div className="h-12 flex items-center justify-between px-4">
+        <Inline gap="md" className="items-center min-w-0">
+          <h2 className="text-foreground font-semibold shrink-0">{t('dashboard.tacticalCanvas')}</h2>
+          <Badge variant="secondary">{t('dashboard.activePanels', { count: panels.length })}</Badge>
           {saveMessage && (
-            <span
-              className={`text-xs px-2 py-1 rounded ${
-                saveMessage.type === 'success'
-                  ? 'bg-emerald-900/50 text-emerald-400'
-                  : saveMessage.type === 'info'
-                    ? 'bg-slate-800/90 text-slate-300 border border-slate-600/80'
-                    : 'bg-red-900/50 text-red-400'
-              }`}
+            <Badge
+              variant={
+                saveMessage.type === 'success' ? 'success' :
+                saveMessage.type === 'info' ? 'secondary' : 'destructive'
+              }
               role={saveMessage.type === 'error' ? 'alert' : 'status'}
               aria-live={saveMessage.type === 'error' ? 'assertive' : 'polite'}
             >
               {saveMessage.text}
-            </span>
+            </Badge>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded border border-slate-700 overflow-hidden mr-2">
-            <button
-              type="button"
-              onClick={() => setMainView('canvas')}
-              className={`px-3 py-1.5 text-xs ${
-                mainView === 'canvas'
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t('integrations.canvasTab')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMainView('integrations')}
-              className={`px-3 py-1.5 text-xs ${
-                mainView === 'integrations'
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t('integrations.integrationsTab')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMainView('lab')}
-              className={`px-3 py-1.5 text-xs ${
-                mainView === 'lab'
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {t('lab.tab')}
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveWorkspace}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded transition-colors flex items-center gap-2"
-          >
+        </Inline>
+        <Inline gap="sm" className="items-center">
+          <Tabs
+            tabs={[
+              { id: 'canvas', label: t('integrations.canvasTab') },
+              { id: 'integrations', label: t('integrations.integrationsTab') },
+              { id: 'lab', label: t('lab.tab') },
+            ]}
+            activeTab={mainView}
+            onChange={(id) => setMainView(id as 'canvas' | 'integrations' | 'lab')}
+          />
+          <Button variant="primary" size="sm" onClick={handleSaveWorkspace}>
             <Save size={16} />
             {t('dashboard.saveWorkspace')}
-          </button>
-          <button
-            type="button"
-            onClick={handleLoadWorkspace}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded border border-slate-700 transition-colors flex items-center gap-2"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleLoadWorkspace}>
             <FolderOpen size={16} />
             {t('dashboard.load')}
-          </button>
-        </div>
+          </Button>
+        </Inline>
       </div>
       {mainView === 'canvas' && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-slate-800/80 bg-slate-950/80">
-          <span className="text-[10px] uppercase tracking-wide text-slate-500 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-border/80 bg-background/80">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
             {t('dashboard.timeRange')}
           </span>
-          <div className="flex flex-wrap items-center gap-1">
+          <Inline gap="xs" className="flex-wrap items-center">
             {(['24h', '7d', '30d'] as const).map((preset) => (
-              <button
+              <Button
                 key={preset}
-                type="button"
+                variant="outline"
+                size="xs"
                 onClick={() => applyPreset(preset)}
-                className="px-2 py-1 text-xs rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:border-slate-600 transition-colors"
               >
                 {preset === '24h'
                   ? t('dashboard.preset24h')
                   : preset === '7d'
                     ? t('dashboard.preset7d')
                     : t('dashboard.preset30d')}
-              </button>
+              </Button>
             ))}
-          </div>
-          <span className="hidden sm:inline w-px h-4 bg-slate-700 mx-1 shrink-0" aria-hidden />
-          <label className="flex items-center gap-1 text-xs text-slate-400">
+          </Inline>
+          <span className="hidden sm:inline w-px h-4 bg-border mx-1 shrink-0" aria-hidden />
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="shrink-0">{t('dashboard.customFrom')}</span>
-            <input
+            <Input
               type="datetime-local"
               value={draftRangeStart}
               onChange={(e) => setDraftRangeStart(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-xs px-1.5 py-1"
+              className="text-xs px-1.5 py-1"
             />
           </label>
-          <label className="flex items-center gap-1 text-xs text-slate-400">
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="shrink-0">{t('dashboard.customTo')}</span>
-            <input
+            <Input
               type="datetime-local"
               value={draftRangeEnd}
               onChange={(e) => setDraftRangeEnd(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-xs px-1.5 py-1"
+              className="text-xs px-1.5 py-1"
             />
           </label>
-          <button
-            type="button"
-            onClick={applyCustomRange}
-            className="px-2 py-1 text-xs rounded bg-emerald-700/90 text-white hover:bg-emerald-600 transition-colors"
-          >
+          <Button variant="primary" size="xs" onClick={applyCustomRange}>
             {t('dashboard.applyRange')}
-          </button>
+          </Button>
         </div>
       )}
       </div>
@@ -739,18 +703,18 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       <div className="flex-1 min-h-0 p-2 flex flex-col">
         {panels.length === 0 ? (
           <div
-            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-6 min-h-[min(420px,50vh)]"
+            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-border bg-card/40 p-6 min-h-[min(420px,50vh)]"
             role="region"
             aria-label={t('dashboard.emptyCanvasTitle')}
             onDragOver={onEmptyCanvasDragOver}
             onDrop={onEmptyCanvasDrop}
           >
             <div className="max-w-md text-center px-4">
-              <h3 className="text-base font-semibold text-slate-200 mb-2">
+              <h3 className="text-base font-semibold text-foreground mb-2">
                 {t('dashboard.emptyCanvasTitle')}
               </h3>
-              <p className="text-sm text-slate-400 mb-4">{t('dashboard.emptyCanvasIntro')}</p>
-              <ol className="text-left text-sm text-slate-300 space-y-2 list-decimal list-inside">
+              <p className="text-sm text-muted-foreground mb-4">{t('dashboard.emptyCanvasIntro')}</p>
+              <ol className="text-left text-sm text-foreground/80 space-y-2 list-decimal list-inside">
                 <li>{t('dashboard.emptyCanvasStep1')}</li>
                 <li>{t('dashboard.emptyCanvasStep2')}</li>
                 <li>{t('dashboard.emptyCanvasStep3')}</li>
@@ -782,36 +746,39 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div key={panel.id} className="relative h-full" onMouseDown={() => setActivePanelId(panel.id)}>
                 {/* Floating actions — top right pill */}
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
-                  <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950/70 backdrop-blur-md rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
+                  <div className="pointer-events-auto flex items-center gap-0.5 bg-background/70 backdrop-blur-md rounded-full px-1.5 py-1 ring-1 ring-border shadow-sm">
                     {panel.series.length === 1 && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="p-1 rounded-full"
                         onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
                         disabled={predictingPanelId === panel.id}
-                        className="p-1 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
                         title={t('dashboard.predictTitle')}
                       >
                         {predictingPanelId === panel.id ? <Loader2 size={11} className="animate-spin" /> : <Brain size={11} />}
-                      </button>
+                      </Button>
                     )}
                     {panel.series.length > 0 && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="p-1 rounded-full"
                         onClick={(e) => { e.stopPropagation(); setExportModalPanel(panel); }}
-                        className="p-1 text-blue-400 hover:text-blue-300 rounded-full transition-colors"
                         title={t('dashboard.exportTitle')}
                       >
                         <Download size={11} />
-                      </button>
+                      </Button>
                     )}
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="p-1 rounded-full"
                       onClick={(e) => { e.stopPropagation(); removePanel(panel.id); }}
-                      className="p-1 text-slate-500 hover:text-red-400 rounded-full transition-colors"
                       title={t('dashboard.removePanel')}
                     >
                       <Trash2 size={11} />
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <DataCanvasPanelMemo
@@ -847,35 +814,28 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       )}
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
-          <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-sm mx-4 p-4">
-            <h3 className="text-sm font-semibold text-slate-200 mb-3">{t('dashboard.saveModalTitle')}</h3>
-            <input
+          <SlotShell moduleId="datahub" accent={datahubAccent}>
+          <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-sm mx-4 p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3">{t('dashboard.saveModalTitle')}</h3>
+            <Input
               type="text"
               value={saveModalName}
               onChange={(e) => setSaveModalName(e.target.value)}
               placeholder={t('dashboard.workspaceNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
-              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 mb-4 placeholder-slate-500"
+              className="w-full mb-4"
             />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowSaveModal(false)}
-                className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
-              >
+            <Inline gap="sm" className="justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowSaveModal(false)}>
                 {t('dashboard.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSave}
-                disabled={!saveModalName.trim()}
-                className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
-              >
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleConfirmSave} disabled={!saveModalName.trim()}>
                 {t('dashboard.save')}
-              </button>
-            </div>
+              </Button>
+            </Inline>
           </div>
+          </SlotShell>
         </div>
       )}
       <style>{`
@@ -900,8 +860,13 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           right: 4px !important;
           bottom: 4px !important;
         }
+        .u-select {
+          background: rgba(6, 182, 212, 0.15) !important;
+          border: 1px solid rgba(6, 182, 212, 0.6) !important;
+        }
       `}</style>
     </div>
+    </SlotShell>
   );
 });
 

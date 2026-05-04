@@ -4,7 +4,11 @@
  */
 
 import React, { useState } from 'react';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Input } from '@nekazari/ui-kit';
 import { Plus, Trash2 } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 import type { ChartAnnotation } from '../../types/dashboard';
 
 const ANNOTATION_COLORS = ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#f472b6'];
@@ -37,16 +41,17 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
   };
 
   return (
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
     <div className="px-2 pb-2 pt-1 space-y-1.5">
       <div className="flex items-center gap-1.5">
-        <input
+        <Input
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
           placeholder="Add annotation…"
           maxLength={60}
-          className="flex-1 px-2 py-1 text-[10px] rounded border border-white/10 bg-slate-900 text-slate-100 placeholder-slate-500"
+          className="flex-1 px-2 py-1 text-[10px]"
         />
         <div className="flex gap-0.5">
           {ANNOTATION_COLORS.map((c) => (
@@ -55,40 +60,42 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
               type="button"
               onClick={() => setColor(c)}
               className={`w-4 h-4 rounded-full ring-1 transition-all ${
-                color === c ? 'ring-white scale-110' : 'ring-transparent'
+                color === c ? 'ring-foreground scale-110' : 'ring-transparent'
               }`}
               style={{ background: c }}
               title={c}
             />
           ))}
         </div>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={handleAdd}
           disabled={!label.trim()}
-          className="p-1 rounded text-slate-400 hover:text-slate-100 disabled:opacity-30"
         >
           <Plus size={12} />
-        </button>
+        </Button>
       </div>
       {annotations.length > 0 && (
         <ul className="space-y-0.5">
           {annotations.map((a) => (
             <li key={a.id} className="flex items-center gap-1.5 text-[10px]">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: a.color }} />
-              <span className="text-slate-200 truncate flex-1 min-w-0">{a.label}</span>
-              <span className="text-slate-500 tabular-nums font-mono">{fmtEpoch(a.xEpoch)}</span>
-              <button
-                type="button"
+              <span className="text-foreground truncate flex-1 min-w-0">{a.label}</span>
+              <span className="text-muted-foreground tabular-nums font-mono">{fmtEpoch(a.xEpoch)}</span>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="p-0.5"
                 onClick={() => onDelete(a.id)}
-                className="p-0.5 text-slate-500 hover:text-red-400"
               >
                 <Trash2 size={10} />
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
     </div>
+    </SlotShell>
   );
 };

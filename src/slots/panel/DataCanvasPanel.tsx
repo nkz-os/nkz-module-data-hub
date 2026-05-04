@@ -12,6 +12,10 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Spinner } from '@nekazari/ui-kit';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 import type {
   ChartAnnotation,
@@ -676,7 +680,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [toolbarOpen, setToolbarOpen] = React.useState(false);
 
   return (
-    <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-slate-700/30" onContextMenu={handleContextMenu}>
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-border/30" onContextMenu={handleContextMenu}>
       {/* ===== Chart layer — first in DOM ===== */}
       {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelChart
@@ -734,8 +739,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs">
-            {t('canvasPanel.loading')}
+          <span className="px-3 py-1.5 rounded-full bg-card/70 border border-border/40 text-foreground text-xs">
+            <Spinner /> {t('canvasPanel.loading')}
           </span>
         </div>
       )}
@@ -754,27 +759,25 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
         <div className="flex items-center gap-2">
           {/* Title + drag handle */}
-          <div className="panel-drag-handle cursor-move bg-slate-950/90 backdrop-blur-sm rounded-md pl-3 pr-3 py-1.5 border border-slate-600/40 shadow-lg select-none">
-            <span className="text-xs text-slate-200 font-mono font-medium truncate max-w-[280px] tracking-tight">
+          <div className="panel-drag-handle cursor-move bg-background/90 backdrop-blur-sm rounded-md pl-3 pr-3 py-1.5 border border-border/40 shadow-lg select-none">
+            <span className="text-xs text-foreground font-mono font-medium truncate max-w-[280px] tracking-tight">
               {headerTitle}
             </span>
           </div>
           {/* Live indicator + More button */}
           <LiveIndicator active={liveMode} secondsSinceRefresh={0} />
           {status === 'ready' && (
-            <button
+            <Button
+              variant={toolbarOpen ? 'primary' : 'ghost'}
+              size="xs"
+              className="shadow-lg"
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); setToolbarOpen(v => !v); }}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
-                toolbarOpen
-                  ? 'text-white bg-slate-700 border-slate-500'
-                  : 'text-slate-300 bg-slate-950/90 border-slate-600/40 hover:text-white hover:bg-slate-800 hover:border-slate-500'
-              }`}
               title="Chart tools"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-              <span className="text-[11px] text-slate-400">Tools</span>
-            </button>
+              <span className="text-[11px] text-muted-foreground">Tools</span>
+            </Button>
           )}
         </div>
         {toolbarOpen && status === 'ready' && (
@@ -895,6 +898,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
         timestamp={formatLocalTimestamp(cursor.xEpoch)} rows={cursor.rows}
       />
     </div>
+    </SlotShell>
   );
 
 };

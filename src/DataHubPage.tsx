@@ -7,8 +7,12 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button } from '@nekazari/ui-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Menu, X } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 import { DataTree } from './components/DataTree';
 import {
   DataHubDashboard,
@@ -77,20 +81,16 @@ const DataHubPageInner: React.FC = () => {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   const sidebarContent = (
-    <aside className="w-64 shrink-0 border-r border-white/10 bg-slate-950 flex flex-col h-full">
-      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-white/10">
-        <h2 className="text-sm font-semibold text-slate-300 tracking-wide uppercase">
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <aside className="w-64 shrink-0 border-r border-border bg-background flex flex-col h-full">
+      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground tracking-wide uppercase">
           {t('tree.sidebarTitle')}
         </h2>
         {isMobile && (
-          <button
-            type="button"
-            onClick={closeSidebar}
-            className="p-1 text-slate-400 hover:text-slate-200 rounded"
-            aria-label={t('tree.closeSidebar', { defaultValue: 'Close' })}
-          >
+          <Button variant="ghost" size="xs" onClick={closeSidebar} aria-label={t('tree.closeSidebar', { defaultValue: 'Close' })}>
             <X size={16} />
-          </button>
+          </Button>
         )}
       </div>
       <div className="flex-1 min-h-0">
@@ -103,10 +103,12 @@ const DataHubPageInner: React.FC = () => {
         />
       </div>
     </aside>
+    </SlotShell>
   );
 
   return (
-    <div className="flex h-full min-h-screen bg-slate-950 relative">
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <div className="flex h-full min-h-screen relative">
       {/* Desktop: static sidebar */}
       {!isMobile && sidebarContent}
 
@@ -136,16 +138,11 @@ const DataHubPageInner: React.FC = () => {
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Mobile hamburger bar */}
         {isMobile && (
-          <div className="h-10 shrink-0 flex items-center px-3 border-b border-white/10 bg-slate-950">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((v) => !v)}
-              className="p-1.5 text-slate-300 hover:text-white rounded-md hover:bg-white/10 transition-colors"
-              aria-label={t('tree.toggleSidebar', { defaultValue: 'Toggle sidebar' })}
-            >
+          <div className="h-10 shrink-0 flex items-center px-3 border-b border-border bg-background">
+            <Button variant="ghost" size="xs" onClick={() => setSidebarOpen((v) => !v)} aria-label={t('tree.toggleSidebar', { defaultValue: 'Toggle sidebar' })}>
               <Menu size={18} />
-            </button>
-            <span className="ml-2 text-xs text-slate-400 font-mono truncate">
+            </Button>
+            <span className="ml-2 text-xs text-muted-foreground font-mono truncate">
               {selectedAttribute
                 ? `${selectedEntity?.name ?? ''} · ${selectedAttribute}`
                 : t('tree.sidebarTitle')}
@@ -157,6 +154,7 @@ const DataHubPageInner: React.FC = () => {
         </div>
       </main>
     </div>
+    </SlotShell>
   );
 };
 

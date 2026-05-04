@@ -4,7 +4,11 @@
  */
 
 import React, { useState } from 'react';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Input } from '@nekazari/ui-kit';
 import { Sigma } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 export interface DerivedSeriesInputProps {
   /** Current formula string (empty when inactive). */
@@ -33,10 +37,11 @@ export const DerivedSeriesInput: React.FC<DerivedSeriesInputProps> = ({
   };
 
   return (
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
     <div className="px-2 pb-2 pt-1 space-y-1">
       <div className="flex items-center gap-1.5">
-        <Sigma size={12} className="text-slate-500 shrink-0" />
-        <input
+        <Sigma size={12} className="text-muted-foreground shrink-0" />
+        <Input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -45,33 +50,35 @@ export const DerivedSeriesInput: React.FC<DerivedSeriesInputProps> = ({
             if (e.key === 'Escape') handleClear();
           }}
           placeholder="series[0] - series[1]"
-          className="flex-1 px-2 py-1 text-[10px] rounded border border-white/10 bg-slate-900 text-slate-100 placeholder-slate-500 font-mono"
+          className="flex-1 px-2 py-1 text-[10px] font-mono"
         />
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="xs"
           onClick={handleApply}
           disabled={!draft.trim()}
-          className="px-2 py-1 text-[10px] rounded bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/50 disabled:opacity-30 transition-colors font-mono"
+          className="font-mono"
         >
           ✓
-        </button>
+        </Button>
         {formula && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={handleClear}
-            className="px-1.5 py-1 text-[10px] rounded text-slate-400 hover:text-red-400"
           >
             ✕
-          </button>
+          </Button>
         )}
       </div>
       {seriesLabels.length > 0 && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-500 font-mono">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-muted-foreground font-mono">
           {seriesLabels.map((label, i) => (
             <span key={i}>series[{i}]={label}</span>
           ))}
         </div>
       )}
     </div>
+    </SlotShell>
   );
 };

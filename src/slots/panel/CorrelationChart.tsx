@@ -142,30 +142,30 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
     <div className="absolute inset-0">
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       {/* X / Y axis labels */}
-      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 font-mono pointer-events-none">
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground font-mono pointer-events-none">
         X: {xLabel}
-        {xUnit && <span className="text-slate-500"> ({xUnit})</span>}
+        {xUnit && <span className="text-muted-foreground"> ({xUnit})</span>}
       </div>
       <div
-        className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono pointer-events-none"
+        className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono pointer-events-none"
         style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
       >
         Y: {yLabel}
-        {yUnit && <span className="text-slate-500"> ({yUnit})</span>}
+        {yUnit && <span className="text-muted-foreground"> ({yUnit})</span>}
       </div>
       {/* Pearson r badge */}
       {correlation && (
-        <div className="absolute top-12 right-3 px-2 py-1 rounded bg-slate-950/90 border border-slate-700/70 shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
-          <span className="text-slate-400">r=</span>
-          <span className={correlation.r >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+        <div className="absolute top-12 right-3 px-2 py-1 rounded bg-background/90 border border-border/70 shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
+          <span className="text-muted-foreground">r=</span>
+          <span className={correlation.r >= 0 ? 'text-accent' : 'text-destructive'}>
             {Number.isFinite(correlation.r) ? correlation.r.toFixed(3) : '—'}
           </span>
-          <span className="text-slate-500 ml-2">n={correlation.n}</span>
+          <span className="text-muted-foreground ml-2">n={correlation.n}</span>
         </div>
       )}
       {(!correlation || correlation.pairs.length < 2) && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-600/40 text-slate-300 text-xs">
+          <span className="px-3 py-1.5 rounded-full bg-card/80 border border-border/40 text-foreground text-xs">
             No hay pares alineados suficientes
           </span>
         </div>

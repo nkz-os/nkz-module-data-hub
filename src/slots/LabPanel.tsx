@@ -11,7 +11,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Spinner, Badge } from '@nekazari/ui-kit';
 
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 const JUPYTERLITE_URL = '/jupyterlite/lab/index.html';
 
 export const LabPanel: React.FC = () => {
@@ -57,39 +60,45 @@ export const LabPanel: React.FC = () => {
 
   if (status === 'loading') {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-8 gap-4">
-        <div className="animate-spin w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full" />
-        <p className="text-sm text-slate-400">{t('lab.loading')}</p>
-      </div>
+      <SlotShell moduleId="datahub" accent={datahubAccent}>
+        <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-8 gap-4">
+          <Spinner />
+          <p className="text-sm text-muted-foreground">{t('lab.loading')}</p>
+        </div>
+      </SlotShell>
     );
   }
 
   if (status === 'unavailable') {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-8 gap-4">
-        <div className="text-4xl opacity-40">&#128300;</div>
-        <h3 className="text-lg font-medium text-slate-200">
-          {t('lab.comingSoonTitle')}
-        </h3>
-        <p className="text-sm text-slate-400 max-w-md">
-          {t('lab.comingSoonDesc')}
-        </p>
-        <span className="inline-block px-3 py-1 text-xs font-medium text-emerald-400 bg-emerald-900/30 rounded-full border border-emerald-700/40">
-          {t('lab.comingSoonBadge')}
-        </span>
-      </div>
+      <SlotShell moduleId="datahub" accent={datahubAccent}>
+        <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-8 gap-4">
+          <div className="text-4xl opacity-40">&#128300;</div>
+          <h3 className="text-lg font-medium text-foreground">
+            {t('lab.comingSoonTitle')}
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-md">
+            {t('lab.comingSoonDesc')}
+          </p>
+          <Badge variant="outline" className="border-accent text-accent">
+            {t('lab.comingSoonBadge')}
+          </Badge>
+        </div>
+      </SlotShell>
     );
   }
 
   return (
-    <div className="w-full h-full min-h-0">
-      <iframe
-        ref={iframeRef}
-        src={JUPYTERLITE_URL}
-        className="w-full h-full border-0"
-        title="JupyterLite"
-        sandbox="allow-scripts allow-same-origin allow-popups"
-      />
-    </div>
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+      <div className="w-full h-full min-h-0">
+        <iframe
+          ref={iframeRef}
+          src={JUPYTERLITE_URL}
+          className="w-full h-full border-0"
+          title="JupyterLite"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        />
+      </div>
+    </SlotShell>
   );
 };

@@ -145,7 +145,7 @@ export const PanelOverlays: React.FC<PanelOverlaysProps> = ({
               style={{
                 left: left + 4,
                 top: Math.max(top, yPx - 14),
-                background: 'rgba(2,6,23,0.85)',
+                background: 'var(--theme-colors-background)',
                 color: line.color,
                 border: `1px solid ${line.color}55`,
               }}

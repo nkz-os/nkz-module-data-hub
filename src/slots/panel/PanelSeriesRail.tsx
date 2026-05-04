@@ -13,7 +13,11 @@
  */
 
 import React from 'react';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button } from '@nekazari/ui-kit';
 import { Eye, EyeOff, Trash2 } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 import type { ChartSeriesDef, SeriesConfig } from '../../types/dashboard';
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
@@ -100,14 +104,17 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
 }) => {
   if (series.length === 0) {
     return (
-      <div className="w-44 shrink-0 border-r border-white/5 px-3 py-2 text-[11px] text-slate-500">
+      <SlotShell moduleId="datahub" accent={datahubAccent}>
+      <div className="w-44 shrink-0 border-r border-border/5 px-3 py-2 text-[11px] text-muted-foreground">
         {labels.emptyHint}
       </div>
+      </SlotShell>
     );
   }
 
   return (
-    <div className="w-44 shrink-0 border-r border-white/5 bg-transparent overflow-y-auto">
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <div className="w-44 shrink-0 border-r border-border/5 bg-transparent overflow-y-auto">
       <ul className="flex flex-col">
         {series.map((s, i) => {
           const key = seriesKey(s);
@@ -131,7 +138,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                 <label className="relative inline-flex shrink-0 cursor-pointer" title={cfg.colorOverride ?? color}>
                   <span
                     aria-hidden
-                    className="inline-block w-3 h-3 rounded-full ring-1 ring-slate-900"
+                    className="inline-block w-3 h-3 rounded-full ring-1 ring-background"
                     style={{ background: color }}
                   />
                   <input
@@ -143,12 +150,12 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                   />
                 </label>
                 <span
-                  className="text-[11px] text-slate-100 truncate flex-1 min-w-0"
+                  className="text-[11px] text-foreground truncate flex-1 min-w-0"
                   title={`${s.attribute} (${s.entityId})`}
                 >
                   {s.attribute}
                 </span>
-                {unit && <span className="text-[9px] text-slate-500">{unit}</span>}
+                {unit && <span className="text-[9px] text-muted-foreground">{unit}</span>}
               </div>
 
               {/* Mini stats */}
@@ -163,61 +170,56 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
 
               {/* Action row: axis selector + visibility + remove */}
               <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
+                <Button
+                  variant={(s.yAxis ?? 'left') === 'left' ? 'primary' : 'ghost'}
+                  size="xs"
+                  className="flex-1 rounded-l rounded-r-none text-[9px]"
                   onClick={() => onAxisChange(i, 'left')}
-                  className={[
-                    'flex-1 text-[9px] py-0.5 rounded-l border transition-colors',
-                    (s.yAxis ?? 'left') === 'left'
-                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                      : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800',
-                  ].join(' ')}
                   title={labels.axisLeft}
                 >
                   L
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant={s.yAxis === 'right' ? 'primary' : 'ghost'}
+                  size="xs"
+                  className="flex-1 rounded-none text-[9px]"
                   onClick={() => onAxisChange(i, 'right')}
-                  className={[
-                    'flex-1 text-[9px] py-0.5 border-y transition-colors',
-                    s.yAxis === 'right'
-                      ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
-                      : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800',
-                  ].join(' ')}
                   title={labels.axisRight}
                 >
                   R
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="px-1 rounded-none"
                   onClick={() => onVisibilityChange(i, !visible)}
-                  className="px-1 py-0.5 border border-white/10 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
                   aria-pressed={!visible}
                   title={visible ? labels.hide : labels.show}
                 >
-                  {visible ? <Eye size={10} aria-hidden /> : <EyeOff size={10} aria-hidden />}
-                </button>
-                <button
-                  type="button"
+                  {visible ? <Eye size={10} /> : <EyeOff size={10} />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="px-1 rounded-r rounded-l-none"
                   onClick={() => onRemove(i)}
-                  className="px-1 py-0.5 rounded-r border border-white/10 bg-slate-900 text-slate-400 hover:bg-rose-900/40 hover:text-rose-300 hover:border-rose-700 transition-colors"
                   title={labels.remove}
                 >
-                  <Trash2 size={10} aria-hidden />
-                </button>
+                  <Trash2 size={10} />
+                </Button>
               </div>
             </li>
           );
         })}
       </ul>
     </div>
+    </SlotShell>
   );
 };
 
 const Stat: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <span className="flex items-center gap-1 text-slate-500 truncate">
+  <span className="flex items-center gap-1 text-muted-foreground truncate">
     <span>{label}</span>
-    <span className="text-slate-200">{formatNumberShort(value)}</span>
+    <span className="text-foreground">{formatNumberShort(value)}</span>
   </span>
 );

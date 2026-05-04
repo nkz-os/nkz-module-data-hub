@@ -76,7 +76,7 @@ export const GapOverlay: React.FC<GapOverlayProps> = ({ plotRef, gaps }) => {
               top,
               width: w,
               height,
-              background: 'repeating-linear-gradient(-45deg, rgba(148,163,184,0.08), rgba(148,163,184,0.08) 4px, rgba(148,163,184,0.03) 4px, rgba(148,163,184,0.03) 8px)',
+              background: 'repeating-linear-gradient(-45deg, var(--theme-colors-border), var(--theme-colors-border) 4px, transparent 4px, transparent 8px)',
             }}
           />
         );

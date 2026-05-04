@@ -6,11 +6,14 @@
 
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShellCompact } from '@nekazari/viewer-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataTree } from '../components/DataTree';
 import { DataCanvasPanelMemo } from './panel/DataCanvasPanel';
 import type { DataHubEntity } from '../services/datahubApi';
 import type { ChartSeriesDef } from '../types/dashboard';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000 } },
@@ -44,9 +47,10 @@ const DataHubQuickChartInner: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-full text-slate-300 bg-slate-950">
+    <SlotShellCompact moduleId="datahub" accent={datahubAccent}>
+    <div className="flex h-full">
       {/* Narrow entity tree */}
-      <div className="w-56 shrink-0 border-r border-slate-800 overflow-hidden">
+      <div className="w-56 shrink-0 border-r border-border overflow-hidden">
         <DataTree
           selectedEntity={selectedEntity}
           selectedAttribute={selectedAttribute}
@@ -58,7 +62,7 @@ const DataHubQuickChartInner: React.FC = () => {
       <div className="flex-1 min-w-0 relative">
         {series.length > 0 ? (
           <>
-            <div className="absolute top-2 left-3 z-10 text-xs text-slate-500 font-mono truncate max-w-[50%]">
+            <div className="absolute top-2 left-3 z-10 text-xs text-muted-foreground font-mono truncate max-w-[50%]">
               {series[0].entityId.split(':').pop()} · {series[0].attribute}
             </div>
             <DataCanvasPanelMemo
@@ -70,12 +74,13 @@ const DataHubQuickChartInner: React.FC = () => {
             />
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             {t('panel.canvasEmptyHint')}
           </div>
         )}
       </div>
     </div>
+    </SlotShellCompact>
   );
 };
 

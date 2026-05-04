@@ -26,13 +26,13 @@ export const LiveIndicator: React.FC<LiveIndicatorProps> = ({ active, secondsSin
   const displaySeconds = tick > 0 ? secondsSinceRefresh + tick : secondsSinceRefresh;
 
   return (
-    <span className="/* UI-DESIGN: live indicator */ inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-300 font-mono tabular-nums">
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/30 text-[10px] text-accent font-mono tabular-nums">
       <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
       </span>
       LIVE
-      <span className="text-emerald-400/60">{displaySeconds}s ago</span>
+      <span className="text-accent/60">{displaySeconds}s ago</span>
     </span>
   );
 };

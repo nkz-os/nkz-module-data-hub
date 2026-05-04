@@ -75,7 +75,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   labels,
 }) => {
   return (
-    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-slate-950/90 border-t border-slate-800/60 pointer-events-none">
+    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-foreground bg-background/90 border-t border-border/60 pointer-events-none">
       {/* Legend */}
       {workerSeries.length > 0 && (
         <div className="flex items-center gap-3 truncate min-w-0">
@@ -83,12 +83,12 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
             <span key={s.key} className="flex items-center gap-1.5 truncate">
               <span
                 aria-hidden
-                className="inline-block w-2 h-2 rounded-full shrink-0 ring-1 ring-slate-900"
+                className="inline-block w-2 h-2 rounded-full shrink-0 ring-1 ring-background"
                 style={{ background: colorFor(s.key, i) }}
               />
-              <span className="truncate max-w-[140px] text-slate-200">{s.attribute}</span>
+              <span className="truncate max-w-[140px] text-foreground">{s.attribute}</span>
               {unitFor(s.attribute) && (
-                <span className="text-slate-500">{unitFor(s.attribute)}</span>
+                <span className="text-muted-foreground">{unitFor(s.attribute)}</span>
               )}
             </span>
           ))}
@@ -98,33 +98,33 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
       {/* Primary stats */}
       {primaryStats && (
         <span className="tabular-nums whitespace-nowrap font-mono">
-          <span className="text-slate-500">{labels.min}</span>
-          <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.min)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.max}</span>
-          <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.max)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.mean}</span>
-          <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.mean)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.last}</span>
-          <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.last)}</span>
+          <span className="text-muted-foreground">{labels.min}</span>
+          <span className="text-foreground ml-1">{formatNumberShort(primaryStats.min)}</span>
+          <span className="text-muted-foreground ml-2.5">{labels.max}</span>
+          <span className="text-foreground ml-1">{formatNumberShort(primaryStats.max)}</span>
+          <span className="text-muted-foreground ml-2.5">{labels.mean}</span>
+          <span className="text-foreground ml-1">{formatNumberShort(primaryStats.mean)}</span>
+          <span className="text-muted-foreground ml-2.5">{labels.last}</span>
+          <span className="text-foreground ml-1">{formatNumberShort(primaryStats.last)}</span>
         </span>
       )}
 
       {/* Pearson r badge — shows when 2+ series in timeseries mode */}
       {pearsonR != null && Number.isFinite(pearsonR) && (
-        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">
-          <span className="text-slate-400">r=</span>
-          <span className={pearsonR >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-card/60 border border-border/50">
+          <span className="text-muted-foreground">r=</span>
+          <span className={pearsonR >= 0 ? 'text-accent' : 'text-destructive'}>
             {pearsonR.toFixed(3)}
           </span>
           {pearsonN != null && (
-            <span className="text-slate-500 ml-1">n={pearsonN}</span>
+            <span className="text-muted-foreground ml-1">n={pearsonN}</span>
           )}
         </span>
       )}
 
       {/* Outlier count badge */}
       {outlierCount != null && outlierCount > 0 && (
-        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-900/30 border border-amber-700/30 text-amber-300">
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-warning/30 border border-warning/30 text-warning">
           {outlierCount} outliers
         </span>
       )}
@@ -145,7 +145,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
       {/* A3 Guardrail indicator */}
       {guardrailFired && (
         <span
-          className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-sky-900/30 border border-sky-700/30 text-sky-300"
+          className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-info/30 border border-info/30 text-info"
           title="Y range auto-expanded: flat trace detected"
         >
           auto-scaled
@@ -176,7 +176,7 @@ const TelemetryStrip: React.FC<{ telemetry: PanelFooterProps['telemetry'] }> = (
   const fullDetail = debugLevel >= 2;
   return (
     <span
-      className="ml-auto tabular-nums text-slate-500 whitespace-nowrap font-mono text-[9px]"
+      className="ml-auto tabular-nums text-muted-foreground whitespace-nowrap font-mono text-[9px]"
       title={`debug=${debugLevel}`}
     >
       {telemetry.plotted}/{telemetry.received} pts · {telemetry.viewportWidth}×

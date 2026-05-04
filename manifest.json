@@ -22,14 +22,50 @@
     "storage_access": false,
     "external_requests": []
   },
+  "accent": {
+    "base": "#06B6D4",
+    "soft": "#CFFAFE",
+    "strong": "#0891B2"
+  },
   "build_config": { "type": "iife", "remote_entry_url": "/modules/datahub/nkz-module.js" },
   "slots": {
     "layer-toggle": [],
-    "context-panel": [],
-    "bottom-panel": [],
+    "context-panel": [
+      {
+        "tab": {
+          "label": "DataHub",
+          "icon": "line-chart",
+          "accent": "cyan"
+        }
+      }
+    ],
+    "bottom-panel": [
+      {
+        "tab": {
+          "label": "DataHub Quick",
+          "icon": "line-chart",
+          "accent": "cyan"
+        }
+      }
+    ],
     "entity-tree": [],
     "map-layer": [],
     "dashboard-widget": []
+  },
+  "surfaces": {
+    "panel": {
+      "controls": ["chart", "toolbar", "series-rail", "footer"],
+      "supportedChartTypes": ["timeseries", "correlation"]
+    },
+    "dashboard": {
+      "features": ["workspace-save", "workspace-load", "export", "predict", "time-range-presets"]
+    },
+    "integrations": {
+      "features": ["pat-management", "power-bi-hints", "api-query-builder"]
+    },
+    "lab": {
+      "features": ["jupyterlite-embed"]
+    }
   },
   "metadata": {
     "icon": "📊",

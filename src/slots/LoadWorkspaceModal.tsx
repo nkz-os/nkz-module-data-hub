@@ -5,7 +5,11 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Tabs, Input, Spinner } from '@nekazari/ui-kit';
 import { X, Sprout, CloudSun, Activity, Thermometer } from 'lucide-react';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 import {
   listWorkspaces,
   fetchDataHubEntities,
@@ -105,71 +109,53 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
       aria-modal="true"
       aria-labelledby="load-workspace-title"
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b border-slate-700">
-          <h2 id="load-workspace-title" className="text-sm font-semibold text-slate-200">
+      <SlotShell moduleId="datahub" accent={datahubAccent}>
+      <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b border-border">
+          <h2 id="load-workspace-title" className="text-sm font-semibold text-foreground">
             {tab === 'workspaces' ? t('loadWorkspace.title') : t('templates.title')}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 p-1"
-            aria-label={t('loadWorkspace.close')}
-          >
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label={t('loadWorkspace.close')}>
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-slate-700">
-          <button
-            type="button"
-            onClick={() => { setTab('workspaces'); setSelectedTemplate(null); }}
-            className={`flex-1 px-3 py-2 text-xs text-center transition-colors ${
-              tab === 'workspaces'
-                ? 'bg-slate-800 text-white border-b-2 border-emerald-500'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {t('loadWorkspace.title')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('templates')}
-            className={`flex-1 px-3 py-2 text-xs text-center transition-colors ${
-              tab === 'templates'
-                ? 'bg-slate-800 text-white border-b-2 border-emerald-500'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {t('templates.title')}
-          </button>
-        </div>
+        <Tabs
+          tabs={[
+            { id: 'workspaces', label: t('loadWorkspace.title') },
+            { id: 'templates', label: t('templates.title') },
+          ]}
+          activeTab={tab}
+          onChange={(id) => { setTab(id as 'workspaces' | 'templates'); setSelectedTemplate(null); }}
+        />
 
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           {tab === 'workspaces' && (
             <>
-              {loading && <p className="text-slate-400 text-sm">{t('loadWorkspace.loading')}</p>}
-              {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
+              {loading && <div className="flex justify-center py-4"><Spinner /></div>}
+              {error && <p className="text-destructive text-sm" role="alert">{error}</p>}
               {!loading && !error && workspaces.length === 0 && (
-                <p className="text-slate-400 text-sm">{t('loadWorkspace.empty')}</p>
+                <p className="text-muted-foreground text-sm">{t('loadWorkspace.empty')}</p>
               )}
               {!loading && workspaces.length > 0 && (
                 <ul className="space-y-2">
                   {workspaces.map((ws) => (
                     <li key={ws.id}>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        className="w-full text-left justify-start px-3 py-2"
                         onClick={() => onSelect(ws)}
-                        className="w-full text-left px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-sm transition-colors"
                       >
-                        <span className="font-medium">{ws.name?.value ?? ws.id}</span>
-                        {ws.layout?.value?.length != null && (
-                          <span className="block text-slate-500 text-xs mt-0.5">
-                            {t('loadWorkspace.panelsCount', { count: ws.layout.value.length })}
-                          </span>
-                        )}
-                      </button>
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium text-foreground">{ws.name?.value ?? ws.id}</span>
+                          {ws.layout?.value?.length != null && (
+                            <span className="text-muted-foreground text-xs mt-0.5">
+                              {t('loadWorkspace.panelsCount', { count: ws.layout.value.length })}
+                            </span>
+                          )}
+                        </div>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -183,25 +169,21 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
                 const Icon = TEMPLATE_ICONS[tmpl.icon];
                 const isSelected = selectedTemplate?.id === tmpl.id;
                 return (
-                  <button
+                  <Button
                     key={tmpl.id}
-                    type="button"
+                    variant={isSelected ? 'primary' : 'ghost'}
+                    className={`text-left p-3 justify-start h-auto ${isSelected ? 'border-accent bg-accent/10' : ''}`}
                     onClick={() => {
                       setSelectedTemplate(isSelected ? null : tmpl);
                       setSelectedEntity(null);
                       setEntitySearch('');
                     }}
-                    className={`text-left p-3 rounded-lg border transition-colors ${
-                      isSelected
-                        ? 'border-emerald-500/50 bg-emerald-500/10'
-                        : 'border-slate-700 bg-slate-800/60 hover:border-slate-500'
-                    }`}
                   >
-                    <Icon size={22} className="text-emerald-400 mb-2" />
-                    <div className="text-xs font-medium text-slate-200">{t(tmpl.nameKey as any)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{t(tmpl.descriptionKey as any)}</div>
-                    <div className="text-[10px] text-slate-500 mt-1.5">{tmpl.panels.length} paneles</div>
-                  </button>
+                    <Icon size={22} className="text-accent mb-2" />
+                    <div className="text-xs font-medium text-foreground">{t(tmpl.nameKey as any)}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{t(tmpl.descriptionKey as any)}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1.5">{tmpl.panels.length} paneles</div>
+                  </Button>
                 );
               })}
             </div>
@@ -209,55 +191,49 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
 
           {/* Entity picker after template selected */}
           {tab === 'templates' && selectedTemplate && (
-            <div className="mt-4 border-t border-slate-700 pt-3">
-              <p className="text-xs text-slate-400 mb-2">{t('templates.selectEntity')}</p>
-              <input
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground mb-2">{t('templates.selectEntity')}</p>
+              <Input
                 type="search"
                 value={entitySearch}
                 onChange={(e) => setEntitySearch(e.target.value)}
                 placeholder="Buscar entidad…"
-                className="w-full px-3 py-2 text-xs border border-slate-600 rounded bg-slate-800 text-slate-100 mb-2 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                className="w-full mb-2"
               />
               {entityResults.length > 0 && (
                 <div className="max-h-32 overflow-y-auto mb-2">
                   {entityResults.map((ent) => (
-                    <button
+                    <Button
                       key={ent.id}
-                      type="button"
+                      variant={selectedEntity?.id === ent.id ? 'primary' : 'ghost'}
+                      size="sm"
+                      className="w-full text-left justify-start px-2 py-1.5"
                       onClick={() => setSelectedEntity(ent)}
-                      className={`w-full text-left px-2 py-1.5 text-xs rounded ${
-                        selectedEntity?.id === ent.id
-                          ? 'bg-emerald-900/40 text-emerald-300'
-                          : 'text-slate-300 hover:bg-slate-800'
-                      }`}
                     >
-                      {ent.name} <span className="text-slate-500">({ent.type})</span>
-                    </button>
+                      {ent.name} <span className="text-muted-foreground">({ent.type})</span>
+                    </Button>
                   ))}
                 </div>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                className="w-full"
                 onClick={applyTemplate}
                 disabled={!selectedEntity}
-                className="w-full px-3 py-2 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {t('templates.apply')}
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-700">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
-          >
+        <div className="p-4 border-t border-border">
+          <Button variant="outline" size="sm" onClick={onClose}>
             {t('loadWorkspace.cancel')}
-          </button>
+          </Button>
         </div>
       </div>
+      </SlotShell>
     </div>
   );
 };

@@ -4,6 +4,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { SlotShell } from '@nekazari/viewer-kit';
+import { Button, Input, Badge, Spinner, Inline, Stack } from '@nekazari/ui-kit';
 import type { ChartSeriesDef, GlobalTimeContext } from '../types/dashboard';
 import {
   createTenantPat,
@@ -12,6 +14,8 @@ import {
   revokeTenantPat,
   type TenantPatMeta,
 } from '../services/datahubApi';
+
+const datahubAccent = { base: '#06B6D4', soft: '#CFFAFE', strong: '#0891B2' };
 
 export interface IntegrationsPanelProps {
   panels: Array<{ series: ChartSeriesDef[] }>;
@@ -113,124 +117,111 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 text-slate-200 space-y-8">
+    <SlotShell moduleId="datahub" accent={datahubAccent}>
+    <div className="max-w-4xl mx-auto p-6 space-y-8">
       <div>
-        <h3 className="text-lg font-semibold text-white mb-2">{t('integrations.title')}</h3>
-        <p className="text-slate-400 text-sm">{t('integrations.description')}</p>
+        <h3 className="text-lg font-semibold text-foreground mb-2">{t('integrations.title')}</h3>
+        <p className="text-muted-foreground text-sm">{t('integrations.description')}</p>
       </div>
 
       {error && (
-        <div className="text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-3" role="alert">
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded p-3" role="alert">
           {error}
         </div>
       )}
 
-      <section className="space-y-3 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.createSection')}</h4>
-        <div className="flex flex-wrap gap-2 items-center">
-          <input
+      <section className="space-y-3 border border-border rounded-lg p-4 bg-card/50">
+        <h4 className="font-medium text-foreground">{t('integrations.createSection')}</h4>
+        <Inline gap="md" className="flex-wrap">
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('integrations.namePlaceholder')}
-            className="flex-1 min-w-[200px] bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
+            className="flex-1 min-w-[200px]"
           />
-          <button
-            type="button"
-            disabled={creating}
-            onClick={() => void onCreate()}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded text-sm text-white"
-          >
+          <Button variant="primary" disabled={creating} onClick={() => void onCreate()}>
             {creating ? t('integrations.creating') : t('integrations.create')}
-          </button>
-        </div>
+          </Button>
+        </Inline>
         {newToken && (
-          <div className="mt-3 p-3 bg-amber-950/30 border border-amber-800 rounded text-sm">
-            <p className="text-amber-200 mb-2 font-medium">{t('integrations.tokenOnce')}</p>
-            <code className="block break-all text-amber-100 bg-slate-950 p-2 rounded mb-2">{newToken}</code>
-            <button
-              type="button"
-              onClick={() => void copy(newToken)}
-              className="text-xs text-amber-300 underline"
-            >
+          <Stack gap="sm" className="mt-3 p-3 bg-warning/10 border border-warning/30 rounded text-sm">
+            <span className="text-warning font-medium">{t('integrations.tokenOnce')}</span>
+            <code className="block break-all text-foreground bg-background p-2 rounded">{newToken}</code>
+            <Button variant="link" size="sm" onClick={() => void copy(newToken)}>
               {t('integrations.copy')}
-            </button>
-          </div>
+            </Button>
+          </Stack>
         )}
       </section>
 
-      <section className="space-y-2 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.listSection')}</h4>
+      <section className="space-y-2 border border-border rounded-lg p-4 bg-card/50">
+        <h4 className="font-medium text-foreground">{t('integrations.listSection')}</h4>
         {loading ? (
-          <p className="text-slate-500 text-sm">{t('integrations.loading')}</p>
+          <Spinner />
         ) : items.length === 0 ? (
-          <p className="text-slate-500 text-sm">{t('integrations.empty')}</p>
+          <p className="text-muted-foreground text-sm">{t('integrations.empty')}</p>
         ) : (
-          <ul className="space-y-2 text-sm">
+          <Stack gap="sm">
             {items.map((row) => (
-              <li
+              <div
                 key={row.id}
-                className="flex justify-between items-center gap-2 border border-slate-800 rounded px-3 py-2"
+                className="flex justify-between items-center gap-2 border border-border rounded px-3 py-2"
               >
                 <div>
-                  <div className="font-mono text-slate-300">{row.name}</div>
-                  <div className="text-xs text-slate-500">
-                    {row.is_active ? t('integrations.active') : t('integrations.inactive')} · {row.id}
+                  <div className="font-mono text-foreground">{row.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    <Badge variant={row.is_active ? 'success' : 'secondary'}>
+                      {row.is_active ? t('integrations.active') : t('integrations.inactive')}
+                    </Badge> · {row.id}
                   </div>
                 </div>
                 {row.is_active && (
-                  <button
-                    type="button"
-                    onClick={() => void onRevoke(row.id)}
-                    className="text-xs text-red-400 hover:text-red-300"
-                  >
+                  <Button variant="destructive" size="sm" onClick={() => void onRevoke(row.id)}>
                     {t('integrations.revoke')}
-                  </button>
+                  </Button>
                 )}
-              </li>
+              </div>
             ))}
-          </ul>
+          </Stack>
         )}
       </section>
 
-      <section className="space-y-3 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.powerBiTitle')}</h4>
-        <dl className="text-sm space-y-2 text-slate-400">
+      <section className="space-y-3 border border-border rounded-lg p-4 bg-card/50">
+        <h4 className="font-medium text-foreground">{t('integrations.powerBiTitle')}</h4>
+        <dl className="text-sm space-y-2 text-muted-foreground">
           <div>
-            <dt className="text-slate-500">{t('integrations.endpoint')}</dt>
+            <dt className="text-muted-foreground">{t('integrations.endpoint')}</dt>
             <dd>
-              <code className="text-emerald-400 break-all">{queryUrl}</code>
+              <code className="text-accent break-all">{queryUrl}</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.method')}</dt>
+            <dt className="text-muted-foreground">{t('integrations.method')}</dt>
             <dd>
-              <code className="text-slate-300">POST</code>
+              <code className="text-foreground">POST</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.header')}</dt>
+            <dt className="text-muted-foreground">{t('integrations.header')}</dt>
             <dd>
-              <code className="text-slate-300 break-all">Authorization: Bearer nkz_pat_…</code>
+              <code className="text-foreground break-all">Authorization: Bearer nkz_pat_…</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.bodyExample')}</dt>
+            <dt className="text-muted-foreground">{t('integrations.bodyExample')}</dt>
             <dd>
-              <pre className="mt-1 p-3 bg-slate-950 rounded text-xs text-slate-300 overflow-x-auto">
+              <pre className="mt-1 p-3 bg-background rounded text-xs text-foreground overflow-x-auto">
                 {JSON.stringify(exampleBody, null, 2)}
               </pre>
-              <button
-                type="button"
-                onClick={() => void copy(JSON.stringify(exampleBody, null, 2))}
-                className="text-xs text-emerald-400 underline mt-1"
-              >
+              <Button variant="link" size="sm" onClick={() => void copy(JSON.stringify(exampleBody, null, 2))}>
                 {t('integrations.copy')}
-              </button>
+              </Button>
             </dd>
           </div>
         </dl>
       </section>
     </div>
+    </SlotShell>
   );
 };
