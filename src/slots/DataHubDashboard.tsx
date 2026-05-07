@@ -678,7 +678,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         </div>
       </div>
       {mainView === 'canvas' && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-slate-800/80 bg-slate-950/80">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-slate-800 bg-slate-950">
           <span className="text-[10px] uppercase tracking-wide text-slate-500 shrink-0">
             {t('dashboard.timeRange')}
           </span>
@@ -739,7 +739,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       <div className="flex-1 min-h-0 p-2 flex flex-col">
         {panels.length === 0 ? (
           <div
-            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-6 min-h-[min(420px,50vh)]"
+            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900 p-6 min-h-[min(420px,50vh)]"
             role="region"
             aria-label={t('dashboard.emptyCanvasTitle')}
             onDragOver={onEmptyCanvasDragOver}
@@ -782,7 +782,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div key={panel.id} className="relative h-full" onMouseDown={() => setActivePanelId(panel.id)}>
                 {/* Floating actions — top right pill */}
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
-                  <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950/70 backdrop-blur-md rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
+                  <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950 rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
                     {panel.series.length === 1 && (
                       <button
                         type="button"

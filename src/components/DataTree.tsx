@@ -150,7 +150,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
                           }}
                           className={`py-1 rounded px-1.5 cursor-grab active:cursor-grabbing transition-colors ${
                             selectedAttribute === attr.name
-                              ? 'bg-emerald-900/40 text-emerald-300 ring-1 ring-emerald-500/30'
+                              ? 'bg-emerald-900 text-emerald-200 ring-1 ring-emerald-500/40'
                               : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                           }`}
                         >
@@ -164,7 +164,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
                             </span>
                           )}
                           {hasActivePanel && (
-                            <span className="ml-auto text-[10px] text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="ml-auto text-[10px] text-emerald-300 bg-emerald-900 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                               + {t('tree.addToPanel')}
                             </span>
                           )}

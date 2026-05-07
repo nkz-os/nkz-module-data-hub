@@ -25,7 +25,7 @@ export const PanelHeader: React.FC<PanelHeaderProps> = ({
   return (
     <div
       className={[
-        'h-9 flex items-center gap-2 px-3 border-b border-slate-800/80 bg-slate-950/50 backdrop-blur-sm',
+        'h-9 flex items-center gap-2 px-3 border-b border-slate-800 bg-slate-950',
         dragHandleClass ?? '',
       ].join(' ')}
     >

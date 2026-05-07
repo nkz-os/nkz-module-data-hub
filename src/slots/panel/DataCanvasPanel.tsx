@@ -781,7 +781,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           <div className="pointer-events-auto px-2 pb-1"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-950/95 backdrop-blur-sm rounded-md border border-slate-700/40 shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="bg-slate-950 rounded-md border border-slate-700/40 shadow-2xl max-h-[80vh] overflow-y-auto">
               <PanelToolbar
                 appearance={appearance}
                 onAppearanceChange={patchAppearance}

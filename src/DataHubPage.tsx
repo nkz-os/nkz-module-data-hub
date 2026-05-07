@@ -116,7 +116,7 @@ const DataHubPageInner: React.FC = () => {
           {/* Overlay */}
           {sidebarOpen && (
             <div
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity"
+              className="fixed inset-0 z-40 bg-black/70 transition-opacity"
               onClick={closeSidebar}
               aria-hidden
             />
