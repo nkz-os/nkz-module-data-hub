@@ -139,7 +139,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         type="button"
         onClick={onZoomUndo}
         disabled={!canUndoZoom}
-        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
         title={labels.zoomUndo}
       >
         <Undo2 size={13} aria-hidden />
@@ -148,7 +148,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         type="button"
         onClick={onZoomReset}
         disabled={!canResetZoom}
-        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        className="p-1 rounded-md border border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
         title={labels.zoomReset}
       >
         <ZoomOut size={13} aria-hidden />
@@ -158,7 +158,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         <button
           type="button"
           onClick={onExportImage}
-          className="p-1 rounded-md text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 transition-colors"
+          className="p-1 rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
           title="Copy chart as PNG"
         >
           <Image size={13} aria-hidden />
@@ -172,7 +172,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${
             liveMode
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
           }`}
           title="Live IoT refresh"
         >
@@ -417,7 +417,7 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
   const right = appearance.yScaleManual?.right;
 
   return (
-    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-slate-950/95 border border-white/10/70 shadow-2xl backdrop-blur-md flex flex-col gap-2 min-w-[260px]">
+    <div className="absolute top-9 left-2 z-30 px-3 py-2.5 rounded-lg bg-slate-950 border border-white/10 shadow-2xl flex flex-col gap-2 min-w-[260px]">
       <ManualAxisRow
         label={labels.manualLeft}
         accent="emerald"

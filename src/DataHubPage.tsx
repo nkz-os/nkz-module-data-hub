@@ -140,7 +140,7 @@ const DataHubPageInner: React.FC = () => {
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="p-1.5 text-slate-300 hover:text-white rounded-md hover:bg-white/10 transition-colors"
+              className="p-1.5 text-slate-300 hover:text-white rounded-md hover:bg-slate-800 transition-colors"
               aria-label={t('tree.toggleSidebar', { defaultValue: 'Toggle sidebar' })}
             >
               <Menu size={18} />

@@ -734,7 +734,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800/70 border border-slate-600/40 text-slate-200 text-xs">
+          <span className="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-200 text-xs">
             {t('canvasPanel.loading')}
           </span>
         </div>
@@ -754,7 +754,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
         <div className="flex items-center gap-2">
           {/* Title + drag handle */}
-          <div className="panel-drag-handle cursor-move bg-slate-950/90 backdrop-blur-sm rounded-md pl-3 pr-3 py-1.5 border border-slate-600/40 shadow-lg select-none">
+          <div className="panel-drag-handle cursor-move bg-slate-950 rounded-md pl-3 pr-3 py-1.5 border border-slate-600 shadow-lg select-none">
             <span className="text-xs text-slate-200 font-mono font-medium truncate max-w-[280px] tracking-tight">
               {headerTitle}
             </span>
@@ -768,7 +768,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
               className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
                 toolbarOpen
                   ? 'text-white bg-slate-700 border-slate-500'
-                  : 'text-slate-300 bg-slate-950/90 border-slate-600/40 hover:text-white hover:bg-slate-800 hover:border-slate-500'
+                  : 'text-slate-300 bg-slate-950 border-slate-600 hover:text-white hover:bg-slate-800 hover:border-slate-500'
               }`}
               title="Chart tools"
             >
@@ -823,7 +823,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 }}
               />
               {railOpen && (
-                <div className="border-t border-slate-700/50 p-2 bg-slate-900/95">
+                <div className="border-t border-slate-700 p-2 bg-slate-900">
                   <PanelSeriesRail
                     series={series} workerSeries={workerSeries}
                     colorFor={(_, i) => colors[i] ?? '#34d399'}

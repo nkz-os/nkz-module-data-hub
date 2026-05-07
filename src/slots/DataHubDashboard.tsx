@@ -611,10 +611,10 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             <span
               className={`text-xs px-2 py-1 rounded ${
                 saveMessage.type === 'success'
-                  ? 'bg-emerald-900/50 text-emerald-400'
+                  ? 'bg-emerald-900 text-emerald-300'
                   : saveMessage.type === 'info'
-                    ? 'bg-slate-800/90 text-slate-300 border border-slate-600/80'
-                    : 'bg-red-900/50 text-red-400'
+                    ? 'bg-slate-800 text-slate-300 border border-slate-600'
+                    : 'bg-red-900 text-red-300'
               }`}
               role={saveMessage.type === 'error' ? 'alert' : 'status'}
               aria-live={saveMessage.type === 'error' ? 'assertive' : 'polite'}
@@ -688,7 +688,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 key={preset}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="px-2 py-1 text-xs rounded border border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700 hover:border-slate-600 transition-colors"
+                className="px-2 py-1 text-xs rounded border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:border-slate-600 transition-colors"
               >
                 {preset === '24h'
                   ? t('dashboard.preset24h')
@@ -720,7 +720,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           <button
             type="button"
             onClick={applyCustomRange}
-            className="px-2 py-1 text-xs rounded bg-emerald-700/90 text-white hover:bg-emerald-600 transition-colors"
+            className="px-2 py-1 text-xs rounded bg-emerald-700 text-white hover:bg-emerald-600 transition-colors"
           >
             {t('dashboard.applyRange')}
           </button>

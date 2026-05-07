@@ -155,7 +155,7 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
       </div>
       {/* Pearson r badge */}
       {correlation && (
-        <div className="absolute top-12 right-3 px-2 py-1 rounded bg-slate-950/90 border border-slate-700/70 shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
+        <div className="absolute top-12 right-3 px-2 py-1 rounded bg-slate-950 border border-slate-700 shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
           <span className="text-slate-400">r=</span>
           <span className={correlation.r >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
             {Number.isFinite(correlation.r) ? correlation.r.toFixed(3) : '—'}
@@ -165,7 +165,7 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
       )}
       {(!correlation || correlation.pairs.length < 2) && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-600/40 text-slate-300 text-xs">
+          <span className="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-300 text-xs">
             No hay pares alineados suficientes
           </span>
         </div>

@@ -75,7 +75,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   labels,
 }) => {
   return (
-    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-slate-950/90 border-t border-slate-800/60 pointer-events-none">
+    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-slate-950 border-t border-slate-800 pointer-events-none">
       {/* Legend */}
       {workerSeries.length > 0 && (
         <div className="flex items-center gap-3 truncate min-w-0">
@@ -111,7 +111,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
 
       {/* Pearson r badge — shows when 2+ series in timeseries mode */}
       {pearsonR != null && Number.isFinite(pearsonR) && (
-        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/50">
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">
           <span className="text-slate-400">r=</span>
           <span className={pearsonR >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
             {pearsonR.toFixed(3)}
