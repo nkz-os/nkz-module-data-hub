@@ -28,14 +28,33 @@ PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
 ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager-service:5000")
 ARROW_STREAM_TYPE = "application/vnd.apache.arrow.stream"
 
-# Weather columns resolvable via the parcel weather API (spatially downscaled)
+# Weather columns resolvable via the parcel weather API (spatially downscaled).
+# Includes both DB column names and NGSI-LD attribute names (both are valid).
 _WEATHER_COLUMNS = frozenset({
     "temp_avg", "temp_min", "temp_max", "humidity_avg", "precip_mm",
     "solar_rad_w_m2", "solar_rad_ghi_w_m2", "solar_rad_dni_w_m2",
     "eto_mm", "soil_moisture_0_10cm", "soil_moisture_10_40cm",
     "wind_speed_ms", "wind_direction_deg", "pressure_hpa",
     "gdd_accumulated", "delta_t",
+    # NGSI-LD attribute names (routed through same parcel weather API)
+    "temperature", "relativeHumidity", "windSpeed", "windDirection",
+    "atmosphericPressure", "precipitation", "et0", "solarRadiation",
+    "soilMoisture",
 })
+
+# NGSI-LD → weather_observations DB column mapping (inverse of entities.py _WEATHER_ATTR_MAP).
+# The parcel weather API returns DB column names; the frontend may request NGSI-LD names.
+_NGSI_LD_TO_DB_COLUMN = {
+    "temperature": "temp_avg",
+    "relativeHumidity": "humidity_avg",
+    "windSpeed": "wind_speed_ms",
+    "windDirection": "wind_direction_deg",
+    "atmosphericPressure": "pressure_hpa",
+    "precipitation": "precip_mm",
+    "et0": "eto_mm",
+    "solarRadiation": "solar_rad_w_m2",
+    "soilMoisture": "soil_moisture_0_10cm",
+}
 
 
 def _is_parcel_weather_query(entity_id: str, attrs: str) -> bool:
@@ -93,7 +112,9 @@ async def _fetch_from_parcel_weather_api(
             if ts:
                 timestamps.append(ts)
                 for attr in requested_attrs:
-                    val = obs.get(attr)
+                    # Map NGSI-LD names to DB columns that the parcel API returns
+                    db_key = _NGSI_LD_TO_DB_COLUMN.get(attr, attr)
+                    val = obs.get(db_key)
                     values[attr].append(val if val is not None else None)
 
         return {

@@ -18,21 +18,6 @@ logger = get_logger(__name__)
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
 CONTEXT_URL = os.getenv("CONTEXT_URL", "").strip()
 
-# Entity types that typically have timeseries; NGSI-LD types
-ENTITY_TYPES_WITH_DATA = [
-    "AgriParcel",
-    "AgriSensor",
-    "WeatherObserved",
-    "WeatherStation",
-    "AgriculturalTractor",
-    "LivestockAnimal",
-    "AgriculturalMachine",
-    "Device",
-    "CropHealthAssessment",
-    "VegetationIndex",
-]
-
-
 def _get_value(obj: Any) -> Any:
     """Extract value from NGSI-LD property (normalized or simplified)."""
     if obj is None:
@@ -107,29 +92,15 @@ def _attr_source(attr_val: Any) -> str | None:
 
 def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
     """
-    Keep only attributes that the platform timeseries-reader can actually query.
-    Returns canonical attribute name to expose in DataHub tree, or None to drop it.
+    Keep only attributes that the platform timeseries-reader can query.
+    Uses a unified whitelist — any entity type can expose any known attribute.
+    The timeseries-reader resolves the actual data source per entity URN.
     """
     name = (attr_name or "").strip()
     if not name:
         return None
 
-    # Weather-capable entities (including parcels resolved to weather key in v2 reader)
-    if entity_type in {"WeatherObserved", "WeatherStation", "AgriParcel"}:
-        if name in _WEATHER_VALID_COLUMNS or name in _WEATHER_ATTR_MAP:
-            return name
-        return None
-
-    # Sensor/device entities read from telemetry_events.measurements
-    if entity_type in {"AgriSensor", "Device", "Actuator", "AgriculturalMachine", "AgriculturalTractor", "LivestockAnimal"}:
-        if name in _TELEMETRY_VALID_ATTRS:
-            return name
-        aliased = _TELEMETRY_UI_ALIASES.get(name)
-        if aliased and aliased in _TELEMETRY_VALID_ATTRS:
-            return aliased
-        return None
-
-    # Unknown type on timescale: accept only reader-known attrs.
+    # Unified check against all known attribute sets (weather + telemetry).
     if name in _TELEMETRY_VALID_ATTRS or name in _WEATHER_VALID_COLUMNS or name in _WEATHER_ATTR_MAP:
         return name
     aliased = _TELEMETRY_UI_ALIASES.get(name)
@@ -228,13 +199,12 @@ def _norm_entity(e: dict, etype: str) -> dict:
     }
 
 
-async def _fetch_ngsi_entities(
+async def _fetch_all_ngsi_entities(
     platform_base: str,
-    etype: str,
     authorization: Optional[str],
     x_tenant_id: Optional[str],
 ) -> list[dict]:
-    """Fetch entities by type from platform NGSI-LD."""
+    """Fetch all entities from Orion-LD (no type filter). _norm_entity filters which ones have timeseries data."""
     url = f"{platform_base}/ngsi-ld/v1/entities"
     headers = {"Accept": "application/json"}
     if CONTEXT_URL:
@@ -247,7 +217,7 @@ async def _fetch_ngsi_entities(
         headers["X-Tenant-ID"] = x_tenant_id
         headers["NGSILD-Tenant"] = x_tenant_id
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(url, params={"type": etype}, headers=headers)
+        r = await client.get(url, headers=headers)
         r.raise_for_status()
         data = r.json()
     return data if isinstance(data, list) else []
@@ -260,52 +230,50 @@ async def get_entities(
     x_tenant_id: Optional[str] = Header(None),
 ):
     """
-    List entities that have timeseries data (parcels, weather stations, sensors, etc.).
-    When PLATFORM_API_URL is set, aggregates from platform NGSI-LD; otherwise returns empty list.
+    List entities that have timeseries data, discovered dynamically from Orion-LD.
+    No hardcoded type whitelist — _norm_entity determines which entities have plottable attributes.
     """
     if not PLATFORM_API_URL:
         return {"entities": []}
 
-    all_entities: list[dict] = []
-    successful_types = 0
-    failures: list[str] = []
-    for etype in ENTITY_TYPES_WITH_DATA:
-        try:
-            raw = await _fetch_ngsi_entities(
-                PLATFORM_API_URL, etype, authorization, x_tenant_id
-            )
-            successful_types += 1
-            for e in raw:
-                rec = _norm_entity(e, etype)
-                if search:
-                    q = search.lower()
-                    if q not in rec["name"].lower() and q not in rec["id"].lower():
-                        continue
-                all_entities.append(rec)
-        except Exception as ex:
-            failures.append(f"{etype}: {ex}")
-            logger.warning(
-                "entities_skip_type",
-                extra={"entity_type": etype, "error": str(ex)},
-            )
-            continue
-    if successful_types == 0 and failures:
+    try:
+        raw = await _fetch_all_ngsi_entities(
+            PLATFORM_API_URL, authorization, x_tenant_id
+        )
+    except Exception as ex:
         logger.error(
-            "entities_all_types_failed",
-            extra={"failures": failures[:5], "search": search},
+            "entities_fetch_all_failed",
+            extra={"error": str(ex)},
         )
         return JSONResponse(
             content={
                 "error": "No se pudo consultar Orion-LD desde DataHub",
-                "details": failures[:3],
+                "details": str(ex),
             },
             status_code=502,
         )
+
+    all_entities: list[dict] = []
+    for e in raw:
+        etype = e.get("type", "")
+        if isinstance(etype, dict):
+            etype = etype.get("value", etype) or ""
+        etype = str(etype).split("/")[-1] if "/" in str(etype) else str(etype)
+        rec = _norm_entity(e, etype)
+        # Only include entities that have at least one plottable attribute
+        if not rec.get("attributes"):
+            continue
+        if search:
+            q = search.lower()
+            if q not in rec["name"].lower() and q not in rec["id"].lower():
+                continue
+        all_entities.append(rec)
+
     logger.info(
         "entities_ok",
         extra={
             "count": len(all_entities),
-            "successful_types": successful_types,
+            "total_orion": len(raw),
             "search": search,
         },
     )
