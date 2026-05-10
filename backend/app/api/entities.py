@@ -152,7 +152,12 @@ def _norm_entity(e: dict, etype: str) -> dict:
     entity_id = str(entity_id)
 
     raw_name = _get_value(e.get("name"))
-    name = str(raw_name) if raw_name is not None else "Unknown"
+    if raw_name is not None and str(raw_name).strip():
+        name = str(raw_name).strip()
+    else:
+        # Fall back to the last segment of the URN (e.g. "station123" from
+        # "urn:ngsi-ld:WeatherObserved:tenant:station123")
+        name = entity_id.rsplit(":", 1)[-1] if ":" in entity_id else entity_id
 
     # Entity-level default source (used when an attribute has no explicit source)
     entity_source_raw = _get_value(e.get("source")) or _get_value(e.get("provider"))

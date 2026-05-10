@@ -403,6 +403,7 @@ async function fetchSingleSeries(
     end_time: req.endTime,
     resolution: String(req.resolution),
     attribute: item.attribute,
+    source: item.source ?? 'timescale',
   });
   const path = `/api/datahub/timeseries/entities/${encodeURIComponent(item.entityId)}/data?${params}`;
   // Web Workers do not resolve relative URLs — fetch() requires an absolute one.

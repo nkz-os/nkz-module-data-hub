@@ -745,12 +745,66 @@ async def proxy_timeseries_data(
         qp["time_to"] = qp["end_time"]
     if "attribute" in qp and "attrs" not in qp:
         qp["attrs"] = qp["attribute"]
+    source = qp.pop("source", "timescale") or "timescale"
+    source = source.strip().lower() or "timescale"
     for redundant in ("start_time", "end_time", "attribute", "format"):
         qp.pop(redundant, None)
 
     attrs_param = qp.get("attrs", "")
     time_from = qp.get("time_from")
     time_to = qp.get("time_to")
+
+    # Non-timescale sources: route to the module's Arrow export-arrow endpoint.
+    if source != "timescale":
+        adapter_base = _get_adapter_base_url(source)
+        if not adapter_base:
+            logger.warning(
+                "timeseries_adapter_not_configured",
+                extra={"source": source, "entity_id": entity_id},
+            )
+            return JSONResponse(
+                content={"error": f"No adapter configured for source: {source}"},
+                status_code=503,
+            )
+        try:
+            body = {
+                "series": [{"entity_id": entity_id, "attribute": attrs_param, "source": source}],
+                "start_time": time_from,
+                "end_time": time_to,
+                "resolution": int(qp.get("resolution", 1000)),
+            }
+            adapter_headers: dict = {"Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE}
+            if authorization:
+                adapter_headers["Authorization"] = authorization
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.post(
+                    f"{adapter_base}/api/internal/timeseries/export-arrow",
+                    json=body,
+                    headers=adapter_headers,
+                )
+            if r.status_code >= 400:
+                logger.warning(
+                    "timeseries_adapter_error",
+                    extra={"source": source, "entity_id": entity_id, "status": r.status_code},
+                )
+                return JSONResponse(
+                    content={"error": f"Adapter {source} returned {r.status_code}"},
+                    status_code=502,
+                )
+            # Parse Arrow IPC → JSON for the frontend
+            json_data = _arrow_bytes_to_json(r.content)
+        except Exception as exc:
+            logger.warning(
+                "timeseries_adapter_fetch_failed",
+                extra={"source": source, "entity_id": entity_id, "error": str(exc)},
+            )
+            return JSONResponse(
+                content={"error": f"Error fetching from {source}: {exc!s}"},
+                status_code=502,
+            )
+        if not json_data.get("timestamps"):
+            return Response(status_code=204)
+        return JSONResponse(content=json_data)
 
     # Route parcel weather queries to the corrected parcel API
     if _is_parcel_weather_query(entity_id, attrs_param):
