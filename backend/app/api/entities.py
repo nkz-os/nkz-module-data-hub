@@ -18,6 +18,19 @@ logger = get_logger(__name__)
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "").rstrip("/")
 CONTEXT_URL = os.getenv("CONTEXT_URL", "").strip()
 
+# Entity types to query from Orion-LD. Configurable via env var so new or
+# renamed types (e.g. SDM migrations) don't require a rebuild.
+_ENTITY_TYPES_DEFAULT = [
+    "AgriParcel", "AgriSensor", "WeatherObserved", "WeatherStation",
+    "ManufacturingMachine", "AutonomousMobileRobot",
+    "LivestockAnimal", "Device", "CropHealthAssessment", "VegetationIndex",
+]
+_ENTITY_TYPES = [
+    t.strip()
+    for t in os.getenv("DATAHUB_ENTITY_TYPES", "").split(",")
+    if t.strip()
+] or _ENTITY_TYPES_DEFAULT
+
 def _get_value(obj: Any) -> Any:
     """Extract value from NGSI-LD property (normalized or simplified)."""
     if obj is None:
@@ -199,12 +212,13 @@ def _norm_entity(e: dict, etype: str) -> dict:
     }
 
 
-async def _fetch_all_ngsi_entities(
+async def _fetch_ngsi_entities(
     platform_base: str,
+    etype: str,
     authorization: Optional[str],
     x_tenant_id: Optional[str],
 ) -> list[dict]:
-    """Fetch all entities from Orion-LD (no type filter). _norm_entity filters which ones have timeseries data."""
+    """Fetch entities of a given type from Orion-LD."""
     url = f"{platform_base}/ngsi-ld/v1/entities"
     headers = {"Accept": "application/json"}
     if CONTEXT_URL:
@@ -217,7 +231,7 @@ async def _fetch_all_ngsi_entities(
         headers["X-Tenant-ID"] = x_tenant_id
         headers["NGSILD-Tenant"] = x_tenant_id
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(url, headers=headers)
+        r = await client.get(url, params={"type": etype}, headers=headers)
         r.raise_for_status()
         data = r.json()
     return data if isinstance(data, list) else []
@@ -230,50 +244,58 @@ async def get_entities(
     x_tenant_id: Optional[str] = Header(None),
 ):
     """
-    List entities that have timeseries data, discovered dynamically from Orion-LD.
-    No hardcoded type whitelist — _norm_entity determines which entities have plottable attributes.
+    List entities that have timeseries data, queried per type from Orion-LD.
+    Entity types are configured via DATAHUB_ENTITY_TYPES env var so new SDM
+    types don't require a rebuild. _norm_entity filters which entities have
+    plottable attributes.
     """
     if not PLATFORM_API_URL:
         return {"entities": []}
 
-    try:
-        raw = await _fetch_all_ngsi_entities(
-            PLATFORM_API_URL, authorization, x_tenant_id
-        )
-    except Exception as ex:
+    all_entities: list[dict] = []
+    successful_types = 0
+    failures: list[str] = []
+    for etype in _ENTITY_TYPES:
+        try:
+            raw = await _fetch_ngsi_entities(
+                PLATFORM_API_URL, etype, authorization, x_tenant_id
+            )
+            successful_types += 1
+            for e in raw:
+                rec = _norm_entity(e, etype)
+                if not rec.get("attributes"):
+                    continue
+                if search:
+                    q = search.lower()
+                    if q not in rec["name"].lower() and q not in rec["id"].lower():
+                        continue
+                all_entities.append(rec)
+        except Exception as ex:
+            failures.append(f"{etype}: {ex}")
+            logger.warning(
+                "entities_skip_type",
+                extra={"entity_type": etype, "error": str(ex)},
+            )
+            continue
+
+    if successful_types == 0 and failures:
         logger.error(
-            "entities_fetch_all_failed",
-            extra={"error": str(ex)},
+            "entities_all_types_failed",
+            extra={"failures": failures[:5], "search": search},
         )
         return JSONResponse(
             content={
                 "error": "No se pudo consultar Orion-LD desde DataHub",
-                "details": str(ex),
+                "details": failures[:3],
             },
             status_code=502,
         )
-
-    all_entities: list[dict] = []
-    for e in raw:
-        etype = e.get("type", "")
-        if isinstance(etype, dict):
-            etype = etype.get("value", etype) or ""
-        etype = str(etype).split("/")[-1] if "/" in str(etype) else str(etype)
-        rec = _norm_entity(e, etype)
-        # Only include entities that have at least one plottable attribute
-        if not rec.get("attributes"):
-            continue
-        if search:
-            q = search.lower()
-            if q not in rec["name"].lower() and q not in rec["id"].lower():
-                continue
-        all_entities.append(rec)
-
     logger.info(
         "entities_ok",
         extra={
             "count": len(all_entities),
-            "total_orion": len(raw),
+            "successful_types": successful_types,
+            "types_queried": _ENTITY_TYPES,
             "search": search,
         },
     )
