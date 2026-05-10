@@ -67,6 +67,7 @@ _WEATHER_ATTR_MAP = {
     "et0": "eto_mm",
     "solarRadiation": "solar_rad_w_m2",
     "soilMoisture": "soil_moisture_0_10cm",
+    "deltaT": "delta_t",
 }
 _TELEMETRY_VALID_ATTRS = frozenset({
     "soilMoisture", "soilTemperature", "airTemperature", "relativeHumidity",
@@ -108,17 +109,43 @@ def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
     Keep only attributes that the platform timeseries-reader can query.
     Uses a unified whitelist — any entity type can expose any known attribute.
     The timeseries-reader resolves the actual data source per entity URN.
+
+    Handles both short names (temperature) and SAREF/URI names
+    (https://saref.etsi.org/core/Temperature) by extracting the last URI
+    segment before checking against the whitelists.
     """
     name = (attr_name or "").strip()
     if not name:
         return None
 
-    # Unified check against all known attribute sets (weather + telemetry).
-    if name in _TELEMETRY_VALID_ATTRS or name in _WEATHER_VALID_COLUMNS or name in _WEATHER_ATTR_MAP:
-        return name
-    aliased = _TELEMETRY_UI_ALIASES.get(name)
+    # Extract short name from full URI (e.g. https://saref.etsi.org/core/Temperature → Temperature)
+    short_name = name.rsplit("/", 1)[-1] if "/" in name else name
+    short_lower = short_name.lower()
+
+    # Build case-insensitive lookup sets for matching SAREF/PascalCase names
+    _telemetry_lower = {a.lower(): a for a in _TELEMETRY_VALID_ATTRS}
+    _weather_columns_lower = {a.lower(): a for a in _WEATHER_VALID_COLUMNS}
+    _weather_attr_map_lower = {k.lower(): v for k, v in _WEATHER_ATTR_MAP.items()}
+
+    for candidate in (name, short_name, short_lower):
+        if candidate in _TELEMETRY_VALID_ATTRS or candidate in _WEATHER_VALID_COLUMNS or candidate in _WEATHER_ATTR_MAP:
+            return candidate
+        aliased = _TELEMETRY_UI_ALIASES.get(candidate)
+        if aliased and aliased in _TELEMETRY_VALID_ATTRS:
+            return aliased
+
+    # Case-insensitive fallback (handles PascalCase SAREF names like WindSpeed → windspeed)
+    lo = short_lower
+    if lo in _telemetry_lower:
+        return _telemetry_lower[lo]
+    if lo in _weather_columns_lower:
+        return _weather_columns_lower[lo]
+    if lo in _weather_attr_map_lower:
+        return _weather_attr_map_lower[lo]
+    aliased = _TELEMETRY_UI_ALIASES.get(lo)
     if aliased and aliased in _TELEMETRY_VALID_ATTRS:
         return aliased
+
     return None
 
 
