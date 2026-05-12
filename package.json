@@ -1,7 +1,7 @@
 {
   "name": "nkz-module-datahub",
   "version": "1.0.0",
-  "description": "NKZ DataHub \u2014 Analytical canvas and data export module",
+  "description": "NKZ DataHub — Analytical canvas and data export module",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "./src/moduleEntry.ts",
@@ -16,9 +16,6 @@
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
-    "@nekazari/design-tokens": "^0.1.0-alpha",
-    "@nekazari/ui-kit": "^1.0.2-alpha.4",
-    "@nekazari/viewer-kit": "^0.1.0-alpha",
     "@tanstack/react-query": "^5.0.0",
     "lucide-react": "^0.424.0",
     "react-grid-layout": "^2.2.2",
@@ -26,9 +23,12 @@
     "uplot": "^1.6.0"
   },
   "devDependencies": {
+    "@nekazari/design-tokens": "^0.1.0-alpha",
     "@nekazari/module-builder": "^1.0.0",
-    "@nekazari/sdk": "^1.0.0",
-    "@nekazari/ui-kit": "^1.0.0",
+    "@nekazari/module-kit": "^0.1.1",
+    "@nekazari/sdk": "^1.1.0",
+    "@nekazari/ui-kit": "^1.0.2-alpha.4",
+    "@nekazari/viewer-kit": "^0.1.1-alpha.6",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/react-grid-layout": "^2.1.0",
@@ -40,7 +40,6 @@
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.2.2",
-    "vite": "^5.3.1",
-    "@nekazari/module-kit": "^0.1.0"
+    "vite": "^5.3.1"
   }
 }
