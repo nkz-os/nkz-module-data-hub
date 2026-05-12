@@ -1,7 +1,7 @@
 {
   "name": "nkz-module-datahub",
   "version": "1.0.0",
-  "description": "NKZ DataHub — Analytical canvas and data export module",
+  "description": "NKZ DataHub \u2014 Analytical canvas and data export module",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "./src/moduleEntry.ts",
@@ -40,6 +40,7 @@
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.2.2",
-    "vite": "^5.3.1"
+    "vite": "^5.3.1",
+    "@nekazari/module-kit": "^0.1.0"
   }
 }

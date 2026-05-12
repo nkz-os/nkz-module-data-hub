@@ -1,3 +1,4 @@
+import { defineModule } from "@nekazari/module-kit";
 import './i18n';
 import { moduleSlots } from './slots';
 import DataHubPage from './DataHubPage';
