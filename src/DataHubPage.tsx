@@ -7,6 +7,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';
+import { NKZProvider, useAuth } from '@nekazari/module-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Menu, X } from 'lucide-react';
 import { DataTree } from './components/DataTree';
@@ -36,6 +37,7 @@ function defaultTimeContext(): GlobalTimeContext {
 
 const DataHubPageInner: React.FC = () => {
   const { t } = useTranslation('datahub');
+  const { tenantName, isAuthenticated } = useAuth();
   const dashboardRef = useRef<DataHubDashboardHandle>(null);
   const [selectedEntity, setSelectedEntity] = useState<DataHubEntity | null>(null);
   const [selectedAttribute, setSelectedAttribute] = useState<string | null>(null);
@@ -106,7 +108,7 @@ const DataHubPageInner: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full min-h-screen bg-slate-950 relative">
+    <div className="flex h-full min-h-screen bg-slate-950 relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
       {/* Desktop: static sidebar */}
       {!isMobile && sidebarContent}
 
@@ -161,9 +163,11 @@ const DataHubPageInner: React.FC = () => {
 };
 
 const DataHubPage: React.FC = () => (
-  <QueryClientProvider client={queryClient}>
-    <DataHubPageInner />
-  </QueryClientProvider>
+  <NKZProvider moduleId="datahub">
+    <QueryClientProvider client={queryClient}>
+      <DataHubPageInner />
+    </QueryClientProvider>
+  </NKZProvider>
 );
 
 export default DataHubPage;
