@@ -7,8 +7,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';
-import { NKZProvider, useAuth } from '@nekazari/module-kit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NKZProvider, useAuth, useEntities } from '@nekazari/module-kit';
 import { Menu, X } from 'lucide-react';
 import { DataTree } from './components/DataTree';
 import {
@@ -17,10 +16,6 @@ import {
 } from './slots/DataHubDashboard';
 import type { DataHubEntity } from './services/datahubApi';
 import type { GlobalTimeContext } from './types/dashboard';
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 60_000, structuralSharing: false } },
-});
 
 const RESOLUTION = 1000;
 const SIDEBAR_BREAKPOINT = 768;
@@ -38,6 +33,14 @@ function defaultTimeContext(): GlobalTimeContext {
 const DataHubPageInner: React.FC = () => {
   const { t } = useTranslation('datahub');
   const { tenantName, isAuthenticated } = useAuth();
+  // Smoke test for A.2.1b — confirms useEntities resolves through the NKZProvider QueryClient.
+  // Not yet consumed by UI; logging is enough to verify gateway routing in production.
+  const { data: parcelsForSmoke } = useEntities('AgriParcel', { limit: 1 });
+  useEffect(() => {
+    if (parcelsForSmoke) {
+      console.debug('[datahub] useEntities AgriParcel sample length:', parcelsForSmoke.length);
+    }
+  }, [parcelsForSmoke]);
   const dashboardRef = useRef<DataHubDashboardHandle>(null);
   const [selectedEntity, setSelectedEntity] = useState<DataHubEntity | null>(null);
   const [selectedAttribute, setSelectedAttribute] = useState<string | null>(null);
@@ -163,10 +166,8 @@ const DataHubPageInner: React.FC = () => {
 };
 
 const DataHubPage: React.FC = () => (
-  <NKZProvider moduleId="datahub">
-    <QueryClientProvider client={queryClient}>
-      <DataHubPageInner />
-    </QueryClientProvider>
+  <NKZProvider moduleId="datahub" apiBasePath="/api/datahub">
+    <DataHubPageInner />
   </NKZProvider>
 );
 
