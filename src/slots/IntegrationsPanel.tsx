@@ -45,6 +45,12 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
   const [creating, setCreating] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
 
+  const VALID_SCOPES = ['timeseries', 'entities', 'export', 'telemetry'] as const;
+  type Scope = (typeof VALID_SCOPES)[number];
+
+  const [scopes, setScopes] = useState<Scope[]>(['timeseries']);
+  const [expiresDays, setExpiresDays] = useState<number>(365);
+
   const apiRoot = getBaseUrl().replace(/\/$/, '');
   // For external tools (Power BI, Excel), always show the full API URL.
   // When same-origin, use the base; otherwise use the env-configured API URL.
@@ -83,7 +89,10 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
     setNewToken(null);
     setError(null);
     try {
-      const res = await createTenantPat({ name: n });
+      const expires_at = expiresDays > 0
+        ? new Date(Date.now() + expiresDays * 86400000).toISOString()
+        : undefined;
+      const res = await createTenantPat({ name: n, scopes, expires_at });
       setNewToken(res.token);
       setName('');
       await refresh();
@@ -137,13 +146,60 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
           />
           <button
             type="button"
-            disabled={creating}
+            disabled={creating || scopes.length === 0}
             onClick={() => void onCreate()}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded text-sm text-white"
           >
             {creating ? t('integrations.creating') : t('integrations.create')}
           </button>
         </div>
+
+        {/* Scopes */}
+        <fieldset className="text-sm text-slate-400 space-y-1">
+          <legend className="text-slate-300 mb-1">
+            {t('integrations.scopesLabel', 'Permisos')}
+          </legend>
+          {VALID_SCOPES.map((scope) => (
+            <label key={scope} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={scopes.includes(scope)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setScopes([...scopes, scope]);
+                  } else {
+                    setScopes(scopes.filter((s) => s !== scope));
+                  }
+                }}
+                className="accent-emerald-500"
+              />
+              <span className="text-slate-300">{scope}</span>
+              <span className="text-xs text-slate-500">
+                {scope === 'timeseries' && (t('integrations.scopeTimeseriesHint', 'weather, telemetry data'))}
+                {scope === 'entities' && (t('integrations.scopeEntitiesHint', 'NGSI-LD entity queries'))}
+                {scope === 'export' && (t('integrations.scopeExportHint', 'CSV & Parquet export'))}
+                {scope === 'telemetry' && (t('integrations.scopeTelemetryHint', 'device telemetry'))}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        {/* Expiry */}
+        <label className="flex items-center gap-2 text-sm text-slate-400">
+          <span className="text-slate-300">{t('integrations.expiresLabel', 'Expires:')}</span>
+          <select
+            value={expiresDays}
+            onChange={(e) => setExpiresDays(Number(e.target.value))}
+            className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-slate-300"
+          >
+            <option value={30}>30 {t('integrations.days', 'days')}</option>
+            <option value={90}>90 {t('integrations.days', 'days')}</option>
+            <option value={180}>180 {t('integrations.days', 'days')}</option>
+            <option value={365}>365 {t('integrations.days', 'days')}</option>
+            <option value={0}>{t('integrations.noExpiry', 'No expiry')}</option>
+          </select>
+        </label>
+
         {newToken && (
           <div className="mt-3 p-3 bg-amber-950/30 border border-amber-800 rounded text-sm">
             <p className="text-amber-200 mb-2 font-medium">{t('integrations.tokenOnce')}</p>
@@ -174,8 +230,19 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
               >
                 <div>
                   <div className="font-mono text-slate-300">{row.name}</div>
+                  {row.scopes && row.scopes.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {row.scopes.map((s: string) => (
+                        <span key={s} className="px-1.5 py-0.5 bg-slate-800 rounded text-xs text-slate-400">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="text-xs text-slate-500">
-                    {row.is_active ? t('integrations.active') : t('integrations.inactive')} · {row.id}
+                    {row.is_active ? t('integrations.active') : t('integrations.inactive')}
+                    {row.expires_at && ` · ${t('integrations.expires', 'Expires')} ${new Date(row.expires_at).toLocaleDateString()}`}
+                     · {row.id}
                   </div>
                 </div>
                 {row.is_active && (
