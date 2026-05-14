@@ -11,6 +11,7 @@ dist/
 *.md
 !README.md
 !ADAPTER_SPEC.md
+!docs/API_EXTERNAL_ACCESS.md
 
 # Repo docs (internal specs, reviews, API notes)
 
