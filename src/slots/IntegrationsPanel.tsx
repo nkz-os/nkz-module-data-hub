@@ -157,7 +157,7 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         {/* Scopes */}
         <fieldset className="text-sm text-slate-400 space-y-1">
           <legend className="text-slate-300 mb-1">
-            {t('integrations.scopesLabel', 'Permisos')}
+            {t('integrations.scopesLabel', { defaultValue: 'Permisos' })}
           </legend>
           {VALID_SCOPES.map((scope) => (
             <label key={scope} className="flex items-center gap-2 cursor-pointer">
@@ -175,10 +175,10 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
               />
               <span className="text-slate-300">{scope}</span>
               <span className="text-xs text-slate-500">
-                {scope === 'timeseries' && (t('integrations.scopeTimeseriesHint', 'weather, telemetry data'))}
-                {scope === 'entities' && (t('integrations.scopeEntitiesHint', 'NGSI-LD entity queries'))}
-                {scope === 'export' && (t('integrations.scopeExportHint', 'CSV & Parquet export'))}
-                {scope === 'telemetry' && (t('integrations.scopeTelemetryHint', 'device telemetry'))}
+                {scope === 'timeseries' && (t('integrations.scopeTimeseriesHint', { defaultValue: 'weather, telemetry data' }))}
+                {scope === 'entities' && (t('integrations.scopeEntitiesHint', { defaultValue: 'NGSI-LD entity queries' }))}
+                {scope === 'export' && (t('integrations.scopeExportHint', { defaultValue: 'CSV & Parquet export' }))}
+                {scope === 'telemetry' && (t('integrations.scopeTelemetryHint', { defaultValue: 'device telemetry' }))}
               </span>
             </label>
           ))}
@@ -186,17 +186,17 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
 
         {/* Expiry */}
         <label className="flex items-center gap-2 text-sm text-slate-400">
-          <span className="text-slate-300">{t('integrations.expiresLabel', 'Expires:')}</span>
+          <span className="text-slate-300">{t('integrations.expiresLabel', { defaultValue: 'Expires:' })}</span>
           <select
             value={expiresDays}
             onChange={(e) => setExpiresDays(Number(e.target.value))}
             className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-slate-300"
           >
-            <option value={30}>30 {t('integrations.days', 'days')}</option>
-            <option value={90}>90 {t('integrations.days', 'days')}</option>
-            <option value={180}>180 {t('integrations.days', 'days')}</option>
-            <option value={365}>365 {t('integrations.days', 'days')}</option>
-            <option value={0}>{t('integrations.noExpiry', 'No expiry')}</option>
+            <option value={30}>30 {t('integrations.days', { defaultValue: 'days' })}</option>
+            <option value={90}>90 {t('integrations.days', { defaultValue: 'days' })}</option>
+            <option value={180}>180 {t('integrations.days', { defaultValue: 'days' })}</option>
+            <option value={365}>365 {t('integrations.days', { defaultValue: 'days' })}</option>
+            <option value={0}>{t('integrations.noExpiry', { defaultValue: 'No expiry' })}</option>
           </select>
         </label>
 
@@ -241,7 +241,7 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
                   )}
                   <div className="text-xs text-slate-500">
                     {row.is_active ? t('integrations.active') : t('integrations.inactive')}
-                    {row.expires_at && ` · ${t('integrations.expires', 'Expires')} ${new Date(row.expires_at).toLocaleDateString()}`}
+                    {row.expires_at && ` · ${t('integrations.expires', { defaultValue: 'Expires' })} ${new Date(row.expires_at).toLocaleDateString()}`}
                      · {row.id}
                   </div>
                 </div>
