@@ -296,6 +296,7 @@ export interface TenantPatMeta {
   created_at?: string | null;
   expires_at?: string | null;
   created_by_sub?: string | null;
+  scopes: string[];
 }
 
 /** GET /api/datahub/integrations/api-keys — list PATs for current tenant (cookie auth). */
@@ -314,7 +315,8 @@ export async function createTenantPat(body: {
   name: string;
   description?: string;
   expires_at?: string;
-}): Promise<{ id: string; token: string; name: string; warning?: string }> {
+  scopes: string[];
+}): Promise<{ id: string; token: string; name: string; scopes: string[]; warning?: string }> {
   const base = getBaseUrl().replace(/\/$/, '');
   const path = '/api/datahub/integrations/api-keys';
   const url = base ? `${base}${path}` : path;
