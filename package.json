@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "@nekazari/design-tokens": "^0.1.0-alpha",
-    "@nekazari/module-builder": "^1.2.0",
-    "@nekazari/module-kit": "^0.5.0",
+    "@nekazari/module-builder": "^2.0.0",
+    "@nekazari/module-kit": "^0.6.0",
     "@nekazari/sdk": "^1.1.0",
     "@nekazari/ui-kit": "^1.0.2-alpha.4",
     "@nekazari/viewer-kit": "^0.1.1-alpha.6",
