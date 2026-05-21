@@ -3,8 +3,8 @@
 #   2) Build frontend (MF2) → artifact; optional deploy to MinIO (repo secrets)
 #   3) Build & push backend Docker image to GHCR
 #
-# MinIO deploy (optional): set repository secrets (same as JupyterLite workflow):
-#   MINIO_ENDPOINT_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+# MinIO deploy is manual (mc mirror from production server).
+# CI uploads the build artifact for download; deploy to MinIO is done via SSH.
 # Object path: s3://nekazari-frontend/modules/datahub/ (mf-manifest.json + remoteEntry.js + assets/)
 #
 # After backend image push, restart pods so :latest picks up a new digest:

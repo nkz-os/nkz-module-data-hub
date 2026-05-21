@@ -189,7 +189,7 @@ pnpm run build
 ### Frontend (MinIO — Module Federation 2.0)
 
 1. Build: `pnpm run build` → `dist/` (mf-manifest.json, remoteEntry.js, assets/*)
-2. Upload to MinIO: `aws s3 sync dist/ s3://nekazari-frontend/modules/datahub/` (use S3 API or `mc`, never write directly to MinIO filesystem).
+2. Upload to MinIO from the production server: `mc mirror --overwrite dist/ myminio/nekazari-frontend/modules/datahub/` (use S3 API or `mc`, never write directly to MinIO filesystem).
 3. Ensure `marketplace_modules.remote_entry_url` for `datahub` is `/modules/datahub/mf-manifest.json`.
 
 ### Marketplace registration

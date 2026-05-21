@@ -26,10 +26,14 @@
   - `dist/remoteEntry.js` — federation remote entry (loaded by host at runtime)
   - `dist/manifest.json` — NKZ data manifest (api-gateway CSP enforcement)
   - `dist/assets/` — sync/async chunks
-- **Automatic upload to MinIO** runs on `main` when repository secrets are set: `MINIO_ENDPOINT_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. The CI runs `aws s3 sync dist/ s3://nekazari-frontend/modules/datahub/` — the entire `dist/` folder is synced.
-- If secrets are missing, the job still passes; download the artifact and upload manually:
+- **Upload to MinIO** is manual from the production server. After CI builds the artifact:
   ```bash
-  mc cp -r dist/ myminio/nekazari-frontend/modules/datahub/
+  # On the production server:
+  mc mirror --overwrite dist/ myminio/nekazari-frontend/modules/datahub/
+  ```
+  Then clean orphaned assets from previous builds:
+  ```bash
+  mc mirror --overwrite --remove dist/ myminio/nekazari-frontend/modules/datahub/
   ```
 - **Database registration:** `marketplace_modules.remote_entry_url` must point to `/modules/datahub/mf-manifest.json` (not the legacy `nkz-module.js` path).
 
