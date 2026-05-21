@@ -89,9 +89,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nkz-module-datahub
-          path: |
-            dist/nkz-module.js
-            dist/style.css
+          path: dist/
           retention-days: 30
 
       - name: Deploy bundle to MinIO
@@ -104,17 +102,13 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${MINIO_ENDPOINT_URL:-}" ] || [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-            echo "::notice::MinIO secrets not set (MINIO_ENDPOINT_URL / MINIO_ACCESS_KEY / MINIO_SECRET_KEY). Skipping bundle upload; download the artifact or upload manually."
+            echo "::notice::MinIO secrets not set. Skipping bundle upload."
             exit 0
           fi
           pip install -q awscli
           EP="${MINIO_ENDPOINT_URL}"
           B="s3://${{ env.MINIO_BUCKET }}/${{ env.MODULE_PREFIX }}"
-          aws --endpoint-url "${EP}" s3 cp dist/nkz-module.js "${B}/nkz-module.js" \
-            --content-type "application/javascript" \
-            --cache-control "public, max-age=300"
-          aws --endpoint-url "${EP}" s3 cp dist/style.css "${B}/style.css" \
-            --content-type "text/css" \
+          aws --endpoint-url "${EP}" s3 sync dist/ "${B}/" \
             --cache-control "public, max-age=300"
 
   build-backend:
