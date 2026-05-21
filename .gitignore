@@ -15,3 +15,15 @@ dist/
 
 # Repo docs (internal specs, reviews, API notes)
 
+docs/superpowers/
+docs/internal/
+internal-docs/
+docs/plans/
+docs/specs/
+docs/audits/
+*_PLAN.md
+*_SPEC.md
+*HANDOVER*.md
+HANDOFF.md
+CURRENT_STATE.md
+.ai/
