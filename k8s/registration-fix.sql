@@ -11,7 +11,7 @@ INSERT INTO marketplace_modules (
   'DataHub',
   'High-performance analytical canvas (Data Canvas) to cross variables from any source, export ranges, and run predictive models via Intelligence.',
   false,
-  '/modules/datahub/nkz-module.js',
+  '/modules/datahub/mf-manifest.json',
   NULL, NULL,
   '/datahub',
   'DataHub',

@@ -13,7 +13,7 @@ INSERT INTO marketplace_modules (
   'High-performance analytical canvas (Data Canvas) to cross variables from any source, export ranges, and run predictive models via Intelligence.',
   'Analytical canvas and data export',
   'line-chart',
-  '/modules/datahub/nkz-module.js',
+  '/modules/datahub/mf-manifest.json',
   '/datahub',
   'DataHub',
   ARRAY['Farmer', 'TenantAdmin', 'PlatformAdmin'],
@@ -22,7 +22,7 @@ INSERT INTO marketplace_modules (
   'basic',
   'FREE',
   '{"name": "Nekazari Team", "organization": "nkz-os"}'::jsonb,
-  '{"type": "iife", "remote_entry_url": "/modules/datahub/nkz-module.js"}'::jsonb
+  '{"type": "module-federation", "mfVersion": "2.0", "remote_entry_url": "/modules/datahub/mf-manifest.json"}'::jsonb
 ) ON CONFLICT (id) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   version = EXCLUDED.version,

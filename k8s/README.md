@@ -1,9 +1,10 @@
 # DataHub module — Kubernetes manifests
 
 - **Deployment** and **Service** are in this directory; ArgoCD app **`datahub`** syncs from GitHub repo **`nkz-os/nkz-module-data-hub`**, path **`k8s/`** (see `nkz/gitops/modules/datahub.yaml`).
-- **ConfigMap `datahub-api-config`** is **not** in this repo (avoids ArgoCD shared-resource conflict). Platform overlay:
-  - **ArgoCD app `datahub-config`** syncs the `nkz` repo, path `gitops/overlays/datahub`, and creates the ConfigMap (`PLATFORM_API_URL`, `TIMESERIES_ADAPTER_*`, etc.).
-  - **Standalone:** create the ConfigMap manually with at least `PLATFORM_API_URL`.
+- **ConfigMap `datahub-api-config`** is **not** in this repo with real values (avoids ArgoCD shared-resource conflict). Two-tier pattern:
+  - **Template:** `k8s/configmap.yaml` in this repo documents every env var with empty/placeholder values. Use it as reference.
+  - **Production overlay:** ArgoCD app **`datahub-config`** syncs the private `nkz-os/gitops-config` repo, path `overlays/modules/datahub`, and creates the ConfigMap with real values (`PLATFORM_API_URL`, `CORS_ORIGINS`, `TIMESERIES_ADAPTER_*`, `DATAHUB_ENTITY_TYPES`).
+  - **Standalone:** copy `configmap.yaml`, fill in your values, and `kubectl apply -f`.
 
 ## Backend image (GHCR)
 
@@ -18,11 +19,30 @@
 
 - **`imagePullPolicy: Always`** is set on the Deployment; a restart is still required for running pods to use the new digest when the tag string stays `latest`.
 
-## Frontend IIFE (MinIO)
+## Frontend (Module Federation 2.0 — MinIO)
 
-- CI: **`.github/workflows/build-push.yml`** builds the module bundle (`pnpm run build:module` → `dist/nkz-module.js`) and uploads an artifact.
-- **Automatic upload to MinIO** runs on `main` when repository secrets are set (same names as JupyterLite): `MINIO_ENDPOINT_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. Target: `s3://nekazari-frontend/modules/datahub/nkz-module.js`.
-- If secrets are missing, the job still passes; upload the artifact manually or use `mc cp` to `nekazari-frontend/modules/datahub/nkz-module.js`.
+- CI: **`.github/workflows/build-push.yml`** builds the module (`pnpm run build` → `dist/`) producing:
+  - `dist/mf-manifest.json` — federation manifest (shared deps + exposes)
+  - `dist/remoteEntry.js` — federation remote entry (loaded by host at runtime)
+  - `dist/manifest.json` — NKZ data manifest (api-gateway CSP enforcement)
+  - `dist/assets/` — sync/async chunks
+- **Automatic upload to MinIO** runs on `main` when repository secrets are set: `MINIO_ENDPOINT_URL`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`. The CI runs `aws s3 sync dist/ s3://nekazari-frontend/modules/datahub/` — the entire `dist/` folder is synced.
+- If secrets are missing, the job still passes; download the artifact and upload manually:
+  ```bash
+  mc cp -r dist/ myminio/nekazari-frontend/modules/datahub/
+  ```
+- **Database registration:** `marketplace_modules.remote_entry_url` must point to `/modules/datahub/mf-manifest.json` (not the legacy `nkz-module.js` path).
+
+### Cleaning legacy IIFE artifacts
+
+After confirming the MF2 deploy works, remove old IIFE files from MinIO:
+```bash
+mc rm myminio/nekazari-frontend/modules/datahub/nkz-module.js
+mc rm myminio/nekazari-frontend/modules/datahub/nkz-module.js.bak-*
+mc rm myminio/nekazari-frontend/modules/datahub/nkz-module.js.map
+mc rm myminio/nekazari-frontend/modules/datahub/style.css
+mc rm myminio/nekazari-frontend/modules/datahub/nekazari-module.js
+```
 
 ## Public repo and credentials (no private fork required)
 

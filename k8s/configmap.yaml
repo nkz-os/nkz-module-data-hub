@@ -1,0 +1,61 @@
+# DataHub BFF — ConfigMap template (public, no secrets).
+# Copy this file and fill in values for your environment.
+# Production values live in the private nkz-os/gitops-config repo.
+#
+# The Deployment's envFrom pulls every key in this ConfigMap into the container.
+# Keys with empty values are harmless — the backend handles missing config gracefully.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datahub-api-config
+  namespace: nekazari
+  labels:
+    app: datahub-api
+    module: datahub
+data:
+  # --- Required ---
+  # Base URL of the platform API gateway (in-cluster or external).
+  # The backend returns empty results / 503 if this is missing.
+  PLATFORM_API_URL: ""
+
+  # --- CORS ---
+  # Comma-separated list of allowed origins. Defaults to localhost dev ports.
+  # CORS_ORIGINS: "https://your-domain.com,https://other-domain.com"
+
+  # --- Entity types ---
+  # Comma-separated SDM entity types shown in the DataHub tree.
+  # Default: AgriParcel,AgriSensor,WeatherObserved,WeatherStation,ManufacturingMachine,
+  #          AutonomousMobileRobot,LivestockAnimal,Device,CropHealthAssessment,VegetationIndex
+  # DATAHUB_ENTITY_TYPES: ""
+
+  # --- Timeseries adapters ---
+  # Per-source override for non-timescale adapters. The pattern is:
+  #   TIMESERIES_ADAPTER_{SOURCE}_URL = "http://{source}-api-service:8000"
+  # where {SOURCE} is the uppercase source name (e.g. VEGETATION_HEALTH, CARBON).
+  # If unset, falls back to "http://{source}:8000".
+  # TIMESERIES_ADAPTER_VEGETATION_HEALTH_URL: "http://vegetation-prime-api-service:8000"
+
+  # --- Optional overrides ---
+  # ORION_URL: override Orion-LD endpoint (defaults to PLATFORM_API_URL)
+  # ENTITY_MANAGER_URL: override entity-manager (default: http://entity-manager-service:5000)
+
+  # --- CONTEXT_URL ---
+  # NOT set here. It is injected from the platform-level `nekazari-config` ConfigMap
+  # via env.valueFrom.configMapKeyRef in the Deployment spec.
+
+  # --- Parquet export (S3) ---
+  # These belong in a Kubernetes Secret, NOT this ConfigMap:
+  #   S3_ACCESS_KEY — MinIO/S3 access key (required for export)
+  #   S3_SECRET_KEY — MinIO/S3 secret key (required for export)
+  #   S3_ENDPOINT_URL — S3 endpoint (default: http://minio-service:9000)
+  #   S3_BUCKET — bucket name (default: nekazari-frontend)
+  #   S3_REGION — region (default: us-east-1)
+  #   S3_EXTERNAL_URL — browser-accessible URL for presigned downloads (optional)
+  #
+  # Create the Secret manually:
+  #   kubectl create secret generic datahub-s3-secret \
+  #     --from-literal=S3_ACCESS_KEY=... \
+  #     --from-literal=S3_SECRET_KEY=... \
+  #     -n nekazari
+  # Then reference it in the Deployment via envFrom.secretRef.

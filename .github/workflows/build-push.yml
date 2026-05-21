@@ -1,11 +1,11 @@
 # DataHub module — full pipeline on push to main:
 #   1) Validate: frontend typecheck + backend import smoke test
-#   2) Build IIFE bundle → artifact; optional deploy to MinIO (repo secrets)
+#   2) Build frontend (MF2) → artifact; optional deploy to MinIO (repo secrets)
 #   3) Build & push backend Docker image to GHCR
 #
 # MinIO deploy (optional): set repository secrets (same as JupyterLite workflow):
 #   MINIO_ENDPOINT_URL, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
-# Object path: s3://nekazari-frontend/modules/datahub/nkz-module.js
+# Object path: s3://nekazari-frontend/modules/datahub/ (mf-manifest.json + remoteEntry.js + assets/)
 #
 # After backend image push, restart pods so :latest picks up a new digest:
 #   kubectl rollout restart deployment/datahub-api -n nekazari
@@ -62,8 +62,8 @@ jobs:
           pip install -r backend/requirements.txt
           cd backend && python -c "from app.main import app; print('app import ok')"
 
-  build-iife:
-    name: Build IIFE bundle
+  build-frontend:
+    name: Build frontend (MF2)
     runs-on: ubuntu-latest
     needs: [validate]
     steps:
@@ -82,8 +82,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build module bundle
-        run: pnpm run build:module
+      - name: Build module bundle (MF2)
+        run: pnpm run build
 
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v4

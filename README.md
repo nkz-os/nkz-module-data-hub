@@ -26,7 +26,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Nekazari Host (your host domain)                                │
-│  Loads IIFE: /modules/datahub/nkz-module.js from MinIO          │
+│  Loads MF2 manifest: /modules/datahub/mf-manifest.json from MinIO │
 └─────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -46,7 +46,7 @@
 ```
 
 - **Backend (BFF)**: FastAPI service. Proxies platform timeseries (v2 reader) without in-BFF joins for pure Timescale paths; uses Polars only for **multi-source** merge when needed. Returns Arrow IPC or CSV/Parquet.
-- **Frontend**: Single IIFE bundle (`dist/nkz-module.js`), `main` route component **DataHubPage** (tree + **DataHubDashboard**), plus **DataHubQuickChart** in `bottom-panel`. Uses host-provided React, `@nekazari/sdk`, `@nekazari/ui-kit`; builds with `@nekazari/module-builder`.
+- **Frontend**: Module Federation 2.0 bundle (`dist/remoteEntry.js` + `dist/assets/`), `main` route component **DataHubPage** (tree + **DataHubDashboard**), plus **DataHubQuickChart** in `bottom-panel`. Uses host-provided React, `@nekazari/sdk`, `@nekazari/ui-kit`; builds with `@nekazari/module-builder`.
 
 ---
 
@@ -82,8 +82,12 @@ nkz-module-datahub/
 │   │   └── datahubApi.ts
 │   └── moduleEntry.ts        # window.__NKZ__.register()
 ├── k8s/
-│   └── backend-deployment.yaml
-├── manifest.json
+│   ├── backend-deployment.yaml
+│   └── configmap.yaml         # env var template (placeholder values)
+├── dist/                      # build output (gitignored)
+│   ├── mf-manifest.json       # federation manifest
+│   ├── remoteEntry.js         # federation remote entry
+│   └── assets/                # sync/async chunks
 ├── package.json
 └── README.md
 ```
@@ -111,7 +115,12 @@ All `/api/datahub/*` endpoints forward `Authorization` and `X-Tenant-ID` to the 
 |----------|-------------|
 | `PLATFORM_API_URL` | **Base URL of the platform API gateway** (no path suffix). Must serve both **`/ngsi-ld/v1/entities`** (Orion proxy) and **`/api/timeseries/...`** (timeseries-reader proxy). In Kubernetes use the in-cluster gateway, e.g. `http://api-gateway-service:5000`. External URL (e.g. `https://nkz.example.com`) also works but adds latency. Do not set this to `timeseries-reader` alone — entity listing will fail. |
 | `TIMESERIES_ADAPTER_<NAME>_URL` | Optional adapter base URL for non-timescale sources (e.g. `TIMESERIES_ADAPTER_CUSTOM_URL`) |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | MinIO/S3 for Parquet export (Route B). If unset, Parquet export may be disabled or fallback to platform. |
+| `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | MinIO/S3 for Parquet export. `S3_ACCESS_KEY` and `S3_SECRET_KEY` belong in a Kubernetes Secret, not a ConfigMap. `S3_ENDPOINT_URL` defaults to `http://minio-service:9000`, `S3_BUCKET` defaults to `nekazari-frontend`, `S3_REGION` defaults to `us-east-1`. `S3_EXTERNAL_URL` (optional) provides browser-accessible presigned URLs. |
+| `CORS_ORIGINS` | Optional comma-separated list of allowed CORS origins (defaults to localhost dev ports). |
+| `DATAHUB_ENTITY_TYPES` | Optional comma-separated list of SDM entity types to expose in the DataHub tree. |
+| `CONTEXT_URL` | NGSI-LD `@context` URL. Injected from the platform-level `nekazari-config` ConfigMap (not this module's ConfigMap). |
+| `ENTITY_MANAGER_URL` | Optional override for entity-manager service (default: `http://entity-manager-service:5000`). |
+| `ORION_URL` | Optional override for Orion-LD endpoint (defaults to `PLATFORM_API_URL`). |
 
 ---
 
@@ -138,11 +147,11 @@ pnpm run dev
 #   VITE_PROXY_TARGET=https://your-api-domain
 ```
 
-### Build IIFE bundle
+### Build frontend module
 
 ```bash
-pnpm run build:module
-# Output: dist/nkz-module.js
+pnpm run build
+# Output: dist/remoteEntry.js, dist/mf-manifest.json, dist/assets/*
 ```
 
 ---
@@ -161,7 +170,7 @@ pnpm run build:module
 2. **Apply manifests** (namespace `nekazari`):
 
    ```bash
-   kubectl apply -f k8s/backend-configmap.yaml -n nekazari
+   kubectl apply -f k8s/configmap.yaml -n nekazari
    kubectl apply -f k8s/backend-deployment.yaml -n nekazari
    ```
 
@@ -177,11 +186,11 @@ pnpm run build:module
            number: 8000
    ```
 
-### Frontend (MinIO)
+### Frontend (MinIO — Module Federation 2.0)
 
-1. Build: `pnpm run build:module` → `dist/nkz-module.js`
-2. Upload to MinIO at `nekazari-frontend/modules/datahub/nkz-module.js` (use S3 API or `mc`, never write directly to MinIO filesystem).
-3. Ensure `marketplace_modules.remote_entry_url` for `datahub` is `/modules/datahub/nkz-module.js`.
+1. Build: `pnpm run build` → `dist/` (mf-manifest.json, remoteEntry.js, assets/*)
+2. Upload to MinIO: `aws s3 sync dist/ s3://nekazari-frontend/modules/datahub/` (use S3 API or `mc`, never write directly to MinIO filesystem).
+3. Ensure `marketplace_modules.remote_entry_url` for `datahub` is `/modules/datahub/mf-manifest.json`.
 
 ### Marketplace registration
 
@@ -191,7 +200,7 @@ Run the SQL in `k8s/registration.sql` once per environment (or insert/update the
 
 1. **Platform ingress**: Ensure `/api/datahub` is routed to `datahub-api-service:8000`. The main platform repo (`nkz`) already includes this rule in `k8s/core/networking/ingress.yaml`; deploy it with the rest of the platform (e.g. `kubectl apply -f k8s/core/networking/ingress.yaml -n nekazari`).
 2. **Backend image**: Build and push from this repo (or use CI). No secrets or hardcoded URLs in the image. The repo ships a ConfigMap with `PLATFORM_API_URL` empty; **override it per environment** (e.g. `kubectl create configmap datahub-api-config -n nekazari --from-literal=PLATFORM_API_URL=https://your-api-domain ...`) so the same manifests work for any domain. For Parquet export to MinIO, add `S3_*` env vars via a Secret.
-3. **Frontend bundle**: Upload `dist/nkz-module.js` to MinIO at `nekazari-frontend/modules/datahub/nkz-module.js` using the S3 API or `mc` (never write directly to MinIO filesystem).
+3. **Frontend bundle**: Sync `dist/` to MinIO at `nekazari-frontend/modules/datahub/` using S3 API (`aws s3 sync dist/ s3://nekazari-frontend/modules/datahub/`). This uploads `mf-manifest.json`, `remoteEntry.js`, and `assets/`. Never write directly to the MinIO filesystem.
 4. **Database**: Run `k8s/registration.sql` if the module is not yet in `marketplace_modules`.
 
 ---
