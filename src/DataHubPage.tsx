@@ -7,7 +7,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from '@nekazari/sdk';
-import { NKZProvider, useAuth, useEntities } from '@nekazari/module-kit';
+import { useAuth, useEntities } from '@nekazari/module-kit';
 import { Menu, X } from 'lucide-react';
 import { DataTree } from './components/DataTree';
 import {
@@ -16,6 +16,7 @@ import {
 } from './slots/DataHubDashboard';
 import type { DataHubEntity } from './services/datahubApi';
 import type { GlobalTimeContext } from './types/dashboard';
+import './lib-overrides.css';
 
 const RESOLUTION = 1000;
 const SIDEBAR_BREAKPOINT = 768;
@@ -165,10 +166,6 @@ const DataHubPageInner: React.FC = () => {
   );
 };
 
-const DataHubPage: React.FC = () => (
-  <NKZProvider moduleId="datahub" apiBasePath="/api/datahub">
-    <DataHubPageInner />
-  </NKZProvider>
-);
+const DataHubPage: React.FC = () => <DataHubPageInner />;
 
 export default DataHubPage;

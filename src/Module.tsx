@@ -1,8 +1,9 @@
 import { defineModule } from '@nekazari/module-kit';
 import { lazy } from 'react';
-import './i18n';
 import { moduleSlots } from './slots';
 import pkg from '../package.json';
+import en from './locales/en.json';
+import es from './locales/es.json';
 
 const DataHubPage = lazy(() => import('./DataHubPage'));
 
@@ -23,5 +24,10 @@ export default defineModule({
   api: { basePath: '/api/datahub' },
   requiredRoles: ['Farmer', 'TenantAdmin', 'PlatformAdmin'],
   requiredPlan: 'basic',
-  slots: moduleSlots as never,
+  slots: moduleSlots,
+  i18n: { en, es },
+  data: {
+    entities: ['AgriParcel', 'DataHubWorkspace'],
+    timeseries: ['*'],
+  },
 });

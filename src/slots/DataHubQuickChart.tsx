@@ -6,15 +6,10 @@
 
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from '@nekazari/sdk';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataTree } from '../components/DataTree';
 import { DataCanvasPanelMemo } from './panel/DataCanvasPanel';
 import type { DataHubEntity } from '../services/datahubApi';
 import type { ChartSeriesDef } from '../types/dashboard';
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 60_000 } },
-});
 
 const RESOLUTION = 1000;
 
@@ -24,7 +19,7 @@ function defaultTimeRange(): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-const DataHubQuickChartInner: React.FC = () => {
+const DataHubQuickChart: React.FC = () => {
   const { t } = useTranslation('datahub');
   const [selectedEntity, setSelectedEntity] = useState<DataHubEntity | null>(null);
   const [selectedAttribute, setSelectedAttribute] = useState<string | null>(null);
@@ -78,11 +73,5 @@ const DataHubQuickChartInner: React.FC = () => {
     </div>
   );
 };
-
-const DataHubQuickChart: React.FC = () => (
-  <QueryClientProvider client={queryClient}>
-    <DataHubQuickChartInner />
-  </QueryClientProvider>
-);
 
 export default DataHubQuickChart;
