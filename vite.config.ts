@@ -4,6 +4,13 @@ import path from 'path';
 
 export default defineConfig(
   nkzModulePreset({
+    // Until @nekazari/module-builder publishes a version that adds
+    // @tanstack/react-query to NKZ_SHARED, declare it here so the federation
+    // runtime shares the singleton with the host (host's NKZProvider mounts
+    // <QueryClientProvider> and DataTree's useQuery must read the same context).
+    additionalShared: {
+      '@tanstack/react-query': { singleton: true, requiredVersion: '^5.0.0' },
+    },
     viteConfig: {
       resolve: {
         alias: { '@': path.resolve(__dirname, './src') },
