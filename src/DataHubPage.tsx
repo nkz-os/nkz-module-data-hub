@@ -10,6 +10,8 @@ import { useTranslation } from '@nekazari/sdk';
 import { useAuth, useEntities } from '@nekazari/module-kit';
 import { Menu, X } from 'lucide-react';
 import { DataTree } from './components/DataTree';
+import { CapabilityCatalog } from './components/CapabilityCatalog';
+import { ParcelInspector } from './components/ParcelInspector';
 import {
   DataHubDashboard,
   type DataHubDashboardHandle,
@@ -71,6 +73,8 @@ const DataHubPageInner: React.FC = () => {
     // Auto-close sidebar on mobile after selection
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
+
+  const [view, setView] = useState<'dashboard' | 'catalog' | 'inspector'>('dashboard');
 
   const [hasActivePanel, setHasActivePanel] = useState(false);
   useEffect(() => {
@@ -158,8 +162,42 @@ const DataHubPageInner: React.FC = () => {
             </span>
           </div>
         )}
-        <div className="flex-1 min-h-0">
-          <DataHubDashboard ref={dashboardRef} initialTimeContext={defaultTimeContext()} />
+
+        {/* View switcher */}
+        <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-white/10 bg-slate-950">
+          {(['dashboard', 'catalog', 'inspector'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                view === v
+                  ? 'bg-slate-700 text-slate-100'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {t(`capability.view_${v}`)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          {view === 'dashboard' && (
+            <DataHubDashboard ref={dashboardRef} initialTimeContext={defaultTimeContext()} />
+          )}
+          {view === 'catalog' && (
+            // TODO(Phase 4): replace ['open'] with tenant entitlements from auth context
+            // useAuth() does not currently expose entitlements
+            <CapabilityCatalog tenantEntitlements={['open']} />
+          )}
+          {view === 'inspector' && (
+            // TODO(Phase 4): replace ['open'] with tenant entitlements from auth context
+            // useAuth() does not currently expose entitlements
+            <ParcelInspector
+              parcelId={selectedEntity?.id ?? ''}
+              tenantEntitlements={['open']}
+            />
+          )}
         </div>
       </main>
     </div>

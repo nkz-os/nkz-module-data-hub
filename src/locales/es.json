@@ -198,5 +198,25 @@
     "comingSoonTitle": "Laboratorio científico",
     "comingSoonDesc": "El entorno JupyterLite para análisis interactivo de datos se está preparando. Permitirá escribir notebooks Python directamente conectados a los datos de la plataforma.",
     "comingSoonBadge": "Próximamente"
+  },
+  "capability": {
+    "view_dashboard": "Panel",
+    "view_catalog": "Catálogo de capacidades",
+    "view_inspector": "Inspector de parcela",
+    "catalog_title": "Catálogo de capacidades",
+    "catalog_module": "Módulo",
+    "catalog_entity": "Entidad",
+    "catalog_attribute": "Atributo",
+    "catalog_unit": "Unidad",
+    "catalog_temporal": "Temporal",
+    "catalog_spatial": "Espacial",
+    "catalog_sources": "Fuentes",
+    "catalog_entitlement": "Permiso",
+    "catalog_sdm": "SDM",
+    "inspector_title": "Parcela {{parcelId}}",
+    "inspector_no_data": "Sin datos",
+    "inspector_entitlement_required": "Permiso requerido",
+    "loading": "Cargando…",
+    "error": "Error: {{message}}"
   }
 }
