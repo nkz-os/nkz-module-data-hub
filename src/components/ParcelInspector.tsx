@@ -1,3 +1,4 @@
+import React from 'react';
 import { useParcelCapabilities } from '../hooks/useCapability';
 import { useTranslation } from '@nekazari/sdk';
 

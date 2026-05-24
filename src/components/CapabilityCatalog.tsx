@@ -1,3 +1,4 @@
+import React from 'react';
 import { useCapabilityCatalog, type CatalogEntry } from '../hooks/useCapability';
 import { useTranslation } from '@nekazari/sdk';
 

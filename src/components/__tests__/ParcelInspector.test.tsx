@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { ParcelInspector } from '../ParcelInspector';
 import { describe, it, expect, vi } from 'vitest';
