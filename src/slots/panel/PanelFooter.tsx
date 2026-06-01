@@ -75,7 +75,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   labels,
 }) => {
   return (
-    <div className="h-6 flex items-center gap-3 px-3 text-[10px] text-slate-300 bg-slate-950 border-t border-slate-800 pointer-events-none">
+    <div className="min-h-[28px] flex flex-wrap items-center gap-3 px-3 py-1 text-xs text-slate-200 bg-slate-950 border-t border-slate-700/50 pointer-events-none">
       {/* Legend */}
       {workerSeries.length > 0 && (
         <div className="flex items-center gap-3 truncate min-w-0">
@@ -86,9 +86,9 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
                 className="inline-block w-2 h-2 rounded-full shrink-0 ring-1 ring-slate-900"
                 style={{ background: colorFor(s.key, i) }}
               />
-              <span className="truncate max-w-[140px] text-slate-200">{s.attribute}</span>
+              <span className="truncate max-w-[140px] text-slate-100">{s.attribute}</span>
               {unitFor(s.attribute) && (
-                <span className="text-slate-500">{unitFor(s.attribute)}</span>
+                <span className="text-slate-400">{unitFor(s.attribute)}</span>
               )}
             </span>
           ))}
@@ -97,14 +97,14 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
 
       {/* Primary stats */}
       {primaryStats && (
-        <span className="tabular-nums whitespace-nowrap font-mono">
-          <span className="text-slate-500">{labels.min}</span>
+        <span className="tabular-nums whitespace-nowrap font-mono text-xs">
+          <span className="text-slate-400">{labels.min}</span>
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.min)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.max}</span>
+          <span className="text-slate-400 ml-2.5">{labels.max}</span>
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.max)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.mean}</span>
+          <span className="text-slate-400 ml-2.5">{labels.mean}</span>
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.mean)}</span>
-          <span className="text-slate-500 ml-2.5">{labels.last}</span>
+          <span className="text-slate-400 ml-2.5">{labels.last}</span>
           <span className="text-slate-100 ml-1">{formatNumberShort(primaryStats.last)}</span>
         </span>
       )}

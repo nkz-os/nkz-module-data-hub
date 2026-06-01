@@ -20,10 +20,10 @@ if (typeof document !== 'undefined') {
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
 import type { ChartAppearance, ChartSeriesDef } from '../../types/dashboard';
 
-const TEXT_AXIS = '#cbd5e1';
-const TEXT_AXIS_LEFT = '#34d399';
+const TEXT_AXIS = '#e2e8f0';
+const TEXT_AXIS_LEFT = '#4ade80';
 const TEXT_AXIS_RIGHT = '#c084fc';
-const GRID_RGBA = 'rgba(148,163,184,0.14)';
+const GRID_RGBA = 'rgba(148,163,184,0.18)';
 
 export interface PanelChartProps {
   series: ChartSeriesDef[];
@@ -174,18 +174,18 @@ export const PanelChart: React.FC<PanelChartProps> = ({
         } as uPlot.Series)),
       ],
       axes: [
-        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(203,213,225,0.30)', size: 4 }, font: '13px ui-sans-serif, system-ui', gap: 8 },
+        { stroke: TEXT_AXIS, grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(226,232,240,0.35)', size: 5 }, font: '14px ui-sans-serif, system-ui', gap: 10 },
         {
           scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
-          ticks: { stroke: 'rgba(52,211,153,0.30)', size: 4 }, size: 60,
-          font: '13px ui-sans-serif, system-ui', gap: 8,
+          ticks: { stroke: 'rgba(74,222,128,0.35)', size: 5 }, size: 68,
+          font: '14px ui-sans-serif, system-ui', gap: 10,
           values: leftUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${leftUnit}`) : undefined,
           ...(leftStep && leftStep > 0 ? { incrs: [leftStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(leftRange, leftStep) } : {}),
         },
         ...(hasRightAxis ? [{
           scale: 'y2' as const, side: 1 as const, stroke: TEXT_AXIS_RIGHT, grid: { show: false },
-          ticks: { stroke: 'rgba(192,132,252,0.30)', size: 4 }, size: 60,
-          font: '13px ui-sans-serif, system-ui', gap: 8,
+          ticks: { stroke: 'rgba(192,132,252,0.35)', size: 5 }, size: 68,
+          font: '14px ui-sans-serif, system-ui', gap: 10,
           values: rightUnit ? (_u: uPlot, splits: number[]) => splits.map(v => `${formatNumberShort(v)} ${rightUnit}`) : undefined,
           ...(rightStep && rightStep > 0 ? { incrs: [rightStep] as uPlot.Axis.Incrs, splits: buildSplitsFor(rightRange, rightStep) } : {}),
         } as uPlot.Axis] : []),

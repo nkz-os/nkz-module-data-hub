@@ -6,8 +6,8 @@ interface PanelEmptyStateProps {
 }
 
 export const PanelEmptyState: React.FC<PanelEmptyStateProps> = ({ message }) => (
-  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400 pointer-events-none">
-    <Inbox size={28} className="text-slate-600" aria-hidden />
-    <span className="text-xs">{message}</span>
+  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-400 pointer-events-none">
+    <Inbox size={32} className="text-slate-600" aria-hidden />
+    <span className="text-sm">{message}</span>
   </div>
 );
