@@ -66,7 +66,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-2 border-b border-slate-700">
+      <div className="p-2 border-b border-slate-700/50">
         <input
           type="search"
           placeholder={t('tree.searchPlaceholder')}
@@ -76,13 +76,13 @@ export const DataTree: React.FC<DataTreeProps> = ({
         />
       </div>
       <div className="flex-1 overflow-auto p-2">
-        {isLoading && <p className="text-sm text-slate-500">{t('tree.loading')}</p>}
+        {isLoading && <p className="text-sm text-slate-400">{t('tree.loading')}</p>}
         {error && <p className="text-sm text-red-400">{t('tree.errorLoad')}</p>}
         {!isLoading && !error && entities.length === 0 && (
-          <p className="text-sm text-slate-500">{t('tree.empty')}</p>
+          <p className="text-sm text-slate-400">{t('tree.empty')}</p>
         )}
         {!isLoading && !error && entities.length > 0 && (
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-1.5 text-sm">
             {entities.map((e: DataHubEntity) => (
               <li key={e.id} className="space-y-0.5">
                 <div
@@ -102,17 +102,17 @@ export const DataTree: React.FC<DataTreeProps> = ({
                       onSelect(e, first?.name ?? '');
                     }
                   }}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors ${
                     selectedEntity?.id === e.id
                       ? 'bg-slate-700 ring-1 ring-emerald-500/40'
                       : 'hover:bg-slate-800'
                   }`}
                 >
-                  <span className="font-medium text-slate-200 truncate">{e.name}</span>
+                  <span className="font-medium text-slate-100 truncate">{e.name}</span>
                   <span className="text-slate-500 shrink-0 text-xs">{e.type}</span>
                 </div>
                 {selectedEntity?.id === e.id && timeseriesAttributes(e.attributes).length > 0 && (
-                  <ul className="pl-3 text-xs">
+                  <ul className="pl-3 text-sm">
                     {timeseriesAttributes(e.attributes).map((attr) => {
                       const handleDragStart = (ev: React.DragEvent<HTMLElement>) => {
                         const payload = JSON.stringify({
@@ -141,23 +141,23 @@ export const DataTree: React.FC<DataTreeProps> = ({
                               onAddToCanvas?.(e, attr.name);
                             }
                           }}
-                          className={`py-1 rounded px-1.5 cursor-grab active:cursor-grabbing transition-colors ${
+                          className={`py-1.5 rounded px-2 cursor-grab active:cursor-grabbing transition-colors ${
                             selectedAttribute === attr.name
                               ? 'bg-emerald-900 text-emerald-200 ring-1 ring-emerald-500/40'
-                              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                              : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
                           }`}
                         >
                           <span>{attr.name}</span>
                           {ATTRIBUTE_UNIT[attr.name] && (
-                            <span className="text-slate-500 ml-1">({ATTRIBUTE_UNIT[attr.name]})</span>
+                            <span className="text-slate-400 ml-1">({ATTRIBUTE_UNIT[attr.name]})</span>
                           )}
                           {attr.source && attr.source !== 'timescale' && (
-                            <span className="text-slate-600 ml-1 text-[10px]">
+                            <span className="text-slate-500 ml-1 text-xs">
                               [{attr.source}]
                             </span>
                           )}
                           {hasActivePanel && (
-                            <span className="ml-auto text-[10px] text-emerald-300 bg-emerald-900 px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="ml-auto text-xs text-emerald-300 bg-emerald-900 px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                               + {t('tree.addToPanel')}
                             </span>
                           )}

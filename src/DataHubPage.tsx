@@ -87,9 +87,9 @@ const DataHubPageInner: React.FC = () => {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   const sidebarContent = (
-    <aside className="w-64 shrink-0 border-r border-white/10 bg-slate-950 flex flex-col h-full">
-      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-white/10">
-        <h2 className="text-sm font-semibold text-slate-300 tracking-wide uppercase">
+    <aside className="w-64 shrink-0 border-r border-slate-700/50 bg-slate-950 flex flex-col h-full">
+      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-slate-700/50">
+        <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">
           {t('tree.sidebarTitle')}
         </h2>
         {isMobile && (
@@ -164,13 +164,13 @@ const DataHubPageInner: React.FC = () => {
         )}
 
         {/* View switcher */}
-        <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-white/10 bg-slate-950">
+        <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-slate-700/50 bg-slate-950">
           {(['dashboard', 'catalog', 'inspector'] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                 view === v
                   ? 'bg-slate-700 text-slate-100'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'

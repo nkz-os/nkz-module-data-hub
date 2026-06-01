@@ -734,7 +734,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-600 text-slate-200 text-xs">
+          <span className="px-4 py-2 rounded-full bg-slate-800 border border-slate-500 text-slate-200 text-sm">
             {t('canvasPanel.loading')}
           </span>
         </div>
@@ -754,8 +754,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
         <div className="flex items-center gap-2">
           {/* Title + drag handle */}
-          <div className="panel-drag-handle cursor-move bg-slate-950 rounded-md pl-3 pr-3 py-1.5 border border-slate-600 shadow-lg select-none">
-            <span className="text-xs text-slate-200 font-mono font-medium truncate max-w-[280px] tracking-tight">
+          <div className="panel-drag-handle cursor-move bg-slate-900/95 rounded-md pl-3 pr-3 py-2 border border-slate-600 shadow-lg select-none">
+            <span className="text-sm text-slate-100 font-mono font-medium truncate max-w-[300px] tracking-tight">
               {headerTitle}
             </span>
           </div>
@@ -765,15 +765,15 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             <button
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); setToolbarOpen(v => !v); }}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
+              className={`px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
                 toolbarOpen
                   ? 'text-white bg-slate-700 border-slate-500'
-                  : 'text-slate-300 bg-slate-950 border-slate-600 hover:text-white hover:bg-slate-800 hover:border-slate-500'
+                  : 'text-slate-200 bg-slate-900/95 border-slate-600 hover:text-white hover:bg-slate-800 hover:border-slate-500'
               }`}
               title="Chart tools"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-              <span className="text-[11px] text-slate-400">Tools</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+              <span className="text-sm text-slate-300">Tools</span>
             </button>
           )}
         </div>

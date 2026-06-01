@@ -603,10 +603,10 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       style={{ isolation: 'isolate', zIndex: 0 }}
     >
       <div className="shrink-0 border-b border-slate-800 bg-slate-900 flex flex-col">
-      <div className="dashboard-global-toolbar h-12 flex items-center justify-between px-4">
+      <div className="dashboard-global-toolbar min-h-[48px] flex items-center justify-between px-4 py-1.5">
         <div className="flex items-center gap-4 min-w-0">
-          <h2 className="text-slate-200 font-semibold shrink-0">{t('dashboard.tacticalCanvas')}</h2>
-          <span className="text-slate-500 text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
+          <h2 className="text-slate-100 font-semibold text-base shrink-0">{t('dashboard.tacticalCanvas')}</h2>
+          <span className="text-slate-400 text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
           {saveMessage && (
             <span
               className={`text-xs px-2 py-1 rounded ${
@@ -624,14 +624,14 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded border border-slate-700 overflow-hidden mr-2">
+          <div className="flex rounded border border-slate-600 overflow-hidden mr-2">
             <button
               type="button"
               onClick={() => setMainView('canvas')}
-              className={`px-3 py-1.5 text-xs ${
+              className={`px-3 py-2 text-sm ${
                 mainView === 'canvas'
                   ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                  : 'bg-slate-900 text-slate-300 hover:text-slate-100'
               }`}
             >
               {t('integrations.canvasTab')}
@@ -639,10 +639,10 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             <button
               type="button"
               onClick={() => setMainView('integrations')}
-              className={`px-3 py-1.5 text-xs ${
+              className={`px-3 py-2 text-sm ${
                 mainView === 'integrations'
                   ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                  : 'bg-slate-900 text-slate-300 hover:text-slate-100'
               }`}
             >
               {t('integrations.integrationsTab')}
@@ -650,10 +650,10 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
             <button
               type="button"
               onClick={() => setMainView('lab')}
-              className={`px-3 py-1.5 text-xs ${
+              className={`px-3 py-2 text-sm ${
                 mainView === 'lab'
                   ? 'bg-slate-700 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                  : 'bg-slate-900 text-slate-300 hover:text-slate-100'
               }`}
             >
               {t('lab.tab')}
@@ -662,7 +662,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           <button
             type="button"
             onClick={handleSaveWorkspace}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded transition-colors flex items-center gap-2"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded transition-colors flex items-center gap-2"
           >
             <Save size={16} />
             {t('dashboard.saveWorkspace')}
@@ -670,7 +670,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           <button
             type="button"
             onClick={handleLoadWorkspace}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm rounded border border-slate-700 transition-colors flex items-center gap-2"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm rounded border border-slate-600 transition-colors flex items-center gap-2"
           >
             <FolderOpen size={16} />
             {t('dashboard.load')}
@@ -678,17 +678,17 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         </div>
       </div>
       {mainView === 'canvas' && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-slate-800 bg-slate-950">
-          <span className="text-[10px] uppercase tracking-wide text-slate-500 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t border-slate-800 bg-slate-950">
+          <span className="text-xs uppercase tracking-wide text-slate-400 shrink-0 font-semibold">
             {t('dashboard.timeRange')}
           </span>
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             {(['24h', '7d', '30d'] as const).map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="px-2 py-1 text-xs rounded border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:border-slate-600 transition-colors"
+                className="px-3 py-1.5 text-sm rounded border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:border-slate-500 transition-colors"
               >
                 {preset === '24h'
                   ? t('dashboard.preset24h')
@@ -698,29 +698,29 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               </button>
             ))}
           </div>
-          <span className="hidden sm:inline w-px h-4 bg-slate-700 mx-1 shrink-0" aria-hidden />
-          <label className="flex items-center gap-1 text-xs text-slate-400">
+          <span className="hidden sm:inline w-px h-5 bg-slate-600 mx-1 shrink-0" aria-hidden />
+          <label className="flex items-center gap-1.5 text-sm text-slate-300">
             <span className="shrink-0">{t('dashboard.customFrom')}</span>
             <input
               type="datetime-local"
               value={draftRangeStart}
               onChange={(e) => setDraftRangeStart(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-xs px-1.5 py-1"
+              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-sm px-2 py-1.5"
             />
           </label>
-          <label className="flex items-center gap-1 text-xs text-slate-400">
+          <label className="flex items-center gap-1.5 text-sm text-slate-300">
             <span className="shrink-0">{t('dashboard.customTo')}</span>
             <input
               type="datetime-local"
               value={draftRangeEnd}
               onChange={(e) => setDraftRangeEnd(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-xs px-1.5 py-1"
+              className="rounded border border-slate-600 bg-slate-900 text-slate-100 text-sm px-2 py-1.5"
             />
           </label>
           <button
             type="button"
             onClick={applyCustomRange}
-            className="px-2 py-1 text-xs rounded bg-emerald-700 text-white hover:bg-emerald-600 transition-colors"
+            className="px-3 py-1.5 text-sm rounded bg-emerald-700 text-white hover:bg-emerald-600 transition-colors"
           >
             {t('dashboard.applyRange')}
           </button>
@@ -739,18 +739,18 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       <div className="flex-1 min-h-0 p-2 flex flex-col">
         {panels.length === 0 ? (
           <div
-            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900 p-6 min-h-[min(420px,50vh)]"
+            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-600 bg-slate-900 p-8 min-h-[min(420px,50vh)]"
             role="region"
             aria-label={t('dashboard.emptyCanvasTitle')}
             onDragOver={onEmptyCanvasDragOver}
             onDrop={onEmptyCanvasDrop}
           >
             <div className="max-w-md text-center px-4">
-              <h3 className="text-base font-semibold text-slate-200 mb-2">
+              <h3 className="text-lg font-semibold text-slate-100 mb-3">
                 {t('dashboard.emptyCanvasTitle')}
               </h3>
-              <p className="text-sm text-slate-400 mb-4">{t('dashboard.emptyCanvasIntro')}</p>
-              <ol className="text-left text-sm text-slate-300 space-y-2 list-decimal list-inside">
+              <p className="text-sm text-slate-300 mb-4">{t('dashboard.emptyCanvasIntro')}</p>
+              <ol className="text-left text-sm text-slate-200 space-y-2.5 list-decimal list-inside">
                 <li>{t('dashboard.emptyCanvasStep1')}</li>
                 <li>{t('dashboard.emptyCanvasStep2')}</li>
                 <li>{t('dashboard.emptyCanvasStep3')}</li>
@@ -782,35 +782,35 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div key={panel.id} className="relative h-full" onMouseDown={() => setActivePanelId(panel.id)}>
                 {/* Floating actions — top right pill */}
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
-                  <div className="pointer-events-auto flex items-center gap-0.5 bg-slate-950 rounded-full px-1.5 py-1 ring-1 ring-white/10 shadow-sm">
+                  <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/95 rounded-full px-2 py-1.5 ring-1 ring-white/15 shadow-lg">
                     {panel.series.length === 1 && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
                         disabled={predictingPanelId === panel.id}
-                        className="p-1 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
+                        className="p-1.5 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
                         title={t('dashboard.predictTitle')}
                       >
-                        {predictingPanelId === panel.id ? <Loader2 size={11} className="animate-spin" /> : <Brain size={11} />}
+                        {predictingPanelId === panel.id ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
                       </button>
                     )}
                     {panel.series.length > 0 && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setExportModalPanel(panel); }}
-                        className="p-1 text-blue-400 hover:text-blue-300 rounded-full transition-colors"
+                        className="p-1.5 text-blue-400 hover:text-blue-300 rounded-full transition-colors"
                         title={t('dashboard.exportTitle')}
                       >
-                        <Download size={11} />
+                        <Download size={14} />
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removePanel(panel.id); }}
-                      className="p-1 text-slate-500 hover:text-red-400 rounded-full transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-red-400 rounded-full transition-colors"
                       title={t('dashboard.removePanel')}
                     >
-                      <Trash2 size={11} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -847,8 +847,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       )}
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
-          <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-sm mx-4 p-4">
-            <h3 className="text-sm font-semibold text-slate-200 mb-3">{t('dashboard.saveModalTitle')}</h3>
+          <div className="bg-slate-900 border border-slate-600 rounded-lg shadow-xl w-full max-w-sm mx-4 p-5">
+            <h3 className="text-base font-semibold text-slate-100 mb-3">{t('dashboard.saveModalTitle')}</h3>
             <input
               type="text"
               value={saveModalName}
@@ -856,13 +856,13 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               placeholder={t('dashboard.workspaceNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
-              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 mb-4 placeholder-slate-500"
+              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2.5 text-sm text-slate-200 mb-4 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowSaveModal(false)}
-                className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
+                className="px-4 py-2 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
               >
                 {t('dashboard.cancel')}
               </button>
@@ -870,7 +870,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 type="button"
                 onClick={handleConfirmSave}
                 disabled={!saveModalName.trim()}
-                className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
               >
                 {t('dashboard.save')}
               </button>
