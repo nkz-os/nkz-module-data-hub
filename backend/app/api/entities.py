@@ -106,13 +106,20 @@ def _attr_source(attr_val: Any) -> str | None:
 
 def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
     """
-    Keep only attributes that the platform timeseries-reader can query.
-    Uses a unified whitelist — any entity type can expose any known attribute.
-    The timeseries-reader resolves the actual data source per entity URN.
+    Normalize an NGSI-LD attribute name for the timeseries-reader.
 
     Handles both short names (temperature) and SAREF/URI names
     (https://saref.etsi.org/core/Temperature) by extracting the last URI
-    segment before checking against the whitelists.
+    segment.
+
+    Previously this function enforced a strict whitelist (_TELEMETRY_VALID_ATTRS
+    and _WEATHER_VALID_COLUMNS). That was too restrictive: most entities store
+    their timeseries data in TimescaleDB, not as Orion-LD property values, so
+    the whitelist check prevented newly-added attributes from appearing in the
+    DataHub tree. Now we accept any non-empty attribute name and let the
+    timeseries-reader validate availability at query time.
+
+    Returns None only for truly empty/blank names.
     """
     name = (attr_name or "").strip()
     if not name:
@@ -120,33 +127,18 @@ def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
 
     # Extract short name from full URI (e.g. https://saref.etsi.org/core/Temperature → Temperature)
     short_name = name.rsplit("/", 1)[-1] if "/" in name else name
-    short_lower = short_name.lower()
 
-    # Build case-insensitive lookup sets for matching SAREF/PascalCase names
-    _telemetry_lower = {a.lower(): a for a in _TELEMETRY_VALID_ATTRS}
-    _weather_columns_lower = {a.lower(): a for a in _WEATHER_VALID_COLUMNS}
+    # Still apply the attribute mapping for well-known NGSI-LD → timescale column
+    # aliases (e.g. temperature → temp_avg, relativeHumidity → humidity_avg).
+    # This ensures the timeseries-reader receives the column name it expects.
+    attr_lower = short_name.lower()
     _weather_attr_map_lower = {k.lower(): v for k, v in _WEATHER_ATTR_MAP.items()}
+    if attr_lower in _weather_attr_map_lower:
+        return _weather_attr_map_lower[attr_lower]
 
-    for candidate in (name, short_name, short_lower):
-        if candidate in _TELEMETRY_VALID_ATTRS or candidate in _WEATHER_VALID_COLUMNS or candidate in _WEATHER_ATTR_MAP:
-            return candidate
-        aliased = _TELEMETRY_UI_ALIASES.get(candidate)
-        if aliased and aliased in _TELEMETRY_VALID_ATTRS:
-            return aliased
-
-    # Case-insensitive fallback (handles PascalCase SAREF names like WindSpeed → windspeed)
-    lo = short_lower
-    if lo in _telemetry_lower:
-        return _telemetry_lower[lo]
-    if lo in _weather_columns_lower:
-        return _weather_columns_lower[lo]
-    if lo in _weather_attr_map_lower:
-        return _weather_attr_map_lower[lo]
-    aliased = _TELEMETRY_UI_ALIASES.get(lo)
-    if aliased and aliased in _TELEMETRY_VALID_ATTRS:
-        return aliased
-
-    return None
+    # For all other attributes, return the short name as-is.
+    # The timeseries-reader will return empty data if the attribute doesn't exist.
+    return short_name
 
 
 def _norm_entity(e: dict, etype: str) -> dict:
@@ -205,22 +197,10 @@ def _norm_entity(e: dict, etype: str) -> dict:
         prop_type = val.get("type", "")
         if prop_type in ("Relationship", "GeoProperty"):
             continue
-        # Skip boolean properties — they are config flags, not timeseries
-        raw_val = _get_value(val)
-        if isinstance(raw_val, bool):
-            continue
-        # Accept: numeric values, string-encoded numerics, and None (device
-        # provisioned but hasn't sent data yet — attribute exists in timeseries).
-        if raw_val is not None and not isinstance(raw_val, (int, float)):
-            # Try to parse string numerics (e.g. "23.5")
-            if isinstance(raw_val, str):
-                try:
-                    float(raw_val)
-                except (ValueError, TypeError):
-                    continue
-            else:
-                continue
-
+        # Accept: any Property (numeric, string, null, array, etc.).
+        # The timeseries-reader validates availability at query time.
+        # Previously we required numeric values here, but most entities have
+        # their timeseries data in TimescaleDB, not as Orion-LD property values.
         per_attr_source = _attr_source(val) or entity_source
         canonical_name = key
         # Non-timescale sources (e.g. vegetation_health, carbon) are accepted
