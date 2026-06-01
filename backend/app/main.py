@@ -122,6 +122,13 @@ class CookieAuthMiddleware(BaseHTTPMiddleware):
                 raw_headers = [(k, v) for k, v in raw_headers if k != b"authorization"]
                 raw_headers.append((b"authorization", f"Bearer {token}".encode()))
                 request.scope["headers"] = raw_headers
+                # Clear Starlette's cached _headers so downstream handlers and
+                # middleware see the injected Authorization header. Without this,
+                # CORSMiddleware (which runs before this middleware) may have
+                # already cached request.headers, making our scope mutations
+                # invisible to FastAPI's Header(...) dependency resolution.
+                if "_headers" in request.__dict__:
+                    del request.__dict__["_headers"]
         elif auth_header.lower().startswith("bearer "):
             token = auth_header[7:]
 
