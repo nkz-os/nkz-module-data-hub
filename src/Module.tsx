@@ -5,6 +5,10 @@ import { moduleSlots } from './slots';
 import pkg from '../package.json';
 import en from './locales/en.json';
 import es from './locales/es.json';
+import ca from './locales/ca.json';
+import eu from './locales/eu.json';
+import fr from './locales/fr.json';
+import pt from './locales/pt.json';
 
 // Register translations with the shared i18next singleton.
 // The host initializes i18next with HTTP backend (loadPath: '/locales/{{lng}}/{{ns}}.json'),
@@ -17,6 +21,10 @@ import es from './locales/es.json';
 if (typeof window !== 'undefined' && typeof i18n?.addResourceBundle === 'function') {
   i18n.addResourceBundle('en', 'datahub', en, true, true);
   i18n.addResourceBundle('es', 'datahub', es, true, true);
+  i18n.addResourceBundle('ca', 'datahub', ca, true, true);
+  i18n.addResourceBundle('eu', 'datahub', eu, true, true);
+  i18n.addResourceBundle('fr', 'datahub', fr, true, true);
+  i18n.addResourceBundle('pt', 'datahub', pt, true, true);
 }
 
 const DataHubPage = lazy(() => import('./DataHubPage'));
