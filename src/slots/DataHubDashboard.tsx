@@ -31,6 +31,7 @@ import type {
 import {
   getIntelligenceStreamUrl,
   submitPredictJob,
+  fetchPlugins,
   saveWorkspace,
   type DataHubEntity,
   type DataHubWorkspacePayload,
@@ -103,6 +104,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
   const [timeContext, setTimeContext] = useState<GlobalTimeContext>(initialTimeContext);
   const [exportModalPanel, setExportModalPanel] = useState<DashboardPanel | null>(null);
   const [predictingPanelId, setPredictingPanelId] = useState<string | null>(null);
+  const [selectedPlugin, setSelectedPlugin] = useState<string>('gradient_boosting_predictor');
+  const [availablePlugins, setAvailablePlugins] = useState<Array<{ name: string; description: string }>>([]);
   const [activePanelId, setActivePanelId] = useState<string | null>(null);
   const [loadWorkspaceOpen, setLoadWorkspaceOpen] = useState(false);
   const [mainView, setMainView] = useState<'canvas' | 'integrations' | 'lab'>('canvas');
@@ -146,6 +149,25 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       predictAbortRef.current?.abort();
       predictAbortRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    fetchPlugins()
+      .then((plugins) => {
+        setAvailablePlugins(plugins);
+        // Default to gradient_boosting if available, else first plugin
+        const hasGradientBoosting = plugins.some((p) => p.name === 'gradient_boosting_predictor');
+        if (!hasGradientBoosting && plugins.length > 0) {
+          setSelectedPlugin(plugins[0].name);
+        }
+      })
+      .catch(() => {
+        // If fetch fails, keep defaults (gradient_boosting_predictor + simple_predictor)
+        setAvailablePlugins([
+          { name: 'gradient_boosting_predictor', description: 'Gradient Boosting forecaster' },
+          { name: 'simple_predictor', description: 'Linear extrapolation' },
+        ]);
+      });
   }, []);
 
   useEffect(() => {
@@ -300,7 +322,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         s.attribute,
         timeContext.startTime,
         timeContext.endTime,
-        24
+        24,
+        selectedPlugin
       )
         .then((jobId) => {
           const url = getIntelligenceStreamUrl(jobId);
@@ -784,15 +807,32 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
                   <div className="pointer-events-auto flex items-center gap-1 bg-slate-900/95 rounded-full px-2 py-1.5 ring-1 ring-white/15 shadow-lg">
                     {panel.series.length === 1 && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
-                        disabled={predictingPanelId === panel.id}
-                        className="p-1.5 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
-                        title={t('dashboard.predictTitle')}
-                      >
-                        {predictingPanelId === panel.id ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
-                      </button>
+                      <>
+                        {availablePlugins.length > 1 && (
+                          <select
+                            value={selectedPlugin}
+                            onChange={(e) => { e.stopPropagation(); setSelectedPlugin(e.target.value); }}
+                            disabled={predictingPanelId === panel.id}
+                            className="text-[10px] bg-slate-800 text-slate-300 border-none rounded px-1 py-0.5 outline-none cursor-pointer disabled:opacity-40 max-w-[100px] truncate"
+                            title={t('dashboard.modelSelectTitle')}
+                          >
+                            {availablePlugins.map((p) => (
+                              <option key={p.name} value={p.name}>
+                                {p.name === 'gradient_boosting_predictor' ? '🌲 GB' : p.name === 'simple_predictor' ? '📈 Linear' : p.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handlePredict(panel); }}
+                          disabled={predictingPanelId === panel.id}
+                          className="p-1.5 text-amber-400 hover:text-amber-300 disabled:opacity-40 rounded-full transition-colors"
+                          title={t('dashboard.predictTitle')}
+                        >
+                          {predictingPanelId === panel.id ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />}
+                        </button>
+                      </>
                     )}
                     {panel.series.length > 0 && (
                       <button

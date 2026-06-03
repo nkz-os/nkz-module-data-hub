@@ -120,6 +120,7 @@
     "load": "Charger",
     "predictTitle": "Prédiction IA",
     "predictAria": "Prédiction IA",
+    "modelSelectTitle": "Modèle de prédiction",
     "exportTitle": "Exporter",
     "exportAria": "Exporter",
     "multiSeriesSources": "Multi-séries ({{count}} sources)",

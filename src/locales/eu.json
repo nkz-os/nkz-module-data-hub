@@ -120,6 +120,7 @@
     "load": "Kargatu",
     "predictTitle": "IA iragarpena",
     "predictAria": "IA iragarpena",
+    "modelSelectTitle": "Iragarpen eredua",
     "exportTitle": "Esportatu",
     "exportAria": "Esportatu",
     "multiSeriesSources": "Serie anitz ({{count}} jatorri)",

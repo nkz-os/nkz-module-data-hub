@@ -120,6 +120,7 @@
     "load": "Load",
     "predictTitle": "AI prediction",
     "predictAria": "AI prediction",
+    "modelSelectTitle": "Prediction model",
     "exportTitle": "Export",
     "exportAria": "Export",
     "multiSeriesSources": "Multi-series ({{count}} sources)",

@@ -117,13 +117,25 @@ export interface PredictionResult {
   metadata?: Record<string, unknown>;
 }
 
+/** List available intelligence plugins (name + description). */
+export async function fetchPlugins(): Promise<Array<{ name: string; description: string }>> {
+  const base = getBaseUrl().replace(/\/$/, '');
+  const url = base ? `${base}/api/intelligence/plugins` : '/api/intelligence/plugins';
+  const headers: HeadersInit = withTenantHeaders({ Accept: 'application/json' });
+  const res = await fetch(url, { headers, credentials: 'include' });
+  if (!res.ok) throw new Error(`Plugins: ${res.status}`);
+  const data = (await res.json()) as { plugins: Array<{ name: string; description: string }> };
+  return data.plugins;
+}
+
 /** Submit metadata-only predict job; returns job_id for SSE stream. */
 export async function submitPredictJob(
   entityId: string,
   attribute: string,
   startTime: string,
   endTime: string,
-  predictionHorizonHours: number = 24
+  predictionHorizonHours: number = 24,
+  plugin: string = 'gradient_boosting_predictor'
 ): Promise<string> {
   const base = getBaseUrl().replace(/\/$/, '');
   const url = base ? `${base}/api/intelligence/predict` : '/api/intelligence/predict';
@@ -138,6 +150,7 @@ export async function submitPredictJob(
       start_time: startTime,
       end_time: endTime,
       prediction_horizon: predictionHorizonHours,
+      plugin,
     }),
     credentials: 'include',
   });
