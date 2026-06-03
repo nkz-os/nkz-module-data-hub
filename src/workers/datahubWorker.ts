@@ -393,11 +393,76 @@ function releaseCacheKeys(keys: string[]): void {
 // ────────────────────────────────────────────────────────────────────────────
 // Fetch
 // ────────────────────────────────────────────────────────────────────────────
+// URN → timeseries entity_id resolution
+// ────────────────────────────────────────────────────────────────────────────
+
+const urnResolutionCache = new Map<string, string | null>();
+
+interface TimeseriesLocationResponse {
+  timeseries_entity_id: string;
+  source: string;
+}
+
+/**
+ * Resolve an NGSI-LD URN to a timeseries entity_id (e.g. municipality_code).
+ * Returns null when the entity has no resolvable location (→ empty series).
+ * Passthrough: returns the original id if it's not a URN.
+ *
+ * Uses entity-manager's GET /api/entities/{id}/timeseries-location
+ */
+async function resolveEntityId(
+  entityId: string,
+  baseUrl: string,
+  headers: Record<string, string>,
+): Promise<string | null> {
+  // Passthrough: not a URN — use as-is
+  if (!entityId.toLowerCase().startsWith('urn:')) {
+    return entityId;
+  }
+
+  // Cache hit
+  const cached = urnResolutionCache.get(entityId);
+  if (cached !== undefined) return cached;
+
+  try {
+    const resolveUrl = `${baseUrl}/api/entities/${encodeURIComponent(entityId)}/timeseries-location`;
+    const res = await fetch(resolveUrl, {
+      method: 'GET',
+      headers: { ...headers, Accept: 'application/json' },
+      credentials: 'include',
+    });
+
+    if (res.status === 200) {
+      const data = (await res.json()) as TimeseriesLocationResponse;
+      const resolved = data.timeseries_entity_id || null;
+      urnResolutionCache.set(entityId, resolved);
+      return resolved;
+    }
+
+    // 204 = entity has no resolvable location; 404 = not found
+    urnResolutionCache.set(entityId, null);
+    return null;
+  } catch {
+    // Network error → treat as unresolved, fall back to original id
+    return entityId;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 async function fetchSingleSeries(
   req: DatahubWorkerRequest,
   item: WorkerSeriesSpec
 ): Promise<{ xs: Float64Array; ys: Float64Array }> {
+  const base = req.baseUrl || self.location.origin;
+
+  // Resolve URN → timeseries entity_id for NGSI-LD entities (WeatherObserved, AgriParcel, etc.)
+  const resolvedEntityId = await resolveEntityId(item.entityId, base, req.headers ?? {});
+  if (resolvedEntityId === null) {
+    // Entity has no resolvable location → return empty series
+    return { xs: new Float64Array(0), ys: new Float64Array(0) };
+  }
+
   const params = new URLSearchParams({
     start_time: req.startTime,
     end_time: req.endTime,
@@ -405,12 +470,7 @@ async function fetchSingleSeries(
     attribute: item.attribute,
     source: item.source ?? 'timescale',
   });
-  const path = `/api/datahub/timeseries/entities/${encodeURIComponent(item.entityId)}/data?${params}`;
-  // Web Workers do not resolve relative URLs — fetch() requires an absolute one.
-  // When the orchestrator does not pass an explicit baseUrl (same-origin case),
-  // we fall back to the worker's own origin (which equals the spawning page's
-  // origin since this is an inline worker).
-  const base = req.baseUrl || self.location.origin;
+  const path = `/api/datahub/timeseries/entities/${encodeURIComponent(resolvedEntityId)}/data?${params}`;
   const url = `${base}${path}`;
   const response = await fetch(url, {
     method: 'GET',
