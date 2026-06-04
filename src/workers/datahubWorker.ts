@@ -20,6 +20,7 @@ import type {
   WorkerSeriesSpec,
   WorkerStats,
 } from './contracts/datahubWorkerV2';
+import { parseSingleSeriesPayload } from './parsing';
 
 const WORKER_BUILD = 'v2.1-per-series-2026-04-25';
 const CACHE_BUDGET_MB = 128;
@@ -36,97 +37,6 @@ interface CachedSeries {
 }
 
 const seriesCache = new Map<string, CachedSeries>();
-
-// ────────────────────────────────────────────────────────────────────────────
-// Parsing
-// ────────────────────────────────────────────────────────────────────────────
-
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function timestampToEpochSeconds(value: unknown): number | null {
-  const normalize = (n: number): number => {
-    let v = n;
-    while (Math.abs(v) > 1e11) v /= 1000;
-    return v;
-  };
-  if (typeof value === 'number' && Number.isFinite(value)) return normalize(value);
-  if (typeof value === 'string') {
-    const t = value.trim();
-    if (/^\d+(\.\d+)?$/.test(t)) {
-      const n = Number.parseFloat(t);
-      return Number.isFinite(n) ? normalize(n) : null;
-    }
-    const ms = Date.parse(t);
-    return Number.isFinite(ms) ? ms / 1000 : null;
-  }
-  return null;
-}
-
-function parseSingleSeriesPayload(data: unknown): { xs: Float64Array; ys: Float64Array } {
-  const payload = (data ?? {}) as Record<string, unknown>;
-  const timestamps = Array.isArray(payload.timestamps) ? payload.timestamps : [];
-  const rawValues = Array.isArray(payload.values)
-    ? payload.values
-    : Array.isArray(payload.value_0)
-      ? payload.value_0
-      : [];
-  const len = Math.min(timestamps.length, rawValues.length);
-  const tmpX = new Float64Array(len);
-  const tmpY = new Float64Array(len);
-  let w = 0;
-  for (let i = 0; i < len; i++) {
-    const x = timestampToEpochSeconds(timestamps[i]);
-    if (x == null) continue;
-    tmpX[w] = x;
-    const y = toFiniteNumber(rawValues[i]);
-    tmpY[w] = y == null ? Number.NaN : y;
-    w += 1;
-  }
-  return normalizeMonotonic(tmpX.slice(0, w), tmpY.slice(0, w));
-}
-
-function normalizeMonotonic(
-  x: Float64Array,
-  y: Float64Array
-): { xs: Float64Array; ys: Float64Array } {
-  if (x.length <= 1) return { xs: x, ys: y };
-  const pairs: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i < x.length; i++) {
-    const xv = x[i];
-    if (!Number.isFinite(xv)) continue;
-    pairs.push({ x: xv, y: y[i] });
-  }
-  if (pairs.length <= 1) {
-    return {
-      xs: new Float64Array(pairs.map((p) => p.x)),
-      ys: new Float64Array(pairs.map((p) => p.y)),
-    };
-  }
-  pairs.sort((a, b) => a.x - b.x);
-  const nx: number[] = [];
-  const ny: number[] = [];
-  let i = 0;
-  while (i < pairs.length) {
-    let j = i + 1;
-    let val = pairs[i].y;
-    while (j < pairs.length && pairs[j].x === pairs[i].x) {
-      // For duplicated timestamps prefer the latest finite value.
-      if (Number.isFinite(pairs[j].y)) val = pairs[j].y;
-      j += 1;
-    }
-    nx.push(pairs[i].x);
-    ny.push(val);
-    i = j;
-  }
-  return { xs: new Float64Array(nx), ys: new Float64Array(ny) };
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Gap injection (per-series)
@@ -392,76 +302,14 @@ function releaseCacheKeys(keys: string[]): void {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Fetch
-// ────────────────────────────────────────────────────────────────────────────
-// URN → timeseries entity_id resolution
-// ────────────────────────────────────────────────────────────────────────────
-
-const urnResolutionCache = new Map<string, string | null>();
-
-interface TimeseriesLocationResponse {
-  timeseries_entity_id: string;
-  source: string;
-}
-
-/**
- * Resolve an NGSI-LD URN to a timeseries entity_id (e.g. municipality_code).
- * Returns null when the entity has no resolvable location (→ empty series).
- * Passthrough: returns the original id if it's not a URN.
- *
- * Uses entity-manager's GET /api/entities/{id}/timeseries-location
- */
-async function resolveEntityId(
-  entityId: string,
-  baseUrl: string,
-  headers: Record<string, string>,
-): Promise<string | null> {
-  // Passthrough: not a URN — use as-is
-  if (!entityId.toLowerCase().startsWith('urn:')) {
-    return entityId;
-  }
-
-  // Cache hit
-  const cached = urnResolutionCache.get(entityId);
-  if (cached !== undefined) return cached;
-
-  try {
-    const resolveUrl = `${baseUrl}/api/entities/${encodeURIComponent(entityId)}/timeseries-location`;
-    const res = await fetch(resolveUrl, {
-      method: 'GET',
-      headers: { ...headers, Accept: 'application/json' },
-      credentials: 'include',
-    });
-
-    if (res.status === 200) {
-      const data = (await res.json()) as TimeseriesLocationResponse;
-      const resolved = data.timeseries_entity_id || null;
-      urnResolutionCache.set(entityId, resolved);
-      return resolved;
-    }
-
-    // 204 = entity has no resolvable location; 404 = not found
-    urnResolutionCache.set(entityId, null);
-    return null;
-  } catch {
-    // Network error → treat as unresolved, fall back to original id
-    return entityId;
-  }
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-
 async function fetchSingleSeries(
   req: DatahubWorkerRequest,
   item: WorkerSeriesSpec
 ): Promise<{ xs: Float64Array; ys: Float64Array }> {
   const base = req.baseUrl || self.location.origin;
 
-  // Resolve URN → timeseries entity_id for NGSI-LD entities (WeatherObserved, AgriParcel, etc.)
-  const resolvedEntityId = await resolveEntityId(item.entityId, base, req.headers ?? {});
-  if (resolvedEntityId === null) {
-    // Entity has no resolvable location → return empty series
-    return { xs: new Float64Array(0), ys: new Float64Array(0) };
-  }
+  // URN resolution is handled by the reader (Strangler Fig); BFF passes URNs directly.
+  const resolvedEntityId = item.entityId;
 
   const params = new URLSearchParams({
     start_time: req.startTime,

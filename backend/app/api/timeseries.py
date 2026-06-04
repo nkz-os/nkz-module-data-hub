@@ -117,12 +117,22 @@ async def _fetch_from_parcel_weather_api(
                     val = obs.get(db_key)
                     values[attr].append(val if val is not None else None)
 
-        return {
-            "timestamps": timestamps,
-            "values": values,
-            "_source": "parcel_weather_api",
-            "_downscaling": data.get("downscaling", "unknown"),
-        }
+        # Match the frontend JSON format.
+        # Single attr → {timestamps, values: [...]}
+        # Multi attr  → {timestamps, value_0: [...], value_1: [...], ...}
+        if len(requested_attrs) == 1:
+            result = {
+                "timestamps": timestamps,
+                "values": values[requested_attrs[0]],
+            }
+        else:
+            result: dict = {"timestamps": timestamps}
+            for i, attr in enumerate(requested_attrs):
+                result[f"value_{i}"] = values[attr]
+
+        result["_source"] = "parcel_weather_api"
+        result["_downscaling"] = data.get("downscaling", "unknown")
+        return result
 
 
 def _auth_headers(authorization: Optional[str], x_tenant_id: Optional[str]) -> dict:
