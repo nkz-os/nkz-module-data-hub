@@ -44,7 +44,7 @@ def _get_value(obj: Any) -> Any:
 _NGSI_SYSTEM_KEYS = frozenset({
     "id", "type", "@context", "location", "name", "description",
     "address", "source", "provider", "dateCreated", "dateModified",
-    "refAgriParcel", "refDevice", "refWeatherStation",
+    "hasAgriParcel", "refAgriParcel", "hasDevice", "refDevice", "observes", "refWeatherStation",
     "municipalityCode",
 })
 

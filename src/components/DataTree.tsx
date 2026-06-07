@@ -16,7 +16,7 @@ import {
 /** Attributes that are not numeric timeseries. */
 const NON_TIMESERIES_ATTRIBUTES = new Set([
   'location', 'type', 'name', 'id', '@context', 'dateCreated', 'dateModified',
-  'refParcel', 'seeAlso', 'ownedBy', 'category', 'description', 'address',
+  'locatedAt', 'refParcel', 'seeAlso', 'ownedBy', 'category', 'description', 'address',
   'area', 'landLocation', 'ndviEnabled',
 ]);
 
