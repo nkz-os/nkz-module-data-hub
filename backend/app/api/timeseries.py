@@ -383,6 +383,7 @@ async def _fetch_from_external_module(
     series_group: list[dict],
     payload: dict,
     authorization: Optional[str],
+    x_tenant_id: Optional[str] = None,
 ) -> bytes:
     """
     POST to module internal export-arrow endpoint. Contract: POST /api/internal/timeseries/export-arrow
@@ -401,6 +402,8 @@ async def _fetch_from_external_module(
     headers: dict = {"Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE}
     if authorization:
         headers["Authorization"] = authorization
+    if x_tenant_id:
+        headers["X-Tenant-ID"] = x_tenant_id
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(url, json=body, headers=headers)
         if r.status_code != 200:
@@ -561,7 +564,7 @@ async def proxy_timeseries_align(
             tasks.append(asyncio.create_task(_fetch_from_timescale(group, payload, headers)))
         else:
             tasks.append(
-                asyncio.create_task(_fetch_from_external_module(source, group, payload, authorization)),
+                asyncio.create_task(_fetch_from_external_module(source, group, payload, authorization, x_tenant_id)),
             )
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -786,6 +789,8 @@ async def proxy_timeseries_data(
             adapter_headers: dict = {"Content-Type": "application/json", "Accept": ARROW_STREAM_TYPE}
             if authorization:
                 adapter_headers["Authorization"] = authorization
+            if x_tenant_id:
+                adapter_headers["X-Tenant-ID"] = x_tenant_id
             async with httpx.AsyncClient(timeout=30.0) as client:
                 r = await client.post(
                     f"{adapter_base}/api/internal/timeseries/export-arrow",
@@ -974,7 +979,7 @@ async def proxy_export(
             tasks.append(asyncio.create_task(_fetch_from_timescale(group, payload, headers)))
         else:
             tasks.append(
-                asyncio.create_task(_fetch_from_external_module(source, group, payload, authorization)),
+                asyncio.create_task(_fetch_from_external_module(source, group, payload, authorization, x_tenant_id)),
             )
 
     results = await asyncio.gather(*tasks, return_exceptions=True)

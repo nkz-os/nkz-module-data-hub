@@ -45,16 +45,32 @@ function getTenantId(): string | undefined {
   return ctx?.tenantId || undefined;
 }
 
-/** Build common headers with optional tenant ID for multi-tenancy. */
-function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
-  const tenantId = getTenantId();
-  if (tenantId) {
-    return { ...base, 'X-Tenant-ID': tenantId };
-  }
-  return base;
+/** Read JWT token from the host auth context (for Web Workers that lack httpOnly cookies). */
+function getAuthToken(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const ctx = (window as unknown as { __nekazariAuthContext?: { getToken?: () => string | undefined; token?: string } }).__nekazariAuthContext;
+  if (!ctx) return undefined;
+  return ctx.getToken?.() ?? ctx.token ?? undefined;
 }
 
-/** Exported helper for worker-driven requests. */
+/** Build common headers with optional tenant ID and JWT for multi-tenancy + auth.
+ *  Web Workers cannot access httpOnly cookies, so we must explicitly pass the JWT
+ *  from the host's auth context as an Authorization header. */
+function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
+  const headers: Record<string, string> = { ...(base as Record<string, string>) };
+  const tenantId = getTenantId();
+  if (tenantId) {
+    headers['X-Tenant-ID'] = tenantId;
+  }
+  const token = getAuthToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/** Exported helper for worker-driven requests. Includes JWT from host auth context
+ *  so Web Workers (which lack httpOnly cookie access) can still authenticate. */
 export function getDatahubRequestHeaders(base: Record<string, string> = {}): Record<string, string> {
   return withTenantHeaders(base) as Record<string, string>;
 }
