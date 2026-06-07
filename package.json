@@ -1,6 +1,7 @@
 {
   "name": "nkz-module-datahub",
   "version": "1.0.0",
+  "packageManager": "pnpm@9.0.0",
   "description": "NKZ DataHub — Analytical canvas and data export module",
   "license": "AGPL-3.0",
   "type": "module",
