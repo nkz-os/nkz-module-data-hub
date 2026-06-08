@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend@sha256:bf2a423de5371f1f1524f0dc788b43d8d97828f895d4a960ce2a23758136957a
+          image: ghcr.io/nkz-os/nkz-module-data-hub/datahub-backend@sha256:08e0e3f6aee3ec25dc3b070f1b3afc13f0c915c36e25f2c45de52bfed61f9f3d
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
