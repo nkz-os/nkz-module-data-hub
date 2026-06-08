@@ -100,7 +100,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
 }) => {
   if (series.length === 0) {
     return (
-      <div className="w-44 shrink-0 border-r border-white/5 px-3 py-2 text-xs text-slate-400">
+      <div className="w-44 shrink-0 border-r border-white/5 px-3 py-2 text-xs text-[#8b95a5]">
         {labels.emptyHint}
       </div>
     );
@@ -122,7 +122,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
             <li
               key={key}
               className={[
-                'px-2 py-1.5 border-b border-slate-800/40',
+                'px-2 py-1.5 border-b border-[#1e2738]/40',
                 visible ? 'opacity-100' : 'opacity-50',
               ].join(' ')}
             >
@@ -131,7 +131,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                 <label className="relative inline-flex shrink-0 cursor-pointer" title={cfg.colorOverride ?? color}>
                   <span
                     aria-hidden
-                    className="inline-block w-3 h-3 rounded-full ring-1 ring-slate-900"
+                    className="inline-block w-3 h-3 rounded-full ring-1 ring-[#090d14]"
                     style={{ background: color }}
                   />
                   <input
@@ -143,12 +143,12 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                   />
                 </label>
                 <span
-                  className="text-xs text-slate-100 truncate flex-1 min-w-0"
+                  className="text-xs text-[#eaeef4] truncate flex-1 min-w-0"
                   title={`${s.attribute} (${s.entityId})`}
                 >
                   {s.attribute}
                 </span>
-                {unit && <span className="text-[10px] text-slate-400">{unit}</span>}
+                {unit && <span className="text-[10px] text-[#8b95a5]">{unit}</span>}
               </div>
 
               {/* Mini stats */}
@@ -170,7 +170,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                     'flex-1 text-[10px] py-1 rounded-l border transition-colors',
                     (s.yAxis ?? 'left') === 'left'
                       ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                      : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800',
+                      : 'bg-[#111622] border-white/10 text-[#8b95a5] hover:bg-[#1a2030]',
                   ].join(' ')}
                   title={labels.axisLeft}
                 >
@@ -183,7 +183,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                     'flex-1 text-[10px] py-1 border-y transition-colors',
                     s.yAxis === 'right'
                       ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
-                      : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800',
+                      : 'bg-[#111622] border-white/10 text-[#8b95a5] hover:bg-[#1a2030]',
                   ].join(' ')}
                   title={labels.axisRight}
                 >
@@ -192,7 +192,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                 <button
                   type="button"
                   onClick={() => onVisibilityChange(i, !visible)}
-                  className="px-1.5 py-1 border border-white/10 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+                  className="px-1.5 py-1 border border-white/10 bg-[#111622] text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4] transition-colors"
                   aria-pressed={!visible}
                   title={visible ? labels.hide : labels.show}
                 >
@@ -201,7 +201,7 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
                 <button
                   type="button"
                   onClick={() => onRemove(i)}
-                  className="px-1.5 py-1 rounded-r border border-white/10 bg-slate-900 text-slate-300 hover:bg-rose-900/40 hover:text-rose-300 hover:border-rose-700 transition-colors"
+                  className="px-1.5 py-1 rounded-r border border-white/10 bg-[#111622] text-[#8b95a5] hover:bg-rose-900/40 hover:text-rose-300 hover:border-rose-700 transition-colors"
                   title={labels.remove}
                 >
                   <Trash2 size={12} aria-hidden />
@@ -216,8 +216,8 @@ export const PanelSeriesRail: React.FC<PanelSeriesRailProps> = ({
 };
 
 const Stat: React.FC<{ label: string; value: number }> = ({ label, value }) => (
-  <span className="flex items-center gap-1 text-slate-500 truncate">
+  <span className="flex items-center gap-1 text-[#596373] truncate">
     <span>{label}</span>
-    <span className="text-slate-200">{formatNumberShort(value)}</span>
+    <span className="text-[#eaeef4]">{formatNumberShort(value)}</span>
   </span>
 );

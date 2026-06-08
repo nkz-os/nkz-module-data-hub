@@ -20,7 +20,7 @@ export const PanelErrorState: React.FC<PanelErrorStateProps> = ({
       <span className="text-sm font-medium">{message}</span>
     </div>
     {detail && (
-      <span className="text-xs text-slate-400 max-w-[400px] break-words font-mono">
+      <span className="text-xs text-[#8b95a5] max-w-[400px] break-words font-mono">
         {detail}
       </span>
     )}
@@ -28,7 +28,7 @@ export const PanelErrorState: React.FC<PanelErrorStateProps> = ({
       <button
         type="button"
         onClick={onRetry}
-        className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-md border border-slate-600 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-2 text-sm text-[#eaeef4] bg-[#161c28] hover:bg-[#1a2030] rounded-md border border-[#2a3345] transition-colors"
       >
         <RefreshCw size={14} aria-hidden />
         {retryLabel}

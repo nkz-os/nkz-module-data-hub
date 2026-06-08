@@ -1,4 +1,40 @@
-/* RGL resize handle */
+/* ═══════════════════════════════════════════════════════
+   DataHub "Midnight" — Global overrides
+   ═══════════════════════════════════════════════════════ */
+
+/* ── uPlot dark-mode fixes ── */
+.u-over,
+.u-under {
+  color-scheme: dark;
+}
+.u-title,
+.u-legend,
+.u-live {
+  color: #eaeef4 !important;
+}
+.u-cursor-pt {
+  fill: #090d14 !important;
+}
+
+/* uPlot drag-to-zoom selection rectangle */
+.u-select {
+  background: rgba(52, 211, 153, 0.15) !important;
+  border: 1px solid rgba(52, 211, 153, 0.6) !important;
+}
+
+/* ── Input dark-mode fixes ── */
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+/* datetime-local calendar picker — force dark */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+/* ── RGL resize handle ── */
 .react-resizable-handle {
   position: absolute !important;
   bottom: 0 !important;
@@ -17,19 +53,29 @@
   right: 6px;
   width: 14px;
   height: 14px;
-  border-right: 2px solid rgba(203,213,225,0.6);
-  border-bottom: 2px solid rgba(203,213,225,0.6);
+  border-right: 2px solid rgba(148, 163, 184, 0.6);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.6);
 }
 .react-resizable-handle:hover::after {
-  border-color: rgba(203,213,225,1);
+  border-color: rgba(203, 213, 225, 1);
   width: 16px;
   height: 16px;
   bottom: 5px;
   right: 5px;
 }
 
-/* uPlot drag-to-zoom selection rectangle */
-.u-select {
-  background: rgba(52, 211, 153, 0.15) !important;
-  border: 1px solid rgba(52, 211, 153, 0.6) !important;
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3345;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b465b;
 }

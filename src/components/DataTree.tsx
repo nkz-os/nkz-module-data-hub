@@ -66,20 +66,20 @@ export const DataTree: React.FC<DataTreeProps> = ({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-2 border-b border-slate-700/50">
+      <div className="p-2 border-b border-[#1e2738]/50">
         <input
           type="search"
           placeholder={t('tree.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-slate-600 rounded bg-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+          className="w-full px-3 py-2 text-sm border border-[#2a3345] rounded bg-[#1a2030] text-[#eaeef4] placeholder-[#596373] focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
         />
       </div>
       <div className="flex-1 overflow-auto p-2">
-        {isLoading && <p className="text-sm text-slate-400">{t('tree.loading')}</p>}
+        {isLoading && <p className="text-sm text-[#8b95a5]">{t('tree.loading')}</p>}
         {error && <p className="text-sm text-red-400">{t('tree.errorLoad')}</p>}
         {!isLoading && !error && entities.length === 0 && (
-          <p className="text-sm text-slate-400">{t('tree.empty')}</p>
+          <p className="text-sm text-[#8b95a5]">{t('tree.empty')}</p>
         )}
         {!isLoading && !error && entities.length > 0 && (
           <ul className="space-y-1.5 text-sm">
@@ -104,12 +104,12 @@ export const DataTree: React.FC<DataTreeProps> = ({
                   }}
                   className={`flex items-center gap-2 px-2 py-2 rounded cursor-pointer transition-colors ${
                     selectedEntity?.id === e.id
-                      ? 'bg-slate-700 ring-1 ring-emerald-500/40'
-                      : 'hover:bg-slate-800'
+                      ? 'bg-[#1a2030] ring-1 ring-emerald-500/40'
+                      : 'hover:bg-[#1a2030]'
                   }`}
                 >
-                  <span className="font-medium text-slate-100 truncate">{e.name}</span>
-                  <span className="text-slate-500 shrink-0 text-xs">{e.type}</span>
+                  <span className="font-medium text-[#eaeef4] truncate">{e.name}</span>
+                  <span className="text-[#596373] shrink-0 text-xs">{e.type}</span>
                 </div>
                 {selectedEntity?.id === e.id && timeseriesAttributes(e.attributes).length > 0 && (
                   <ul className="pl-3 text-sm">
@@ -144,15 +144,15 @@ export const DataTree: React.FC<DataTreeProps> = ({
                           className={`py-1.5 rounded px-2 cursor-grab active:cursor-grabbing transition-colors ${
                             selectedAttribute === attr.name
                               ? 'bg-emerald-900 text-emerald-200 ring-1 ring-emerald-500/40'
-                              : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+                              : 'text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]'
                           }`}
                         >
                           <span>{attr.name}</span>
                           {ATTRIBUTE_UNIT[attr.name] && (
-                            <span className="text-slate-400 ml-1">({ATTRIBUTE_UNIT[attr.name]})</span>
+                            <span className="text-[#8b95a5] ml-1">({ATTRIBUTE_UNIT[attr.name]})</span>
                           )}
                           {attr.source && attr.source !== 'timescale' && (
-                            <span className="text-slate-500 ml-1 text-xs">
+                            <span className="text-[#596373] ml-1 text-xs">
                               [{attr.source}]
                             </span>
                           )}

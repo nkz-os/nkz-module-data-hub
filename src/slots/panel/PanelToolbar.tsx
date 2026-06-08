@@ -116,15 +116,15 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
   const [manualOpen, setManualOpen] = useState(false);
 
   return (
-    <div className="min-h-[40px] flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs text-slate-200 relative">
+    <div className="min-h-[40px] flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs text-[#eaeef4] relative">
       <button
         type="button"
         onClick={onToggleSeriesRail}
         className={[
           'p-1 rounded-md transition-colors',
           seriesRailOpen
-            ? 'bg-white/10 text-slate-100'
-            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
+            ? 'bg-white/10 text-[#eaeef4]'
+            : 'text-[#8b95a5] hover:bg-white/5 hover:text-[#eaeef4]',
         ].join(' ')}
         aria-pressed={seriesRailOpen}
         title={labels.seriesRail}
@@ -139,7 +139,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         type="button"
         onClick={onZoomUndo}
         disabled={!canUndoZoom}
-        className="p-1.5 rounded-md border border-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        className="p-1.5 rounded-md border border-transparent text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4] disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
         title={labels.zoomUndo}
       >
         <Undo2 size={14} aria-hidden />
@@ -148,7 +148,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         type="button"
         onClick={onZoomReset}
         disabled={!canResetZoom}
-        className="p-1.5 rounded-md border border-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+        className="p-1.5 rounded-md border border-transparent text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4] disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
         title={labels.zoomReset}
       >
         <ZoomOut size={14} aria-hidden />
@@ -158,7 +158,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         <button
           type="button"
           onClick={onExportImage}
-          className="p-1.5 rounded-md text-slate-300 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+          className="p-1.5 rounded-md text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4] transition-colors"
           title="Copy chart as PNG"
         >
           <Image size={14} aria-hidden />
@@ -172,11 +172,11 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
             liveMode
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+              : 'text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]'
           }`}
           title="Live IoT refresh"
         >
-          <span className={`h-2 w-2 rounded-full ${liveMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+          <span className={`h-2 w-2 rounded-full ${liveMode ? 'bg-emerald-400 animate-pulse' : 'bg-[#2a3345]'}`} />
           LIVE
         </button>
       )}
@@ -196,7 +196,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
             'flex items-center gap-1 px-2 py-1 text-xs transition-colors border-r border-white/10',
             appearance.viewMode === 'timeseries'
               ? 'bg-emerald-500/20 text-emerald-200'
-              : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100',
+              : 'bg-[#111622] text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]',
           ].join(' ')}
           title={labels.viewTimeseries}
           aria-pressed={appearance.viewMode === 'timeseries'}
@@ -211,7 +211,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
             'flex items-center gap-1 px-2 py-1 text-xs transition-colors',
             appearance.viewMode === 'correlation'
               ? 'bg-purple-500/20 text-purple-200'
-              : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100',
+              : 'bg-[#111622] text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]',
           ].join(' ')}
           title={labels.viewCorrelation}
           aria-pressed={appearance.viewMode === 'correlation'}
@@ -223,13 +223,13 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
 
       {appearance.viewMode === 'correlation' && seriesLabels && seriesLabels.length >= 2 && (
         <div className="flex items-center gap-1.5">
-          <span className="text-slate-300 text-xs">X</span>
+          <span className="text-[#8b95a5] text-xs">X</span>
           <select
             value={appearance.correlationXSeries}
             onChange={(e) =>
               onAppearanceChange({ correlationXSeries: Number.parseInt(e.target.value, 10) })
             }
-            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-2 py-1 text-xs max-w-[140px]"
+            className="rounded border border-white/10 bg-[#111622] text-[#eaeef4] px-2 py-1 text-xs max-w-[140px]"
           >
             {seriesLabels.map((lbl, i) => (
               <option key={`x-${i}`} value={i}>
@@ -237,13 +237,13 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
               </option>
             ))}
           </select>
-          <span className="text-slate-300 text-xs">Y</span>
+          <span className="text-[#8b95a5] text-xs">Y</span>
           <select
             value={appearance.correlationYSeries}
             onChange={(e) =>
               onAppearanceChange({ correlationYSeries: Number.parseInt(e.target.value, 10) })
             }
-            className="rounded border border-white/10 bg-slate-900 text-slate-100 px-2 py-1 text-xs max-w-[140px]"
+            className="rounded border border-white/10 bg-[#111622] text-[#eaeef4] px-2 py-1 text-xs max-w-[140px]"
           >
             {seriesLabels.map((lbl, i) => (
               <option key={`y-${i}`} value={i}>
@@ -264,7 +264,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
           'flex items-center gap-1 px-2 py-1 text-xs rounded border transition-colors',
           appearance.showTrendline
             ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
-            : 'bg-slate-900 border-white/10 text-slate-300 hover:bg-slate-800 hover:text-slate-100',
+            : 'bg-[#111622] border-white/10 text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]',
         ].join(' ')}
         aria-pressed={appearance.showTrendline}
         title={labels.trendline}
@@ -275,12 +275,12 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
 
       {/* Rolling average dropdown */}
       <label className="flex items-center gap-1.5">
-        <Waves size={13} className="text-slate-400" aria-hidden />
-        <span className="text-slate-300 text-xs">{labels.rollingAvg}</span>
+        <Waves size={13} className="text-[#8b95a5]" aria-hidden />
+        <span className="text-[#8b95a5] text-xs">{labels.rollingAvg}</span>
         <select
           value={appearance.rollingAverage ?? 'off'}
           onChange={(e) => onAppearanceChange({ rollingAverage: e.target.value as RollingAvgWindow })}
-          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-2 py-1 text-xs"
+          className="rounded border border-white/10 bg-[#111622] text-[#eaeef4] px-2 py-1 text-xs"
         >
           <option value="off">{labels.rollingOff}</option>
           <option value="1h">1h</option>
@@ -312,7 +312,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
                 'flex items-center gap-1 px-2 py-1 text-xs transition-colors border-r border-white/10 last:border-r-0',
                 active
                   ? 'bg-emerald-500/20 text-emerald-200'
-                  : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-slate-100',
+                  : 'bg-[#111622] text-[#8b95a5] hover:bg-[#1a2030] hover:text-[#eaeef4]',
               ].join(' ')}
               title={hint}
               aria-pressed={active}
@@ -339,7 +339,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
         <button
           type="button"
           onClick={() => setManualOpen((v) => !v)}
-          className="px-2 py-1 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-xs text-slate-300"
+          className="px-2 py-1 rounded border border-white/10 bg-[#111622] hover:bg-[#1a2030] text-xs text-[#8b95a5]"
         >
           {manualOpen ? '−' : '+'} {labels.yManual}
         </button>
@@ -348,11 +348,11 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
       <div className="w-px h-4 bg-white/10 mx-0.5" />
 
       <label className="flex items-center gap-1.5">
-        <span className="text-slate-300 text-xs">{labels.style}</span>
+        <span className="text-[#8b95a5] text-xs">{labels.style}</span>
         <select
           value={appearance.mode === 'bars' ? 'line' : appearance.mode}
           onChange={(e) => onAppearanceChange({ mode: e.target.value as ChartRenderMode })}
-          className="rounded border border-white/10 bg-slate-900 text-slate-100 px-2 py-1 text-xs"
+          className="rounded border border-white/10 bg-[#111622] text-[#eaeef4] px-2 py-1 text-xs"
         >
           <option value="line">{labels.modeLine}</option>
           <option value="points">{labels.modePoints}</option>
@@ -360,7 +360,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
       </label>
 
       <label className="flex items-center gap-1.5">
-        <span className="text-slate-300 text-xs">{labels.line}</span>
+        <span className="text-[#8b95a5] text-xs">{labels.line}</span>
         <input
           type="range"
           min={1}
@@ -373,7 +373,7 @@ export const PanelToolbar: React.FC<PanelToolbarProps> = ({
       </label>
 
       <label className="flex items-center gap-1.5">
-        <span className="text-slate-300 text-xs">{labels.points}</span>
+        <span className="text-[#8b95a5] text-xs">{labels.points}</span>
         <input
           type="range"
           min={0}
@@ -417,7 +417,7 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
   const right = appearance.yScaleManual?.right;
 
   return (
-    <div className="absolute top-10 left-2 z-30 px-4 py-3 rounded-lg bg-slate-950 border border-white/10 shadow-2xl flex flex-col gap-3 min-w-[280px]">
+    <div className="absolute top-10 left-2 z-30 px-4 py-3 rounded-lg bg-[#0f1620] border border-white/10 shadow-2xl flex flex-col gap-3 min-w-[280px]">
       <ManualAxisRow
         label={labels.manualLeft}
         accent="emerald"
@@ -453,14 +453,14 @@ const ManualRangePopover: React.FC<ManualRangePopoverProps> = ({
             onAppearanceChange({ yScaleMode: 'auto', yScaleManual: undefined });
             onClose();
           }}
-          className="text-xs px-2 py-1 rounded border border-white/10 bg-slate-900 hover:bg-slate-800 text-slate-300"
+          className="text-xs px-2 py-1 rounded border border-white/10 bg-[#111622] hover:bg-[#1a2030] text-[#8b95a5]"
         >
           {labels.reset}
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto text-sm text-slate-400 hover:text-slate-200"
+          className="ml-auto text-sm text-[#8b95a5] hover:text-[#eaeef4]"
         >
           ✕
         </button>
@@ -506,7 +506,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
   return (
     <div className="flex items-center gap-2">
       <span aria-hidden className={`inline-block w-2.5 h-2.5 rounded-full ${dotClass} shrink-0`} />
-      <span className="text-xs text-slate-200 w-12 shrink-0">{label}</span>
+      <span className="text-xs text-[#eaeef4] w-12 shrink-0">{label}</span>
       <input
         type="number"
         value={draftMin}
@@ -514,9 +514,9 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMin}
-        className="w-16 bg-slate-900 border border-white/10 rounded px-2 py-1 text-xs text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-[#111622] border border-white/10 rounded px-2 py-1 text-xs text-[#eaeef4] tabular-nums font-mono"
       />
-      <span className="text-slate-500">→</span>
+      <span className="text-[#596373]">→</span>
       <input
         type="number"
         value={draftMax}
@@ -524,9 +524,9 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder={labels.manualMax}
-        className="w-16 bg-slate-900 border border-white/10 rounded px-2 py-1 text-xs text-slate-100 tabular-nums font-mono"
+        className="w-16 bg-[#111622] border border-white/10 rounded px-2 py-1 text-xs text-[#eaeef4] tabular-nums font-mono"
       />
-      <span className="text-slate-400 text-xs">step</span>
+      <span className="text-[#8b95a5] text-xs">step</span>
       <input
         type="number"
         value={draftStep}
@@ -534,7 +534,7 @@ const ManualAxisRow: React.FC<ManualAxisRowProps> = ({ label, accent, min, max, 
         onBlur={apply}
         onKeyDown={(e) => e.key === 'Enter' && apply()}
         placeholder="auto"
-        className="w-14 bg-slate-900 border border-white/10 rounded px-2 py-1 text-xs text-slate-100 tabular-nums font-mono"
+        className="w-14 bg-[#111622] border border-white/10 rounded px-2 py-1 text-xs text-[#eaeef4] tabular-nums font-mono"
       />
     </div>
   );

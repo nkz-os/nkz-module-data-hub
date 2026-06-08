@@ -676,7 +676,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
   const [toolbarOpen, setToolbarOpen] = React.useState(false);
 
   return (
-    <div ref={rootRef} className="relative w-full h-full rounded-md ring-1 ring-slate-700/30" onContextMenu={handleContextMenu}>
+    <div ref={rootRef} className="relative w-full h-full rounded-lg ring-1 ring-[#1e2738] bg-[#090d14]" onContextMenu={handleContextMenu}>
       {/* ===== Chart layer — first in DOM ===== */}
       {status === 'ready' && visibleWorkerSeries.length > 0 && appearance.viewMode !== 'correlation' && (
         <PanelChart
@@ -734,7 +734,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       )}
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-4 py-2 rounded-full bg-slate-800 border border-slate-500 text-slate-200 text-sm">
+          <span className="px-4 py-2 rounded-full bg-[#161c28] border border-[#2a3345] text-[#eaeef4] text-sm">
             {t('canvasPanel.loading')}
           </span>
         </div>
@@ -754,8 +754,8 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
       <div className="absolute top-0 left-0 right-0 px-2 py-1.5">
         <div className="flex items-center gap-2">
           {/* Title + drag handle */}
-          <div className="panel-drag-handle cursor-move bg-slate-900/95 rounded-md pl-3 pr-3 py-2 border border-slate-600 shadow-lg select-none">
-            <span className="text-sm text-slate-100 font-mono font-medium truncate max-w-[300px] tracking-tight">
+          <div className="panel-drag-handle cursor-move bg-[#161c28]/95 backdrop-blur-sm rounded-lg pl-3 pr-3 py-2 border border-[#2a3345] shadow-lg select-none">
+            <span className="text-sm text-[#eaeef4] font-mono font-medium truncate max-w-[300px] tracking-tight">
               {headerTitle}
             </span>
           </div>
@@ -765,15 +765,15 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
             <button
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); setToolbarOpen(v => !v); }}
-              className={`px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2 shadow-lg border ${
+              className={`px-3 py-2 text-sm rounded-lg transition-colors flex items-center gap-2 shadow-lg border ${
                 toolbarOpen
-                  ? 'text-white bg-slate-700 border-slate-500'
-                  : 'text-slate-200 bg-slate-900/95 border-slate-600 hover:text-white hover:bg-slate-800 hover:border-slate-500'
+                  ? 'text-[#eaeef4] bg-[#1a2030] border-[#2a3345]'
+                  : 'text-[#eaeef4] bg-[#161c28]/95 border-[#2a3345] hover:text-white hover:bg-[#1a2030] hover:border-[#3b465b]'
               }`}
               title="Chart tools"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-              <span className="text-sm text-slate-300">Tools</span>
+              <span className="text-sm text-[#8b95a5]">Tools</span>
             </button>
           )}
         </div>
@@ -781,7 +781,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
           <div className="pointer-events-auto px-2 pb-1"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="bg-slate-950 rounded-md border border-slate-700/40 shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="bg-[#0f1620] rounded-lg border border-[#1e2738] shadow-2xl max-h-[80vh] overflow-y-auto">
               <PanelToolbar
                 appearance={appearance}
                 onAppearanceChange={patchAppearance}
@@ -823,7 +823,7 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                 }}
               />
               {railOpen && (
-                <div className="border-t border-slate-700 p-2 bg-slate-900">
+                <div className="border-t border-[#1e2738] p-2 bg-[#111622]">
                   <PanelSeriesRail
                     series={series} workerSeries={workerSeries}
                     colorFor={(_, i) => colors[i] ?? '#34d399'}
@@ -842,14 +842,14 @@ export const DataCanvasPanel: React.FC<DataCanvasPanelProps> = ({
                   />
                 </div>
               )}
-              <div className="border-t border-slate-700/50">
+              <div className="border-t border-[#1e2738]/50">
                 <DerivedSeriesInput
                   formula={derivedFormula}
                   seriesLabels={baseVisibleWorkerSeries.map((s) => s.attribute)}
                   onSubmit={setDerivedFormula}
                 />
               </div>
-              <div className="border-t border-slate-700/50">
+              <div className="border-t border-[#1e2738]/50">
                 <AnnotationEditor
                   annotations={appearance.annotations ?? []}
                   onAdd={handleAddAnnotation}

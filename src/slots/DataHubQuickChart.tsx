@@ -39,9 +39,9 @@ const DataHubQuickChart: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-full text-slate-300 bg-slate-950">
+    <div className="flex h-full text-[#8b95a5] bg-[#090d14]">
       {/* Narrow entity tree */}
-      <div className="w-56 shrink-0 border-r border-slate-800 overflow-hidden">
+      <div className="w-56 shrink-0 border-r border-[#1e2738] overflow-hidden">
         <DataTree
           selectedEntity={selectedEntity}
           selectedAttribute={selectedAttribute}
@@ -53,7 +53,7 @@ const DataHubQuickChart: React.FC = () => {
       <div className="flex-1 min-w-0 relative">
         {series.length > 0 ? (
           <>
-            <div className="absolute top-2 left-3 z-10 text-xs text-slate-500 font-mono truncate max-w-[50%]">
+            <div className="absolute top-2 left-3 z-10 text-xs text-[#596373] font-mono truncate max-w-[50%]">
               {series[0].entityId.split(':').pop()} · {series[0].attribute}
             </div>
             <DataCanvasPanelMemo
@@ -65,7 +65,7 @@ const DataHubQuickChart: React.FC = () => {
             />
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-slate-500 text-sm">
+          <div className="flex items-center justify-center h-full text-[#596373] text-sm">
             {t('panel.canvasEmptyHint')}
           </div>
         )}

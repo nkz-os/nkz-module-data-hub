@@ -15,10 +15,10 @@ export function CapabilityCatalog({ tenantEntitlements, apiBase }: Props) {
 
   return (
     <div className="nkz-capability-catalog p-4 overflow-auto">
-      <h2 className="text-lg font-semibold text-slate-200 mb-3">{t('capability.catalog_title')}</h2>
-      <table className="w-full text-sm text-slate-300 border-collapse">
+      <h2 className="text-lg font-semibold text-[#eaeef4] mb-3">{t('capability.catalog_title')}</h2>
+      <table className="w-full text-sm text-[#8b95a5] border-collapse">
         <thead>
-          <tr className="text-left text-slate-400 border-b border-white/10">
+          <tr className="text-left text-[#8b95a5] border-b border-white/10">
             <th className="pb-2 pr-4">{t('capability.catalog_module')}</th>
             <th className="pb-2 pr-4">{t('capability.catalog_entity')}</th>
             <th className="pb-2 pr-4">{t('capability.catalog_attribute')}</th>
@@ -41,16 +41,16 @@ export function CapabilityCatalog({ tenantEntitlements, apiBase }: Props) {
                 <td className="py-1.5 pr-4 font-mono text-xs">{r.moduleId}@{r.moduleVersion}</td>
                 <td className="py-1.5 pr-4">{r.entityType}</td>
                 <td className="py-1.5 pr-4 font-medium">{r.attributeName}</td>
-                <td className="py-1.5 pr-4 text-slate-400">{r.unitCode ?? '—'}</td>
-                <td className="py-1.5 pr-4 text-slate-400">{r.temporal}</td>
-                <td className="py-1.5 pr-4 text-slate-400">{r.spatial}</td>
-                <td className="py-1.5 pr-4 text-slate-400">{r.sources.join(', ')}</td>
+                <td className="py-1.5 pr-4 text-[#8b95a5]">{r.unitCode ?? '—'}</td>
+                <td className="py-1.5 pr-4 text-[#8b95a5]">{r.temporal}</td>
+                <td className="py-1.5 pr-4 text-[#8b95a5]">{r.spatial}</td>
+                <td className="py-1.5 pr-4 text-[#8b95a5]">{r.sources.join(', ')}</td>
                 <td className="py-1.5 pr-4">
                   <span className={`text-xs px-1.5 py-0.5 rounded ${locked ? 'bg-amber-900/50 text-amber-300' : 'bg-emerald-900/50 text-emerald-300'}`}>
                     {r.entitlement}{locked ? ' 🔒' : ''}
                   </span>
                 </td>
-                <td className="py-1.5 text-slate-400 text-xs">{r.sdmProposal ?? r.sdmStatus}</td>
+                <td className="py-1.5 text-[#8b95a5] text-xs">{r.sdmProposal ?? r.sdmStatus}</td>
               </tr>
             );
           })}

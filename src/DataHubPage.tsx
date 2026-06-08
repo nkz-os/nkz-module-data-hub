@@ -87,16 +87,16 @@ const DataHubPageInner: React.FC = () => {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   const sidebarContent = (
-    <aside className="w-64 shrink-0 border-r border-slate-700/50 bg-slate-950 flex flex-col h-full">
-      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-slate-700/50">
-        <h2 className="text-sm font-semibold text-slate-200 tracking-wide uppercase">
+    <aside className="w-64 shrink-0 border-r border-[#1e2738] bg-[#111622] flex flex-col h-full">
+      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-[#1e2738]">
+        <h2 className="text-sm font-semibold text-[#eaeef4] tracking-wide uppercase">
           {t('tree.sidebarTitle')}
         </h2>
         {isMobile && (
           <button
             type="button"
             onClick={closeSidebar}
-            className="p-1 text-slate-400 hover:text-slate-200 rounded"
+            className="p-1 text-[#8b95a5] hover:text-[#eaeef4] rounded transition-colors"
             aria-label={t('tree.closeSidebar', { defaultValue: 'Close' })}
           >
             <X size={16} />
@@ -116,7 +116,7 @@ const DataHubPageInner: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full min-h-screen bg-slate-950 relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
+    <div className="flex h-full min-h-screen bg-[#090d14] relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
       {/* Desktop: static sidebar */}
       {!isMobile && sidebarContent}
 
@@ -146,16 +146,16 @@ const DataHubPageInner: React.FC = () => {
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Mobile hamburger bar */}
         {isMobile && (
-          <div className="h-10 shrink-0 flex items-center px-3 border-b border-white/10 bg-slate-950">
+          <div className="h-10 shrink-0 flex items-center px-3 border-b border-[#1e2738] bg-[#090d14]">
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="p-1.5 text-slate-300 hover:text-white rounded-md hover:bg-slate-800 transition-colors"
+              className="p-1.5 text-[#8b95a5] hover:text-[#eaeef4] rounded-md hover:bg-[#161c28] transition-colors"
               aria-label={t('tree.toggleSidebar', { defaultValue: 'Toggle sidebar' })}
             >
               <Menu size={18} />
             </button>
-            <span className="ml-2 text-xs text-slate-400 font-mono truncate">
+            <span className="ml-2 text-xs text-[#596373] font-mono truncate">
               {selectedAttribute
                 ? `${selectedEntity?.name ?? ''} · ${selectedAttribute}`
                 : t('tree.sidebarTitle')}
@@ -164,16 +164,16 @@ const DataHubPageInner: React.FC = () => {
         )}
 
         {/* View switcher */}
-        <div className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-slate-700/50 bg-slate-950">
+        <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-[#1e2738] bg-[#090d14]">
           {(['dashboard', 'catalog', 'inspector'] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-xs rounded-full transition-colors font-medium ${
                 view === v
-                  ? 'bg-slate-700 text-slate-100'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30'
+                  : 'text-[#8b95a5] hover:text-[#eaeef4] hover:bg-[#161c28]'
               }`}
             >
               {t(`capability.view_${v}`)}

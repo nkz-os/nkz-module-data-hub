@@ -105,15 +105,15 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
       aria-modal="true"
       aria-labelledby="load-workspace-title"
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b border-slate-700">
-          <h2 id="load-workspace-title" className="text-sm font-semibold text-slate-200">
+      <div className="bg-[#111622] border border-[#1e2738] rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b border-[#1e2738]">
+          <h2 id="load-workspace-title" className="text-sm font-semibold text-[#eaeef4]">
             {tab === 'workspaces' ? t('loadWorkspace.title') : t('templates.title')}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 p-1"
+            className="text-[#8b95a5] hover:text-[#eaeef4] p-1"
             aria-label={t('loadWorkspace.close')}
           >
             <X size={18} />
@@ -121,14 +121,14 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-slate-700">
+        <div className="flex border-b border-[#1e2738]">
           <button
             type="button"
             onClick={() => { setTab('workspaces'); setSelectedTemplate(null); }}
             className={`flex-1 px-3 py-2 text-xs text-center transition-colors ${
               tab === 'workspaces'
-                ? 'bg-slate-800 text-white border-b-2 border-emerald-500'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#1a2030] text-white border-b-2 border-emerald-500'
+                : 'text-[#8b95a5] hover:text-[#eaeef4]'
             }`}
           >
             {t('loadWorkspace.title')}
@@ -138,8 +138,8 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
             onClick={() => setTab('templates')}
             className={`flex-1 px-3 py-2 text-xs text-center transition-colors ${
               tab === 'templates'
-                ? 'bg-slate-800 text-white border-b-2 border-emerald-500'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#1a2030] text-white border-b-2 border-emerald-500'
+                : 'text-[#8b95a5] hover:text-[#eaeef4]'
             }`}
           >
             {t('templates.title')}
@@ -149,10 +149,10 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           {tab === 'workspaces' && (
             <>
-              {loading && <p className="text-slate-400 text-sm">{t('loadWorkspace.loading')}</p>}
+              {loading && <p className="text-[#8b95a5] text-sm">{t('loadWorkspace.loading')}</p>}
               {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
               {!loading && !error && workspaces.length === 0 && (
-                <p className="text-slate-400 text-sm">{t('loadWorkspace.empty')}</p>
+                <p className="text-[#8b95a5] text-sm">{t('loadWorkspace.empty')}</p>
               )}
               {!loading && workspaces.length > 0 && (
                 <ul className="space-y-2">
@@ -161,11 +161,11 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
                       <button
                         type="button"
                         onClick={() => onSelect(ws)}
-                        className="w-full text-left px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-sm transition-colors"
+                        className="w-full text-left px-3 py-2 bg-[#161c28] hover:bg-[#1a2030] border border-[#2a3345] rounded-lg text-[#eaeef4] text-sm transition-colors"
                       >
                         <span className="font-medium">{ws.name?.value ?? ws.id}</span>
                         {ws.layout?.value?.length != null && (
-                          <span className="block text-slate-500 text-xs mt-0.5">
+                          <span className="block text-[#596373] text-xs mt-0.5">
                             {t('loadWorkspace.panelsCount', { count: ws.layout.value.length })}
                           </span>
                         )}
@@ -194,13 +194,13 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
                     className={`text-left p-3 rounded-lg border transition-colors ${
                       isSelected
                         ? 'border-emerald-500/50 bg-emerald-500/10'
-                        : 'border-slate-700 bg-slate-800/60 hover:border-slate-500'
+                        : 'border-[#1e2738] bg-[#1a2030]/60 hover:border-[#2a3345]'
                     }`}
                   >
                     <Icon size={22} className="text-emerald-400 mb-2" />
-                    <div className="text-xs font-medium text-slate-200">{t(tmpl.nameKey as any)}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{t(tmpl.descriptionKey as any)}</div>
-                    <div className="text-[10px] text-slate-500 mt-1.5">{tmpl.panels.length} paneles</div>
+                    <div className="text-xs font-medium text-[#eaeef4]">{t(tmpl.nameKey as any)}</div>
+                    <div className="text-[10px] text-[#8b95a5] mt-0.5">{t(tmpl.descriptionKey as any)}</div>
+                    <div className="text-[10px] text-[#596373] mt-1.5">{tmpl.panels.length} paneles</div>
                   </button>
                 );
               })}
@@ -209,14 +209,14 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
 
           {/* Entity picker after template selected */}
           {tab === 'templates' && selectedTemplate && (
-            <div className="mt-4 border-t border-slate-700 pt-3">
-              <p className="text-xs text-slate-400 mb-2">{t('templates.selectEntity')}</p>
+            <div className="mt-4 border-t border-[#1e2738] pt-3">
+              <p className="text-xs text-[#8b95a5] mb-2">{t('templates.selectEntity')}</p>
               <input
                 type="search"
                 value={entitySearch}
                 onChange={(e) => setEntitySearch(e.target.value)}
                 placeholder="Buscar entidad…"
-                className="w-full px-3 py-2 text-xs border border-slate-600 rounded bg-slate-800 text-slate-100 mb-2 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                className="w-full px-3 py-2 text-xs border border-[#2a3345] rounded bg-[#1a2030] text-[#eaeef4] mb-2 placeholder-[#596373] focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
               />
               {entityResults.length > 0 && (
                 <div className="max-h-32 overflow-y-auto mb-2">
@@ -228,10 +228,10 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
                       className={`w-full text-left px-2 py-1.5 text-xs rounded ${
                         selectedEntity?.id === ent.id
                           ? 'bg-emerald-900/40 text-emerald-300'
-                          : 'text-slate-300 hover:bg-slate-800'
+                          : 'text-[#8b95a5] hover:bg-[#1a2030]'
                       }`}
                     >
-                      {ent.name} <span className="text-slate-500">({ent.type})</span>
+                      {ent.name} <span className="text-[#596373]">({ent.type})</span>
                     </button>
                   ))}
                 </div>
@@ -248,11 +248,11 @@ export const LoadWorkspaceModal: React.FC<LoadWorkspaceModalProps> = ({ onSelect
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-700">
+        <div className="p-4 border-t border-[#1e2738]">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-slate-300 hover:text-slate-100 border border-slate-600 rounded"
+            className="px-3 py-1.5 text-sm text-[#8b95a5] hover:text-[#eaeef4] border border-[#2a3345] rounded"
           >
             {t('loadWorkspace.cancel')}
           </button>

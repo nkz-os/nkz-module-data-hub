@@ -46,7 +46,7 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
           placeholder="Add annotation…"
           maxLength={60}
-          className="flex-1 px-2 py-1 text-[10px] rounded border border-white/10 bg-slate-900 text-slate-100 placeholder-slate-500"
+          className="flex-1 px-2 py-1 text-[10px] rounded border border-white/10 bg-[#111622] text-[#eaeef4] placeholder-[#596373]"
         />
         <div className="flex gap-0.5">
           {ANNOTATION_COLORS.map((c) => (
@@ -66,7 +66,7 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
           type="button"
           onClick={handleAdd}
           disabled={!label.trim()}
-          className="p-1 rounded text-slate-400 hover:text-slate-100 disabled:opacity-30"
+          className="p-1 rounded text-[#8b95a5] hover:text-[#eaeef4] disabled:opacity-30"
         >
           <Plus size={12} />
         </button>
@@ -76,12 +76,12 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
           {annotations.map((a) => (
             <li key={a.id} className="flex items-center gap-1.5 text-[10px]">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: a.color }} />
-              <span className="text-slate-200 truncate flex-1 min-w-0">{a.label}</span>
-              <span className="text-slate-500 tabular-nums font-mono">{fmtEpoch(a.xEpoch)}</span>
+              <span className="text-[#eaeef4] truncate flex-1 min-w-0">{a.label}</span>
+              <span className="text-[#596373] tabular-nums font-mono">{fmtEpoch(a.xEpoch)}</span>
               <button
                 type="button"
                 onClick={() => onDelete(a.id)}
-                className="p-0.5 text-slate-500 hover:text-red-400"
+                className="p-0.5 text-[#596373] hover:text-red-400"
               >
                 <Trash2 size={10} />
               </button>

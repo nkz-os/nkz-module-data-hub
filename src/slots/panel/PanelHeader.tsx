@@ -25,15 +25,15 @@ export const PanelHeader: React.FC<PanelHeaderProps> = ({
   return (
     <div
       className={[
-        'h-10 flex items-center gap-2 px-3 border-b border-slate-700/50 bg-slate-950',
+        'h-10 flex items-center gap-2 px-3 border-b border-[#1e2738]/50 bg-[#0f1620]',
         dragHandleClass ?? '',
       ].join(' ')}
     >
       <StatusDot status={status} />
       <div className="flex items-baseline gap-2 min-w-0 flex-1">
-        <span className="text-sm font-semibold text-slate-100 truncate">{title}</span>
+        <span className="text-sm font-semibold text-[#eaeef4] truncate">{title}</span>
         {subtitle && (
-          <span className="text-xs text-slate-400 font-mono truncate">{subtitle}</span>
+          <span className="text-xs text-[#8b95a5] font-mono truncate">{subtitle}</span>
         )}
       </div>
       {rightSlot && <div className="flex items-center gap-1 shrink-0">{rightSlot}</div>}
@@ -43,13 +43,13 @@ export const PanelHeader: React.FC<PanelHeaderProps> = ({
 
 function StatusDot({ status }: { status: WorkerStatus }) {
   if (status === 'loading') {
-    return <Loader2 size={12} className="text-slate-400 animate-spin shrink-0" aria-hidden />;
+    return <Loader2 size={12} className="text-[#8b95a5] animate-spin shrink-0" aria-hidden />;
   }
   if (status === 'error') {
     return <AlertTriangle size={12} className="text-rose-400 shrink-0" aria-hidden />;
   }
   if (status === 'empty') {
-    return <Activity size={12} className="text-slate-500 shrink-0" aria-hidden />;
+    return <Activity size={12} className="text-[#596373] shrink-0" aria-hidden />;
   }
   return (
     <span

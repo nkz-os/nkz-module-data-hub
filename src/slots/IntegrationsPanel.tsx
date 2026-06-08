@@ -122,10 +122,10 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 text-slate-200 space-y-8">
+    <div className="max-w-4xl mx-auto p-6 text-[#eaeef4] space-y-8">
       <div>
         <h3 className="text-lg font-semibold text-white mb-2">{t('integrations.title')}</h3>
-        <p className="text-slate-400 text-sm">{t('integrations.description')}</p>
+        <p className="text-[#8b95a5] text-sm">{t('integrations.description')}</p>
       </div>
 
       {error && (
@@ -134,15 +134,15 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         </div>
       )}
 
-      <section className="space-y-3 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.createSection')}</h4>
+      <section className="space-y-3 border border-[#1e2738] rounded-lg p-4 bg-[#111622]/50">
+        <h4 className="font-medium text-[#8b95a5]">{t('integrations.createSection')}</h4>
         <div className="flex flex-wrap gap-2 items-center">
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('integrations.namePlaceholder')}
-            className="flex-1 min-w-[200px] bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm"
+            className="flex-1 min-w-[200px] bg-[#0f1620] border border-[#1e2738] rounded px-3 py-2 text-sm"
           />
           <button
             type="button"
@@ -155,8 +155,8 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         </div>
 
         {/* Scopes */}
-        <fieldset className="text-sm text-slate-400 space-y-1">
-          <legend className="text-slate-300 mb-1">
+        <fieldset className="text-sm text-[#8b95a5] space-y-1">
+          <legend className="text-[#8b95a5] mb-1">
             {t('integrations.scopesLabel', { defaultValue: 'Permisos' })}
           </legend>
           {VALID_SCOPES.map((scope) => (
@@ -173,8 +173,8 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
                 }}
                 className="accent-emerald-500"
               />
-              <span className="text-slate-300">{scope}</span>
-              <span className="text-xs text-slate-500">
+              <span className="text-[#8b95a5]">{scope}</span>
+              <span className="text-xs text-[#596373]">
                 {scope === 'timeseries' && (t('integrations.scopeTimeseriesHint', { defaultValue: 'weather, telemetry data' }))}
                 {scope === 'entities' && (t('integrations.scopeEntitiesHint', { defaultValue: 'NGSI-LD entity queries' }))}
                 {scope === 'export' && (t('integrations.scopeExportHint', { defaultValue: 'CSV & Parquet export' }))}
@@ -185,12 +185,12 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         </fieldset>
 
         {/* Expiry */}
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          <span className="text-slate-300">{t('integrations.expiresLabel', { defaultValue: 'Expires:' })}</span>
+        <label className="flex items-center gap-2 text-sm text-[#8b95a5]">
+          <span className="text-[#8b95a5]">{t('integrations.expiresLabel', { defaultValue: 'Expires:' })}</span>
           <select
             value={expiresDays}
             onChange={(e) => setExpiresDays(Number(e.target.value))}
-            className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm text-slate-300"
+            className="bg-[#0f1620] border border-[#1e2738] rounded px-2 py-1 text-sm text-[#8b95a5]"
           >
             <option value={30}>30 {t('integrations.days', { defaultValue: 'days' })}</option>
             <option value={90}>90 {t('integrations.days', { defaultValue: 'days' })}</option>
@@ -203,7 +203,7 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         {newToken && (
           <div className="mt-3 p-3 bg-amber-950/30 border border-amber-800 rounded text-sm">
             <p className="text-amber-200 mb-2 font-medium">{t('integrations.tokenOnce')}</p>
-            <code className="block break-all text-amber-100 bg-slate-950 p-2 rounded mb-2">{newToken}</code>
+            <code className="block break-all text-amber-100 bg-[#0f1620] p-2 rounded mb-2">{newToken}</code>
             <button
               type="button"
               onClick={() => void copy(newToken)}
@@ -215,31 +215,31 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         )}
       </section>
 
-      <section className="space-y-2 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.listSection')}</h4>
+      <section className="space-y-2 border border-[#1e2738] rounded-lg p-4 bg-[#111622]/50">
+        <h4 className="font-medium text-[#8b95a5]">{t('integrations.listSection')}</h4>
         {loading ? (
-          <p className="text-slate-500 text-sm">{t('integrations.loading')}</p>
+          <p className="text-[#596373] text-sm">{t('integrations.loading')}</p>
         ) : items.length === 0 ? (
-          <p className="text-slate-500 text-sm">{t('integrations.empty')}</p>
+          <p className="text-[#596373] text-sm">{t('integrations.empty')}</p>
         ) : (
           <ul className="space-y-2 text-sm">
             {items.map((row) => (
               <li
                 key={row.id}
-                className="flex justify-between items-center gap-2 border border-slate-800 rounded px-3 py-2"
+                className="flex justify-between items-center gap-2 border border-[#1e2738] rounded px-3 py-2"
               >
                 <div>
-                  <div className="font-mono text-slate-300">{row.name}</div>
+                  <div className="font-mono text-[#8b95a5]">{row.name}</div>
                   {row.scopes && row.scopes.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {row.scopes.map((s: string) => (
-                        <span key={s} className="px-1.5 py-0.5 bg-slate-800 rounded text-xs text-slate-400">
+                        <span key={s} className="px-1.5 py-0.5 bg-[#1a2030] rounded text-xs text-[#8b95a5]">
                           {s}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-[#596373]">
                     {row.is_active ? t('integrations.active') : t('integrations.inactive')}
                     {row.expires_at && ` · ${t('integrations.expires', { defaultValue: 'Expires' })} ${new Date(row.expires_at).toLocaleDateString()}`}
                      · {row.id}
@@ -260,31 +260,31 @@ export const IntegrationsPanel: React.FC<IntegrationsPanelProps> = ({ panels, ti
         )}
       </section>
 
-      <section className="space-y-3 border border-slate-800 rounded-lg p-4 bg-slate-900/50">
-        <h4 className="font-medium text-slate-300">{t('integrations.powerBiTitle')}</h4>
-        <dl className="text-sm space-y-2 text-slate-400">
+      <section className="space-y-3 border border-[#1e2738] rounded-lg p-4 bg-[#111622]/50">
+        <h4 className="font-medium text-[#8b95a5]">{t('integrations.powerBiTitle')}</h4>
+        <dl className="text-sm space-y-2 text-[#8b95a5]">
           <div>
-            <dt className="text-slate-500">{t('integrations.endpoint')}</dt>
+            <dt className="text-[#596373]">{t('integrations.endpoint')}</dt>
             <dd>
               <code className="text-emerald-400 break-all">{queryUrl}</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.method')}</dt>
+            <dt className="text-[#596373]">{t('integrations.method')}</dt>
             <dd>
-              <code className="text-slate-300">POST</code>
+              <code className="text-[#8b95a5]">POST</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.header')}</dt>
+            <dt className="text-[#596373]">{t('integrations.header')}</dt>
             <dd>
-              <code className="text-slate-300 break-all">Authorization: Bearer nkz_pat_…</code>
+              <code className="text-[#8b95a5] break-all">Authorization: Bearer nkz_pat_…</code>
             </dd>
           </div>
           <div>
-            <dt className="text-slate-500">{t('integrations.bodyExample')}</dt>
+            <dt className="text-[#596373]">{t('integrations.bodyExample')}</dt>
             <dd>
-              <pre className="mt-1 p-3 bg-slate-950 rounded text-xs text-slate-300 overflow-x-auto">
+              <pre className="mt-1 p-3 bg-[#0f1620] rounded text-xs text-[#8b95a5] overflow-x-auto">
                 {JSON.stringify(exampleBody, null, 2)}
               </pre>
               <button
