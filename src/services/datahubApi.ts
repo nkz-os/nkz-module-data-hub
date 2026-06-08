@@ -53,11 +53,21 @@ function getAuthToken(): string | undefined {
   return ctx.getToken?.() ?? ctx.token ?? undefined;
 }
 
-/** Build common headers with optional tenant ID and JWT for multi-tenancy + auth.
- *  Web Workers cannot access httpOnly cookies, so we must explicitly pass the JWT
- *  from the host's auth context as an Authorization header. */
+/** Build headers for main-thread requests. Main-thread has httpOnly cookie access,
+ *  so we only add X-Tenant-ID and let the cookie handle auth. */
 function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
   const headers: Record<string, string> = { ...(base as Record<string, string>) };
+  const tenantId = getTenantId();
+  if (tenantId) {
+    headers['X-Tenant-ID'] = tenantId;
+  }
+  return headers;
+}
+
+/** Exported helper for worker-driven requests. Web Workers cannot access httpOnly
+ *  cookies, so we explicitly pass the JWT from the host auth context. */
+export function getDatahubRequestHeaders(base: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...base };
   const tenantId = getTenantId();
   if (tenantId) {
     headers['X-Tenant-ID'] = tenantId;
@@ -67,12 +77,6 @@ function withTenantHeaders(base: HeadersInit = {}): HeadersInit {
     headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
-}
-
-/** Exported helper for worker-driven requests. Includes JWT from host auth context
- *  so Web Workers (which lack httpOnly cookie access) can still authenticate. */
-export function getDatahubRequestHeaders(base: Record<string, string> = {}): Record<string, string> {
-  return withTenantHeaders(base) as Record<string, string>;
 }
 
 /**
