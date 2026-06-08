@@ -46,6 +46,8 @@ _NGSI_SYSTEM_KEYS = frozenset({
     "address", "source", "provider", "dateCreated", "dateModified",
     "hasAgriParcel", "refAgriParcel", "hasDevice", "refDevice", "observes", "refWeatherStation",
     "municipalityCode",
+    # NGSI-LD metadata — not numeric measurements
+    "dateObserved", "observedAt", "dateObservedFrom", "dateObservedTo",
 })
 
 # timeseries-reader compatibility maps for `source=timescale`.
