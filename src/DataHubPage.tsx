@@ -116,7 +116,7 @@ const DataHubPageInner: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full min-h-screen bg-[#090d14] relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
+    <div className="datahub-dark flex h-full min-h-screen bg-[#090d14] relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
       {/* Desktop: static sidebar */}
       {!isMobile && sidebarContent}
 

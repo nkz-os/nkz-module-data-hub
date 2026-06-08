@@ -622,7 +622,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
 
   return (
     <div
-      className="w-full h-full min-h-screen bg-[#090d14] flex flex-col overflow-x-hidden"
+      className="datahub-dark w-full h-full min-h-screen bg-[#090d14] flex flex-col overflow-x-hidden"
       style={{ isolation: 'isolate', zIndex: 0 }}
     >
       <div className="shrink-0 border-b border-[#1e2738] bg-[#111622] flex flex-col">

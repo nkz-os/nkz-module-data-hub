@@ -1,18 +1,34 @@
 /* ═══════════════════════════════════════════════════════
    DataHub "Midnight" — Global overrides
+   Self-contained dark module: all fixes scoped to .datahub-dark
    ═══════════════════════════════════════════════════════ */
 
-/* ── uPlot dark-mode fixes ── */
-.u-over,
-.u-under {
+/* ── Native form elements inside datahub — always dark ── */
+.datahub-dark {
   color-scheme: dark;
 }
-.u-title,
-.u-legend,
-.u-live {
+.datahub-dark input,
+.datahub-dark select,
+.datahub-dark textarea {
+  color-scheme: dark;
+}
+
+/* datetime-local calendar picker indicator */
+.datahub-dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}
+
+/* ── uPlot fixes inside datahub ── */
+.datahub-dark .u-over,
+.datahub-dark .u-under {
+  color-scheme: dark;
+}
+.datahub-dark .u-title,
+.datahub-dark .u-legend,
+.datahub-dark .u-live {
   color: #eaeef4 !important;
 }
-.u-cursor-pt {
+.datahub-dark .u-cursor-pt {
   fill: #090d14 !important;
 }
 
@@ -20,18 +36,6 @@
 .u-select {
   background: rgba(52, 211, 153, 0.15) !important;
   border: 1px solid rgba(52, 211, 153, 0.6) !important;
-}
-
-/* ── Input dark-mode fixes ── */
-input,
-select,
-textarea {
-  color-scheme: dark;
-}
-
-/* datetime-local calendar picker — force dark */
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.85);
 }
 
 /* ── RGL resize handle ── */
@@ -65,17 +69,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar {
+.datahub-dark ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-::-webkit-scrollbar-track {
+.datahub-dark ::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
+.datahub-dark ::-webkit-scrollbar-thumb {
   background: #2a3345;
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
+.datahub-dark ::-webkit-scrollbar-thumb:hover {
   background: #3b465b;
 }

@@ -39,7 +39,7 @@ const DataHubQuickChart: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex h-full text-[#8b95a5] bg-[#090d14]">
+    <div className="datahub-dark flex h-full text-[#8b95a5] bg-[#090d14]">
       {/* Narrow entity tree */}
       <div className="w-56 shrink-0 border-r border-[#1e2738] overflow-hidden">
         <DataTree
