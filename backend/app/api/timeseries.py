@@ -101,7 +101,12 @@ async def _fetch_from_parcel_weather_api(
         data = r.json()
         observations = data.get("observations", [])
         if not observations:
-            return {"timestamps": [], "values": []}
+            return {
+                "timestamps": [],
+                "values": [],
+                "_source": "parcel_weather_api",
+                "_downscaling": data.get("downscaling", "unknown"),
+            }
 
         requested_attrs = [a.strip() for a in attrs.split(",")]
         timestamps = []
