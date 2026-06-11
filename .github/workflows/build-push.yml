@@ -49,6 +49,9 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run typecheck
 
+      - name: Frontend unit tests (vitest)
+        run: pnpm test
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -59,6 +62,11 @@ jobs:
         run: |
           pip install -r backend/requirements.txt
           cd backend && python -c "from app.main import app; print('app import ok')"
+
+      - name: Backend unit tests (pytest)
+        run: |
+          pip install pytest pytest-asyncio
+          cd backend && python -m pytest tests/ -v
 
   build-frontend:
     name: Build frontend (MF2)
