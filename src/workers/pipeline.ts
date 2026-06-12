@@ -171,6 +171,11 @@ export function downsampleSingle(
     keep.add(seg.end);
     for (const i of keep) pickGlobal.add(i);
   }
+  // Gap bridges are the ONLY NaN sources post-injection (V2.1 invariant);
+  // dropping one would let the rendered line span a real outage.
+  for (let i = 0; i < ys.length; i++) {
+    if (Number.isNaN(ys[i])) pickGlobal.add(i);
+  }
   const pick = Array.from(pickGlobal.values()).sort((a, b) => a - b);
   const outX = new Float64Array(pick.length);
   const outY = new Float64Array(pick.length);
@@ -239,9 +244,13 @@ export function cacheKey(
   item: WorkerSeriesSpec,
   startTime: string,
   endTime: string,
-  resolution: number
+  resolution: number,
+  policy?: { maxGapSeconds: number; downsampleThreshold: number; preserveExtrema: boolean }
 ): string {
-  return `${item.source ?? 'timescale'}|${item.entityId}|${item.attribute}|${startTime}|${endTime}|${resolution}`;
+  const base = `${item.source ?? 'timescale'}|${item.entityId}|${item.attribute}|${startTime}|${endTime}|${resolution}`;
+  if (!policy) return base;
+  // viewportWidthPx / compatibilityMode are intentionally excluded: unused by processing.
+  return `${base}|g${policy.maxGapSeconds}|t${policy.downsampleThreshold}|e${policy.preserveExtrema ? 1 : 0}`;
 }
 
 /** LRU eviction decision: which keys to delete to get total <= budget. Pure. */

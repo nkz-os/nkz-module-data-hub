@@ -182,6 +182,16 @@ describe('cacheKey', () => {
       cacheKey({ entityId: 'e1', attribute: 'temp_avg' }, '2026-01-01', '2026-01-02', 500)
     ).toBe('timescale|e1|temp_avg|2026-01-01|2026-01-02|500');
   });
+
+  it('policy variant appends gap/threshold/extrema discriminators', () => {
+    expect(
+      cacheKey({ entityId: 'e1', attribute: 'temp_avg' }, '2026-01-01', '2026-01-02', 500, {
+        maxGapSeconds: 7200,
+        downsampleThreshold: 2000,
+        preserveExtrema: true,
+      })
+    ).toBe('timescale|e1|temp_avg|2026-01-01|2026-01-02|500|g7200|t2000|e1');
+  });
 });
 
 describe('selectEvictions', () => {
@@ -199,5 +209,29 @@ describe('selectEvictions', () => {
   it('evicts multiple when needed, in LRU order', () => {
     const out = selectEvictions([e('c', 50, 3), e('a', 50, 1), e('b', 50, 2)], 60);
     expect(out).toEqual(['a', 'b']);
+  });
+});
+
+describe('gap bridges survive downsampling (regression)', () => {
+  it('bridge inside a segment (maxGap < gap < 2*maxGap) is retained', () => {
+    // step 60s, maxGap 100s, one hole of 150s (100 < 150 < 200).
+    // The hole's two half-intervals (75s each) are both < maxGap, so
+    // splitSegmentsByGap does NOT split → the NaN bridge sits inside a single
+    // segment and is at the mercy of LTTB. Neither LTTB (it substitutes NaN→avgY
+    // when scoring area, pipeline.ts:93) nor minMaxIndicesPerBucket (it skips
+    // non-finite, pipeline.ts:123) deliberately preserves the bridge — survival
+    // is pure bucket-boundary luck. gapIdx=1237/threshold=200 is a configuration
+    // where LTTB drops it; the original gapIdx=1500 accidentally aligned the NaN
+    // with a sampled bucket boundary and masked the bug.
+    const xsArr: number[] = [];
+    for (let i = 0; i < 3000; i++) xsArr.push(i * 60);
+    for (let i = 1237; i < 3000; i++) xsArr[i] += 90; // interval 1236->1237 becomes 150s
+    const xs = f64(xsArr);
+    const ys = f64(xsArr.map(() => 1));
+    const injected = injectGapsSingle(xs, ys, 100);
+    expect(injected.gapsInjected).toBe(1);
+    const out = downsampleSingle(injected.xs, injected.ys, 200, 100, true);
+    const nanCount = Array.from(out.ys).filter((v) => Number.isNaN(v)).length;
+    expect(nanCount).toBe(1); // the visual break must survive (acceptance 3)
   });
 });

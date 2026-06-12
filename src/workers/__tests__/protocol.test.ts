@@ -308,3 +308,30 @@ describe('error taxonomy', () => {
     expect(posted).toHaveLength(0);
   });
 });
+
+describe('cache key includes processing policy (regression)', () => {
+  it('same range with different downsampleThreshold must not serve stale processed data', async () => {
+    const n = 5000;
+    const fetchMock = vi.fn(async () => jsonResponse(seriesPayload(T0, n, 60)));
+    const { send, expectResponses } = await loadWorker(fetchMock);
+    send(
+      baseRequest({
+        requestId: 'r1',
+        policy: { maxGapSeconds: 7200, downsampleThreshold: 100, viewportWidthPx: 400, preserveExtrema: true },
+      })
+    );
+    await expectResponses(1);
+    send(
+      baseRequest({
+        requestId: 'r2',
+        policy: { maxGapSeconds: 7200, downsampleThreshold: 2000, viewportWidthPx: 1200, preserveExtrema: true },
+      })
+    );
+    const posted = await expectResponses(2);
+    const first = posted[0].msg.series[0].xs.length;
+    const second = posted[1].msg.series[0].xs.length;
+    // A wider viewport asked for ~2000 points; serving the 100-point cache entry
+    // is the bug. The second response must have materially more points.
+    expect(second).toBeGreaterThan(first * 2);
+  });
+});

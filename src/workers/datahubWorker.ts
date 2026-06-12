@@ -122,7 +122,7 @@ async function processOneSeries(
   req: DatahubWorkerRequest,
   item: WorkerSeriesSpec
 ): Promise<WorkerSeriesPayload> {
-  const key = cacheKey(item, req.startTime, req.endTime, req.resolution);
+  const key = cacheKey(item, req.startTime, req.endTime, req.resolution, req.policy);
   const cached = !req.forceRefresh ? seriesCache.get(key) : undefined;
 
   if (cached) {
@@ -225,7 +225,7 @@ async function processSeries(req: DatahubWorkerRequest): Promise<DatahubWorkerRe
         stage: httpStatus ? 'fetch' : 'decode',
         message: err?.message ?? String(res.reason),
         retryable: true,
-        seriesKey: cacheKey(req.series[idx], req.startTime, req.endTime, req.resolution),
+        seriesKey: cacheKey(req.series[idx], req.startTime, req.endTime, req.resolution, req.policy),
         ...(httpStatus ? { httpStatus } : {}),
       };
     }
