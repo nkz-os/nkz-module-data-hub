@@ -201,7 +201,9 @@ describe('transfer + cache (acceptance 4)', () => {
 
 describe('fetch semantics', () => {
   it('URL carries params and credentials include; baseUrl honored', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(seriesPayload(T0, 5, 3600)));
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse(seriesPayload(T0, 5, 3600))
+    );
     const { send, expectResponses } = await loadWorker(fetchMock);
     send(baseRequest());
     await expectResponses(1);
@@ -211,7 +213,7 @@ describe('fetch semantics', () => {
     expect(String(url)).toContain('attribute=temp_avg');
     expect(String(url)).toContain('resolution=500');
     expect(String(url)).toContain('source=timescale');
-    expect((init as RequestInit).credentials).toBe('include');
+    expect(init?.credentials).toBe('include');
   });
 
   it('204 -> empty series without error (after the single empty-retry)', async () => {
