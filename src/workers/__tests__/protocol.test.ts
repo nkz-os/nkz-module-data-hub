@@ -198,3 +198,113 @@ describe('transfer + cache (acceptance 4)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('fetch semantics', () => {
+  it('URL carries params and credentials include; baseUrl honored', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(seriesPayload(T0, 5, 3600)));
+    const { send, expectResponses } = await loadWorker(fetchMock);
+    send(baseRequest());
+    await expectResponses(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('http://bff.test/api/datahub/timeseries/entities/');
+    expect(String(url)).toContain(encodeURIComponent('urn:ngsi-ld:Device:station-1'));
+    expect(String(url)).toContain('attribute=temp_avg');
+    expect(String(url)).toContain('resolution=500');
+    expect(String(url)).toContain('source=timescale');
+    expect((init as RequestInit).credentials).toBe('include');
+  });
+
+  it('204 -> empty series without error (after the single empty-retry)', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const { send, expectResponses } = await loadWorker(fetchMock);
+    send(baseRequest());
+    const [r] = await expectResponses(1);
+    expect(r.msg.error).toBeUndefined();
+    expect(r.msg.series[0].xs.length).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // retry-on-empty fires exactly once
+  });
+
+  it('empty-then-data: single retry recovers the series', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async () => {
+      call += 1;
+      return call === 1
+        ? jsonResponse({ timestamps: [], values: [] })
+        : jsonResponse(seriesPayload(T0, 10, 3600));
+    });
+    const { send, expectResponses } = await loadWorker(fetchMock);
+    send(baseRequest());
+    const [r] = await expectResponses(1);
+    expect(r.msg.series[0].stats.rawPointsFetched).toBe(10);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('mixed sec/ms epochs in one payload normalize to monotonic seconds', async () => {
+    const payload = {
+      timestamps: [T0, (T0 + 3600) * 1000, T0 + 7200], // sec, ms, sec
+      values: [1, 2, 3],
+    };
+    const { send, expectResponses } = await loadWorker(vi.fn(async () => jsonResponse(payload)));
+    send(baseRequest());
+    const [r] = await expectResponses(1);
+    expect(Array.from(r.msg.series[0].xs)).toEqual([T0, T0 + 3600, T0 + 7200]);
+  });
+});
+
+describe('error taxonomy', () => {
+  it('HTTP failure on one series: the other completes; error has seriesKey + httpStatus', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).includes('wind_speed')) return new Response('boom', { status: 502 });
+      return jsonResponse(seriesPayload(T0, 10, 3600));
+    });
+    const { send, expectResponses } = await loadWorker(fetchMock);
+    send(
+      baseRequest({
+        series: [
+          { entityId: 'urn:ngsi-ld:Device:station-1', attribute: 'temp_avg' },
+          { entityId: 'urn:ngsi-ld:Device:station-1', attribute: 'wind_speed' },
+        ],
+      })
+    );
+    const [r] = await expectResponses(1);
+    expect(r.msg.series).toHaveLength(1);
+    expect(r.msg.series[0].attribute).toBe('temp_avg');
+    expect(r.msg.error).toBeDefined();
+    expect(r.msg.error!.code).toBe('FETCH_ERROR');
+    expect(r.msg.error!.httpStatus).toBe(502);
+    expect(r.msg.error!.seriesKey).toContain('wind_speed');
+    expect(r.msg.error!.retryable).toBe(true);
+  });
+
+  it('all series fail -> series empty, error present, still a well-formed response', async () => {
+    const { send, expectResponses } = await loadWorker(
+      vi.fn(async () => new Response('x', { status: 500 }))
+    );
+    send(baseRequest());
+    const [r] = await expectResponses(1);
+    expect(r.msg.series).toHaveLength(0);
+    expect(r.msg.error!.code).toBe('FETCH_ERROR');
+    expect(r.msg.stats.rawPointsFetched).toBe(0);
+  });
+
+  it('malformed JSON body -> per-series PROCESS error, no throw escaping the worker', async () => {
+    // response.json() rejects → caught by Promise.allSettled → err.status is undefined
+    // → worker maps to PROCESS_ERROR / stage 'decode' (not the global catch fallback)
+    const { send, expectResponses } = await loadWorker(
+      vi.fn(async () => new Response('not json', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    );
+    send(baseRequest());
+    const [r] = await expectResponses(1);
+    expect(r.msg.error).toBeDefined();
+    expect(r.msg.error!.code).toBe('PROCESS_ERROR');
+    expect(r.msg.series).toHaveLength(0);
+  });
+
+  it('unknown message types are ignored silently', async () => {
+    const { send, posted } = await loadWorker(vi.fn());
+    send({ type: 'SOMETHING_ELSE' });
+    send(null);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posted).toHaveLength(0);
+  });
+});
