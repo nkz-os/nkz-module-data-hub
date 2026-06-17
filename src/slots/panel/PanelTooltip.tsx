@@ -52,28 +52,28 @@ export const PanelTooltip: React.FC<PanelTooltipProps> = ({
 
   return (
     <div
-      className="absolute z-30 pointer-events-none px-3 py-2.5 rounded-lg bg-[#111622] border border-[#2a3345] shadow-2xl min-w-[180px] max-w-[300px]"
+      className="absolute z-30 pointer-events-none px-3 py-2.5 rounded-lg dh-bg-surface border dh-border-light shadow-2xl min-w-[180px] max-w-[300px]"
       style={{
         left: left + offsetX,
         top: Math.max(8, top - 8),
         transform: `${horizontalTransform} translateY(-100%)`,
       }}
     >
-      <div className="text-xs text-[#8b95a5] mb-2 font-mono tabular-nums">{timestamp}</div>
+      <div className="text-xs dh-text-secondary mb-2 font-mono tabular-nums">{timestamp}</div>
       <div className="flex flex-col gap-1.5">
         {rows.map((r, i) => (
           <div key={`${r.label}-${i}`} className="flex items-center gap-2 leading-tight text-sm">
             <span
               aria-hidden
-              className="inline-block w-2.5 h-2.5 rounded-full ring-1 ring-[#090d14] shrink-0"
+              className="inline-block w-2.5 h-2.5 rounded-full ring-1 ring-transparent shrink-0"
               style={{ background: r.color }}
             />
-            <span className="text-[#eaeef4] truncate" title={r.label}>
+            <span className="dh-text-primary truncate" title={r.label}>
               {r.label}
             </span>
             <span className="ml-auto tabular-nums text-white font-semibold whitespace-nowrap">
               {formatNumberShort(r.value)}
-              {r.unit && <span className="text-[#8b95a5] font-normal ml-0.5">{r.unit}</span>}
+              {r.unit && <span className="dh-text-secondary font-normal ml-0.5">{r.unit}</span>}
             </span>
           </div>
         ))}

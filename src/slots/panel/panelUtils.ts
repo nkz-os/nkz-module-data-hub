@@ -7,7 +7,7 @@ import type { ChartSeriesDef, YScaleMode } from '../../types/dashboard';
 import type { WorkerSeriesPayload } from '../../workers/contracts/datahubWorkerV2';
 
 export const SERIES_PALETTE = [
-  '#34d399', // emerald-400
+  'var(--dh-accent-text)', /* accent green */
   '#c084fc', // purple-400
   '#fbbf24', // amber-400
   '#60a5fa', // blue-400

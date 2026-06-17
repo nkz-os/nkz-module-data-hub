@@ -622,19 +622,19 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
 
   return (
     <div
-      className="datahub-dark w-full h-full min-h-screen bg-[#090d14] flex flex-col overflow-x-hidden"
+      className="datahub-dark w-full h-full min-h-screen dh-bg-main flex flex-col overflow-x-hidden"
       style={{ isolation: 'isolate', zIndex: 0 }}
     >
-      <div className="shrink-0 border-b border-[#1e2738] bg-[#111622] flex flex-col">
+      <div className="shrink-0 border-b dh-border-default dh-bg-surface flex flex-col">
       <div className="dashboard-global-toolbar min-h-[48px] flex items-center justify-between px-4 py-1.5">
         <div className="flex items-center gap-4 min-w-0">
-          <h2 className="text-[#eaeef4] font-semibold text-base shrink-0">{t('dashboard.tacticalCanvas')}</h2>
-          <span className="text-[#8b95a5] text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
+          <h2 className="dh-text-primary font-semibold text-base shrink-0">{t('dashboard.tacticalCanvas')}</h2>
+          <span className="dh-text-secondary text-sm font-mono">{t('dashboard.activePanels', { count: panels.length })}</span>
           {saveMessage && (
             <span
               className={`text-xs px-2 py-1 rounded ${
                 saveMessage.type === 'success'
-                  ? 'bg-emerald-500/15 text-emerald-300'
+                  ? 'dh-accent-bg/15 dh-accent-text'
                   : saveMessage.type === 'info'
                     ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                     : 'bg-red-500/15 text-red-300'
@@ -647,14 +647,14 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-[#2a3345] overflow-hidden mr-2 bg-[#161c28]">
+          <div className="flex rounded-lg border dh-border-light overflow-hidden mr-2 dh-bg-surface-alt">
             <button
               type="button"
               onClick={() => setMainView('canvas')}
               className={`px-3 py-2 text-xs font-medium transition-colors ${
                 mainView === 'canvas'
-                  ? 'bg-[#090d14] text-[#eaeef4]'
-                  : 'text-[#8b95a5] hover:text-[#eaeef4] hover:bg-[#1a2030]'
+                  ? 'dh-bg-main dh-text-primary'
+                  : 'dh-text-secondary hover:dh-text-primary hover:dh-bg-surface-alt'
               }`}
             >
               {t('integrations.canvasTab')}
@@ -664,8 +664,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               onClick={() => setMainView('integrations')}
               className={`px-3 py-2 text-xs font-medium transition-colors ${
                 mainView === 'integrations'
-                  ? 'bg-[#090d14] text-[#eaeef4]'
-                  : 'text-[#8b95a5] hover:text-[#eaeef4] hover:bg-[#1a2030]'
+                  ? 'dh-bg-main dh-text-primary'
+                  : 'dh-text-secondary hover:dh-text-primary hover:dh-bg-surface-alt'
               }`}
             >
               {t('integrations.integrationsTab')}
@@ -675,8 +675,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               onClick={() => setMainView('lab')}
               className={`px-3 py-2 text-xs font-medium transition-colors ${
                 mainView === 'lab'
-                  ? 'bg-[#090d14] text-[#eaeef4]'
-                  : 'text-[#8b95a5] hover:text-[#eaeef4] hover:bg-[#1a2030]'
+                  ? 'dh-bg-main dh-text-primary'
+                  : 'dh-text-secondary hover:dh-text-primary hover:dh-bg-surface-alt'
               }`}
             >
               {t('lab.tab')}
@@ -685,7 +685,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           <button
             type="button"
             onClick={handleSaveWorkspace}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg transition-colors flex items-center gap-2 font-medium"
+            className="px-3 py-2 dh-accent-bg hover:dh-accent-bg text-white text-sm rounded-lg transition-colors flex items-center gap-2 font-medium"
           >
             <Save size={16} />
             {t('dashboard.saveWorkspace')}
@@ -693,7 +693,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
           <button
             type="button"
             onClick={handleLoadWorkspace}
-            className="px-3 py-2 bg-[#161c28] hover:bg-[#1a2030] text-[#eaeef4] text-sm rounded-lg border border-[#2a3345] transition-colors flex items-center gap-2"
+            className="px-3 py-2 dh-bg-surface-alt hover:dh-bg-surface-alt dh-text-primary text-sm rounded-lg border dh-border-light transition-colors flex items-center gap-2"
           >
             <FolderOpen size={16} />
             {t('dashboard.load')}
@@ -701,8 +701,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
         </div>
       </div>
       {mainView === 'canvas' && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t border-[#1e2738] bg-[#0a1018]">
-          <span className="text-xs uppercase tracking-wide text-[#8b95a5] shrink-0 font-semibold">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-t dh-border-default bg-[#0a1018]">
+          <span className="text-xs uppercase tracking-wide dh-text-secondary shrink-0 font-semibold">
             {t('dashboard.timeRange')}
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -711,7 +711,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 key={preset}
                 type="button"
                 onClick={() => applyPreset(preset)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-[#2a3345] bg-[#161c28] text-[#eaeef4] hover:bg-[#1a2030] hover:border-[#3b465b] transition-colors font-medium"
+                className="px-3 py-1.5 text-xs rounded-lg border dh-border-light dh-bg-surface-alt dh-text-primary hover:dh-bg-surface-alt hover:border-[#3b465b] transition-colors font-medium"
               >
                 {preset === '24h'
                   ? t('dashboard.preset24h')
@@ -721,23 +721,23 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               </button>
             ))}
           </div>
-          <span className="hidden sm:inline w-px h-5 bg-[#2a3345] mx-1 shrink-0" aria-hidden />
-          <label className="flex items-center gap-1.5 text-sm text-[#8b95a5]">
+          <span className="hidden sm:inline w-px h-5 dh-border-light mx-1 shrink-0" aria-hidden />
+          <label className="flex items-center gap-1.5 text-sm dh-text-secondary">
             <span className="shrink-0 text-xs">{t('dashboard.customFrom')}</span>
             <input
               type="datetime-local"
               value={draftRangeStart}
               onChange={(e) => setDraftRangeStart(e.target.value)}
-              className="rounded-lg border border-[#2a3345] bg-[#161c28] text-[#eaeef4] text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50"
+              className="rounded-lg border dh-border-light dh-bg-surface-alt dh-text-primary text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50"
             />
           </label>
-          <label className="flex items-center gap-1.5 text-sm text-[#8b95a5]">
+          <label className="flex items-center gap-1.5 text-sm dh-text-secondary">
             <span className="shrink-0 text-xs">{t('dashboard.customTo')}</span>
             <input
               type="datetime-local"
               value={draftRangeEnd}
               onChange={(e) => setDraftRangeEnd(e.target.value)}
-              className="rounded-lg border border-[#2a3345] bg-[#161c28] text-[#eaeef4] text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50"
+              className="rounded-lg border dh-border-light dh-bg-surface-alt dh-text-primary text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500/50 focus:border-amber-500/50"
             />
           </label>
           <button
@@ -762,18 +762,18 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       <div className="flex-1 min-h-0 p-2 flex flex-col">
         {panels.length === 0 ? (
           <div
-            className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-[#2a3345] bg-gradient-to-b from-[#111622] to-[#090d14] p-8 min-h-[min(420px,50vh)]"
+            className="flex-1 flex items-center justify-center rounded-lg border border-dashed dh-border-light bg-gradient-to-b from-dh-bg-surface to-dh-bg-main p-8 min-h-[min(420px,50vh)]"
             role="region"
             aria-label={t('dashboard.emptyCanvasTitle')}
             onDragOver={onEmptyCanvasDragOver}
             onDrop={onEmptyCanvasDrop}
           >
             <div className="max-w-md text-center px-4">
-              <h3 className="text-lg font-semibold text-[#eaeef4] mb-3">
+              <h3 className="text-lg font-semibold dh-text-primary mb-3">
                 {t('dashboard.emptyCanvasTitle')}
               </h3>
-              <p className="text-sm text-[#8b95a5] mb-4">{t('dashboard.emptyCanvasIntro')}</p>
-              <ol className="text-left text-sm text-[#8b95a5] space-y-2.5 list-decimal list-inside">
+              <p className="text-sm dh-text-secondary mb-4">{t('dashboard.emptyCanvasIntro')}</p>
+              <ol className="text-left text-sm dh-text-secondary space-y-2.5 list-decimal list-inside">
                 <li>{t('dashboard.emptyCanvasStep1')}</li>
                 <li>{t('dashboard.emptyCanvasStep2')}</li>
                 <li>{t('dashboard.emptyCanvasStep3')}</li>
@@ -805,7 +805,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               <div key={panel.id} className="relative h-full" onMouseDown={() => setActivePanelId(panel.id)}>
                 {/* Floating actions — top right pill */}
                 <div className="absolute top-2 right-2 z-20 flex gap-0.5 pointer-events-none">
-                  <div className="pointer-events-auto flex items-center gap-1 bg-[#161c28]/95 backdrop-blur-sm rounded-full px-2 py-1.5 ring-1 ring-white/10 shadow-lg">
+                  <div className="pointer-events-auto flex items-center gap-1 dh-bg-surface-alt/95 backdrop-blur-sm rounded-full px-2 py-1.5 ring-1 ring-white/10 shadow-lg">
                     {panel.series.length === 1 && (
                       <>
                         {availablePlugins.length > 1 && (
@@ -813,7 +813,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                             value={selectedPlugin}
                             onChange={(e) => { e.stopPropagation(); setSelectedPlugin(e.target.value); }}
                             disabled={predictingPanelId === panel.id}
-                            className="text-[10px] bg-[#1a2030] text-[#eaeef4] border-none rounded px-1 py-0.5 outline-none cursor-pointer disabled:opacity-40 max-w-[100px] truncate"
+                            className="text-[10px] dh-bg-surface-alt dh-text-primary border-none rounded px-1 py-0.5 outline-none cursor-pointer disabled:opacity-40 max-w-[100px] truncate"
                             title={t('dashboard.modelSelectTitle')}
                           >
                             {availablePlugins.map((p) => (
@@ -847,7 +847,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removePanel(panel.id); }}
-                      className="p-1.5 text-[#596373] hover:text-red-400 rounded-full transition-colors"
+                      className="p-1.5 dh-text-muted hover:text-red-400 rounded-full transition-colors"
                       title={t('dashboard.removePanel')}
                     >
                       <Trash2 size={14} />
@@ -887,8 +887,8 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
       )}
       {showSaveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true">
-          <div className="bg-[#161c28] border border-[#2a3345] rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5">
-            <h3 className="text-base font-semibold text-[#eaeef4] mb-3">{t('dashboard.saveModalTitle')}</h3>
+          <div className="dh-bg-surface-alt border dh-border-light rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5">
+            <h3 className="text-base font-semibold dh-text-primary mb-3">{t('dashboard.saveModalTitle')}</h3>
             <input
               type="text"
               value={saveModalName}
@@ -896,13 +896,13 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
               placeholder={t('dashboard.workspaceNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
-              className="w-full bg-[#111622] border border-[#2a3345] rounded-lg px-3 py-2.5 text-sm text-[#eaeef4] mb-4 placeholder-[#596373] focus:outline-none focus:ring-1 focus:ring-emerald-500/50 focus:border-emerald-500/50"
+              className="w-full dh-bg-surface border dh-border-light rounded-lg px-3 py-2.5 text-sm dh-text-primary mb-4 placeholder-current opacity-50 focus:outline-none focus:ring-1 focus:dh-accent-border/50 focus:dh-accent-border/50"
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowSaveModal(false)}
-                className="px-4 py-2 text-sm text-[#8b95a5] hover:text-[#eaeef4] border border-[#2a3345] rounded-lg transition-colors"
+                className="px-4 py-2 text-sm dh-text-secondary hover:dh-text-primary border dh-border-light rounded-lg transition-colors"
               >
                 {t('dashboard.cancel')}
               </button>
@@ -910,7 +910,7 @@ export const DataHubDashboard = forwardRef<DataHubDashboardHandle, DataHubDashbo
                 type="button"
                 onClick={handleConfirmSave}
                 disabled={!saveModalName.trim()}
-                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors font-medium"
+                className="px-4 py-2 text-sm dh-accent-bg text-white rounded-lg hover:dh-accent-bg disabled:opacity-50 transition-colors font-medium"
               >
                 {t('dashboard.save')}
               </button>

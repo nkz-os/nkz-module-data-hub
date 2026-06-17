@@ -79,15 +79,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       aria-modal="true"
       aria-labelledby="export-modal-title"
     >
-      <div className="bg-[#111622] border border-[#1e2738] rounded-lg shadow-xl w-full max-w-md mx-4 p-4">
+      <div className="dh-bg-surface border dh-border-default rounded-lg shadow-xl w-full max-w-md mx-4 p-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 id="export-modal-title" className="text-sm font-semibold text-[#eaeef4]">
+          <h2 id="export-modal-title" className="text-sm font-semibold dh-text-primary">
             {t('exportModal.title')}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-[#8b95a5] hover:text-[#eaeef4] p-1"
+            className="dh-text-secondary hover:dh-text-primary p-1"
             aria-label={t('exportModal.close')}
           >
             <X size={18} />
@@ -95,29 +95,29 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </div>
 
         {!canExport ? (
-          <p className="text-[#8b95a5] text-sm mb-4">
+          <p className="dh-text-secondary text-sm mb-4">
             {t('exportModal.noSeries')}
           </p>
         ) : (
           <>
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-xs text-[#8b95a5] mb-1">{t('exportModal.format')}</label>
+                <label className="block text-xs dh-text-secondary mb-1">{t('exportModal.format')}</label>
                 <select
                   value={format}
                   onChange={(e) => setFormat(e.target.value as 'csv' | 'parquet')}
-                  className="w-full bg-[#1a2030] border border-[#2a3345] rounded px-3 py-2 text-sm text-[#eaeef4]"
+                  className="w-full dh-bg-surface-alt border dh-border-light rounded px-3 py-2 text-sm dh-text-primary"
                 >
                   <option value="csv">{t('exportModal.formatCsv')}</option>
                   <option value="parquet">{t('exportModal.formatParquet')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-[#8b95a5] mb-1">{t('exportModal.granularity')}</label>
+                <label className="block text-xs dh-text-secondary mb-1">{t('exportModal.granularity')}</label>
                 <select
                   value={aggregation}
                   onChange={(e) => setAggregation(e.target.value as ExportAggregation)}
-                  className="w-full bg-[#1a2030] border border-[#2a3345] rounded px-3 py-2 text-sm text-[#eaeef4]"
+                  className="w-full dh-bg-surface-alt border dh-border-light rounded px-3 py-2 text-sm dh-text-primary"
                 >
                   <option value="raw">{t('exportModal.rawHighFreq')}</option>
                   <option value="1 hour">{t('exportModal.oneHour')}</option>
@@ -137,7 +137,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 text-sm text-[#8b95a5] hover:text-[#eaeef4] border border-[#2a3345] rounded"
+            className="px-3 py-1.5 text-sm dh-text-secondary hover:dh-text-primary border dh-border-light rounded"
           >
             {t('exportModal.cancel')}
           </button>

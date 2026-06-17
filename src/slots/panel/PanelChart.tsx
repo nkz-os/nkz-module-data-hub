@@ -173,7 +173,7 @@ export const PanelChart: React.FC<PanelChartProps> = ({
         } as uPlot.Series)),
       ],
       axes: [
-        { stroke: '#8b95a5', grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(139,149,165,0.3)', size: 5 }, font: '14px ui-sans-serif, system-ui', gap: 10 },
+        { stroke: 'var(--dh-text-secondary)', grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(137,146,165,0.3)', size: 5 }, font: '14px ui-sans-serif, system-ui', gap: 10 },
         {
           scale: 'y', stroke: TEXT_AXIS_LEFT, grid: { stroke: GRID_RGBA, width: 1 },
           ticks: { stroke: 'rgba(74,222,128,0.3)', size: 5 }, size: 68,

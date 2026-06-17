@@ -96,6 +96,23 @@
   right: 5px;
 }
 
+/* ═══════════════════════════════════════════════════════
+   DataHub utility classes — one-to-one map with design tokens
+   Use these instead of raw hex codes like bg-[#090d14]
+   ═══════════════════════════════════════════════════════ */
+
+.datahub-dark .dh-text-primary  { color: var(--dh-text-primary) !important; }
+.datahub-dark .dh-text-secondary { color: var(--dh-text-secondary) !important; }
+.datahub-dark .dh-text-muted     { color: var(--dh-text-muted) !important; }
+.datahub-dark .dh-bg-main       { background-color: var(--dh-bg) !important; }
+.datahub-dark .dh-bg-surface    { background-color: var(--dh-surface) !important; }
+.datahub-dark .dh-bg-surface-alt { background-color: var(--dh-surface-alt) !important; }
+.datahub-dark .dh-border-default  { border-color: var(--dh-border) !important; }
+.datahub-dark .dh-border-light    { border-color: var(--dh-border-light) !important; }
+.datahub-dark .dh-accent-text    { color: var(--dh-accent-text) !important; }
+.datahub-dark .dh-accent-bg      { background-color: var(--dh-accent-soft) !important; }
+.datahub-dark .dh-accent-border  { border-color: rgba(5, 150, 105, 0.4) !important; }
+
 /* ── Scrollbar ── */
 .datahub-dark ::-webkit-scrollbar {
   width: 6px;

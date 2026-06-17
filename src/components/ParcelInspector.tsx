@@ -28,12 +28,12 @@ export function ParcelInspector({ parcelId, tenantEntitlements, apiBase }: Props
 
   return (
     <div className="nkz-parcel-inspector p-4 overflow-auto">
-      <h2 className="text-lg font-semibold text-[#eaeef4] mb-3">
+      <h2 className="text-lg font-semibold dh-text-primary mb-3">
         {t('capability.inspector_title', { parcelId })}
       </h2>
-      <table className="w-full text-sm text-[#8b95a5] border-collapse">
+      <table className="w-full text-sm dh-text-secondary border-collapse">
         <thead>
-          <tr className="text-left text-[#8b95a5] border-b border-white/10">
+          <tr className="text-left dh-text-secondary border-b border-white/10">
             <th className="pb-2 pr-4">{t('capability.catalog_attribute')}</th>
             <th className="pb-2 pr-4">Value</th>
             <th className="pb-2 pr-4">{t('capability.catalog_unit')}</th>
@@ -63,18 +63,18 @@ export function ParcelInspector({ parcelId, tenantEntitlements, apiBase }: Props
                     ? <span className="text-amber-400 text-xs">{t('capability.inspector_entitlement_required')}</span>
                     : raw?.value !== undefined
                       ? String(raw.value)
-                      : <span className="text-[#596373]">{t('capability.inspector_no_data')}</span>}
+                      : <span className="dh-text-muted">{t('capability.inspector_no_data')}</span>}
                 </td>
-                <td className="py-1.5 pr-4 text-[#8b95a5]">{cap.unitCode ?? '—'}</td>
-                <td className="py-1.5 pr-4 text-[#8b95a5]">{raw?.providedBy?.value ?? '—'}</td>
-                <td className="py-1.5 pr-4 text-[#8b95a5]">{raw?.license?.value ?? '—'}</td>
-                <td className="py-1.5 text-[#8b95a5] text-xs">{raw?.observedAt ?? '—'}</td>
+                <td className="py-1.5 pr-4 dh-text-secondary">{cap.unitCode ?? '—'}</td>
+                <td className="py-1.5 pr-4 dh-text-secondary">{raw?.providedBy?.value ?? '—'}</td>
+                <td className="py-1.5 pr-4 dh-text-secondary">{raw?.license?.value ?? '—'}</td>
+                <td className="py-1.5 dh-text-secondary text-xs">{raw?.observedAt ?? '—'}</td>
               </tr>
             );
           })}
           {scalarOnly.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-4 text-center text-[#596373]">
+              <td colSpan={6} className="py-4 text-center dh-text-muted">
                 {t('capability.inspector_no_data')}
               </td>
             </tr>

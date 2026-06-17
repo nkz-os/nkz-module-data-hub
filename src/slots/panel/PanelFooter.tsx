@@ -75,7 +75,7 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
   labels,
 }) => {
   return (
-    <div className="min-h-[28px] flex flex-wrap items-center gap-3 px-3 py-1 text-xs text-[#eaeef4] bg-[#0f1620] border-t border-[#1e2738]/50 pointer-events-none">
+    <div className="min-h-[28px] flex flex-wrap items-center gap-3 px-3 py-1 text-xs dh-text-primary dh-bg-surface border-t dh-border-default/50 pointer-events-none">
       {/* Legend */}
       {workerSeries.length > 0 && (
         <div className="flex items-center gap-3 truncate min-w-0">
@@ -83,12 +83,12 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
             <span key={s.key} className="flex items-center gap-1.5 truncate">
               <span
                 aria-hidden
-                className="inline-block w-2 h-2 rounded-full shrink-0 ring-1 ring-[#090d14]"
+                className="inline-block w-2 h-2 rounded-full shrink-0 ring-1 ring-transparent"
                 style={{ background: colorFor(s.key, i) }}
               />
-              <span className="truncate max-w-[140px] text-[#eaeef4]">{s.attribute}</span>
+              <span className="truncate max-w-[140px] dh-text-primary">{s.attribute}</span>
               {unitFor(s.attribute) && (
-                <span className="text-[#8b95a5]">{unitFor(s.attribute)}</span>
+                <span className="dh-text-secondary">{unitFor(s.attribute)}</span>
               )}
             </span>
           ))}
@@ -98,26 +98,26 @@ export const PanelFooter: React.FC<PanelFooterProps> = ({
       {/* Primary stats */}
       {primaryStats && (
         <span className="tabular-nums whitespace-nowrap font-mono text-xs">
-          <span className="text-[#8b95a5]">{labels.min}</span>
-          <span className="text-[#eaeef4] ml-1">{formatNumberShort(primaryStats.min)}</span>
-          <span className="text-[#8b95a5] ml-2.5">{labels.max}</span>
-          <span className="text-[#eaeef4] ml-1">{formatNumberShort(primaryStats.max)}</span>
-          <span className="text-[#8b95a5] ml-2.5">{labels.mean}</span>
-          <span className="text-[#eaeef4] ml-1">{formatNumberShort(primaryStats.mean)}</span>
-          <span className="text-[#8b95a5] ml-2.5">{labels.last}</span>
-          <span className="text-[#eaeef4] ml-1">{formatNumberShort(primaryStats.last)}</span>
+          <span className="dh-text-secondary">{labels.min}</span>
+          <span className="dh-text-primary ml-1">{formatNumberShort(primaryStats.min)}</span>
+          <span className="dh-text-secondary ml-2.5">{labels.max}</span>
+          <span className="dh-text-primary ml-1">{formatNumberShort(primaryStats.max)}</span>
+          <span className="dh-text-secondary ml-2.5">{labels.mean}</span>
+          <span className="dh-text-primary ml-1">{formatNumberShort(primaryStats.mean)}</span>
+          <span className="dh-text-secondary ml-2.5">{labels.last}</span>
+          <span className="dh-text-primary ml-1">{formatNumberShort(primaryStats.last)}</span>
         </span>
       )}
 
       {/* Pearson r badge — shows when 2+ series in timeseries mode */}
       {pearsonR != null && Number.isFinite(pearsonR) && (
-        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#1a2030] border border-[#1e2738]">
-          <span className="text-[#8b95a5]">r=</span>
-          <span className={pearsonR >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+        <span className="tabular-nums whitespace-nowrap font-mono text-[9px] px-1.5 py-0.5 rounded dh-bg-surface-alt border dh-border-default">
+          <span className="dh-text-secondary">r=</span>
+          <span className={pearsonR >= 0 ? 'dh-accent-text' : 'text-rose-300'}>
             {pearsonR.toFixed(3)}
           </span>
           {pearsonN != null && (
-            <span className="text-[#596373] ml-1">n={pearsonN}</span>
+            <span className="dh-text-muted ml-1">n={pearsonN}</span>
           )}
         </span>
       )}
@@ -176,7 +176,7 @@ const TelemetryStrip: React.FC<{ telemetry: PanelFooterProps['telemetry'] }> = (
   const fullDetail = debugLevel >= 2;
   return (
     <span
-      className="ml-auto tabular-nums text-[#596373] whitespace-nowrap font-mono text-[9px]"
+      className="ml-auto tabular-nums dh-text-muted whitespace-nowrap font-mono text-[9px]"
       title={`debug=${debugLevel}`}
     >
       {telemetry.plotted}/{telemetry.received} pts · {telemetry.viewportWidth}×

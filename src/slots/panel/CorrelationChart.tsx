@@ -142,30 +142,30 @@ export const CorrelationChart: React.FC<CorrelationChartProps> = ({
     <div className="absolute inset-0">
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       {/* X / Y axis labels */}
-      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 text-[10px] text-[#8b95a5] font-mono pointer-events-none">
+      <div className="absolute bottom-7 left-1/2 -translate-x-1/2 text-[10px] dh-text-secondary font-mono pointer-events-none">
         X: {xLabel}
-        {xUnit && <span className="text-[#596373]"> ({xUnit})</span>}
+        {xUnit && <span className="dh-text-muted"> ({xUnit})</span>}
       </div>
       <div
-        className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-[#8b95a5] font-mono pointer-events-none"
+        className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] dh-text-secondary font-mono pointer-events-none"
         style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
       >
         Y: {yLabel}
-        {yUnit && <span className="text-[#596373]"> ({yUnit})</span>}
+        {yUnit && <span className="dh-text-muted"> ({yUnit})</span>}
       </div>
       {/* Pearson r badge */}
       {correlation && (
-        <div className="absolute top-12 right-3 px-2 py-1 rounded bg-[#0f1620] border border-[#1e2738] shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
-          <span className="text-[#8b95a5]">r=</span>
-          <span className={correlation.r >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+        <div className="absolute top-12 right-3 px-2 py-1 rounded dh-bg-surface border dh-border-default shadow-lg text-[11px] font-mono tabular-nums pointer-events-none">
+          <span className="dh-text-secondary">r=</span>
+          <span className={correlation.r >= 0 ? 'dh-accent-text' : 'text-rose-300'}>
             {Number.isFinite(correlation.r) ? correlation.r.toFixed(3) : '—'}
           </span>
-          <span className="text-[#596373] ml-2">n={correlation.n}</span>
+          <span className="dh-text-muted ml-2">n={correlation.n}</span>
         </div>
       )}
       {(!correlation || correlation.pairs.length < 2) && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="px-3 py-1.5 rounded-full bg-[#1a2030] border border-[#2a3345] text-[#8b95a5] text-xs">
+          <span className="px-3 py-1.5 rounded-full dh-bg-surface-alt border dh-border-light dh-text-secondary text-xs">
             No hay pares alineados suficientes
           </span>
         </div>
