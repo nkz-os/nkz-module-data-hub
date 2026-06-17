@@ -112,6 +112,7 @@
 .datahub-dark .dh-accent-text    { color: var(--dh-accent-text) !important; }
 .datahub-dark .dh-accent-bg      { background-color: var(--dh-accent-soft) !important; }
 .datahub-dark .dh-accent-border  { border-color: rgba(5, 150, 105, 0.4) !important; }
+.datahub-dark .accent-dh-accent   { accent-color: var(--dh-accent) !important; }
 
 /* ── Scrollbar ── */
 .datahub-dark ::-webkit-scrollbar {
