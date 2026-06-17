@@ -87,17 +87,32 @@ const DataHubPageInner: React.FC = () => {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   const sidebarContent = (
-    <aside className="w-64 shrink-0 border-r border-[#1e2738] bg-[#111622] flex flex-col h-full">
-      <div className="h-12 shrink-0 flex items-center justify-between px-4 border-b border-[#1e2738]">
-        <h2 className="text-sm font-semibold text-[#eaeef4] tracking-wide uppercase">
+    <aside
+      className="w-64 shrink-0 flex flex-col h-full"
+      style={{
+        backgroundColor: 'var(--dh-surface)',
+        borderRight: '1px solid var(--dh-border)',
+      }}
+    >
+      <div
+        className="h-12 shrink-0 flex items-center justify-between px-4"
+        style={{ borderBottom: '1px solid var(--dh-border)' }}
+      >
+        <h2
+          className="text-sm font-semibold tracking-wide uppercase"
+          style={{ color: 'var(--dh-text-primary)' }}
+        >
           {t('tree.sidebarTitle')}
         </h2>
         {isMobile && (
           <button
             type="button"
             onClick={closeSidebar}
-            className="p-1 text-[#8b95a5] hover:text-[#eaeef4] rounded transition-colors"
+            className="p-1 rounded transition-colors"
+            style={{ color: 'var(--dh-text-secondary)' }}
             aria-label={t('tree.closeSidebar', { defaultValue: 'Close' })}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--dh-text-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--dh-text-secondary)')}
           >
             <X size={16} />
           </button>
@@ -116,7 +131,11 @@ const DataHubPageInner: React.FC = () => {
   );
 
   return (
-    <div className="datahub-dark flex h-full min-h-screen bg-[#090d14] relative" data-tenant={isAuthenticated ? tenantName ?? '' : ''}>
+    <div
+      className="datahub-dark flex h-full min-h-screen relative"
+      style={{ backgroundColor: 'var(--dh-bg)' }}
+      data-tenant={isAuthenticated ? tenantName ?? '' : ''}
+    >
       {/* Desktop: static sidebar */}
       {!isMobile && sidebarContent}
 
@@ -146,16 +165,34 @@ const DataHubPageInner: React.FC = () => {
       <main className="flex-1 min-w-0 flex flex-col">
         {/* Mobile hamburger bar */}
         {isMobile && (
-          <div className="h-10 shrink-0 flex items-center px-3 border-b border-[#1e2738] bg-[#090d14]">
+          <div
+            className="h-10 shrink-0 flex items-center px-3"
+            style={{
+              borderBottom: '1px solid var(--dh-border)',
+              backgroundColor: 'var(--dh-bg)',
+            }}
+          >
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="p-1.5 text-[#8b95a5] hover:text-[#eaeef4] rounded-md hover:bg-[#161c28] transition-colors"
+              className="p-1.5 rounded-md transition-colors"
+              style={{ color: 'var(--dh-text-secondary)' }}
               aria-label={t('tree.toggleSidebar', { defaultValue: 'Toggle sidebar' })}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--dh-text-primary)';
+                e.currentTarget.style.backgroundColor = 'var(--dh-surface-alt)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--dh-text-secondary)';
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
             >
               <Menu size={18} />
             </button>
-            <span className="ml-2 text-xs text-[#596373] font-mono truncate">
+            <span
+              className="ml-2 text-xs font-mono truncate"
+              style={{ color: 'var(--dh-text-muted)' }}
+            >
               {selectedAttribute
                 ? `${selectedEntity?.name ?? ''} · ${selectedAttribute}`
                 : t('tree.sidebarTitle')}
@@ -164,17 +201,40 @@ const DataHubPageInner: React.FC = () => {
         )}
 
         {/* View switcher */}
-        <div className="shrink-0 flex items-center gap-1 px-3 py-2 border-b border-[#1e2738] bg-[#090d14]">
+        <div
+          className="shrink-0 flex items-center gap-1 px-3 py-2"
+          style={{
+            borderBottom: '1px solid var(--dh-border)',
+            backgroundColor: 'var(--dh-bg)',
+          }}
+        >
           {(['dashboard', 'catalog', 'inspector'] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`px-3 py-1.5 text-xs rounded-full transition-colors font-medium ${
+              className="px-3 py-1.5 text-xs rounded-full transition-colors font-medium"
+              style={
                 view === v
-                  ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30'
-                  : 'text-[#8b95a5] hover:text-[#eaeef4] hover:bg-[#161c28]'
-              }`}
+                  ? {
+                      backgroundColor: 'var(--dh-accent-soft)',
+                      color: 'var(--dh-accent-text)',
+                      boxShadow: '0 0 0 1px rgba(5, 150, 105, 0.3)',
+                    }
+                  : { color: 'var(--dh-text-secondary)' }
+              }
+              onMouseEnter={(e) => {
+                if (view !== v) {
+                  e.currentTarget.style.color = 'var(--dh-text-primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--dh-surface-alt)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (view !== v) {
+                  e.currentTarget.style.color = 'var(--dh-text-secondary)';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
             >
               {t(`capability.view_${v}`)}
             </button>

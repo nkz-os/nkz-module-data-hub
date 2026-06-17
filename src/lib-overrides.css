@@ -3,10 +3,23 @@
    Self-contained dark module: all fixes scoped to .datahub-dark
    ═══════════════════════════════════════════════════════ */
 
-/* ── Native form elements inside datahub — always dark ── */
+/* ── Design token palette (scoped to datahub-dark) ── */
 .datahub-dark {
   color-scheme: dark;
+
+  --dh-bg: #0c0e12;
+  --dh-surface: #141820;
+  --dh-surface-alt: #1a2030;
+  --dh-border: #1e2538;
+  --dh-border-light: #2a3345;
+  --dh-text-primary: #eaeef4;
+  --dh-text-secondary: #8892a5;
+  --dh-text-muted: #596373;
+  --dh-accent: #059669;
+  --dh-accent-soft: rgba(5, 150, 105, 0.15);
+  --dh-accent-text: #34d399;
 }
+
 .datahub-dark input,
 .datahub-dark select,
 .datahub-dark textarea {
@@ -26,19 +39,34 @@
 .datahub-dark .u-title,
 .datahub-dark .u-legend,
 .datahub-dark .u-live {
-  color: #eaeef4 !important;
+  color: var(--dh-text-primary) !important;
 }
 .datahub-dark .u-cursor-pt {
-  fill: #090d14 !important;
+  fill: var(--dh-bg) !important;
+  stroke: var(--dh-accent-text) !important;
+  stroke-width: 2px !important;
 }
 
-/* uPlot drag-to-zoom selection rectangle */
+/* uPlot drag-to-zoom selection rectangle — better contrast */
 .u-select {
-  background: rgba(52, 211, 153, 0.15) !important;
-  border: 1px solid rgba(52, 211, 153, 0.6) !important;
+  background: var(--dh-accent-soft) !important;
+  border: 1px solid rgba(5, 150, 105, 0.5) !important;
 }
 
-/* ── RGL resize handle ── */
+/* uPlot cursor crosshair — more visible */
+.datahub-dark .u-cursor-x,
+.datahub-dark .u-cursor-y {
+  stroke: rgba(52, 211, 153, 0.4) !important;
+  stroke-width: 1px !important;
+  stroke-dasharray: 4 2 !important;
+}
+
+/* uPlot hovered point — bigger, more contrast */
+.datahub-dark .u-cursor-pt {
+  r: 5 !important;
+}
+
+/* RGL resize handle */
 .react-resizable-handle {
   position: absolute !important;
   bottom: 0 !important;
@@ -77,7 +105,7 @@
   background: transparent;
 }
 .datahub-dark ::-webkit-scrollbar-thumb {
-  background: #2a3345;
+  background: var(--dh-border-light);
   border-radius: 3px;
 }
 .datahub-dark ::-webkit-scrollbar-thumb:hover {
