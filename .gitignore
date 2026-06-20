@@ -28,3 +28,10 @@ HANDOFF.md
 CURRENT_STATE.md
 .ai/
 .worktrees
+
+# Security: sensitive files
+*.pem
+*.key
+apikey_*.txt
+*.apikey
+*-secret*
