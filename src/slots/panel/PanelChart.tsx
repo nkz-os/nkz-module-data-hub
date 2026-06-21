@@ -123,11 +123,10 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   // does not render them. The toggle lets users see all raw data including
   // flagged points. If qualityFlags is absent, pass through unchanged.
   //
-  // TODO (raw/calibrated toggle – Phase 3): When showRawData && rawMeasurements
-  // are available on the series, inject additional uPlot series (one per
-  // calibrated series) that render raw values as semi-transparent point
-  // overlays. Each raw series shares the same xs as its calibrated counterpart;
-  // the extra columns go into buildAlignedData below.
+  // NOTE: Raw overlay series are injected here when showRawData && rawMeasurements
+  // are available (see logic after the quality-flag pass). Each raw series shares
+  // the same xs as its calibrated counterpart and uses _isRawOverlay / _baseIndex
+  // markers for uPlot styling.
   const filteredWorkerSeries = useMemo(() => {
     // Start with base series (quality filtered or not)
     const base = showAllData ? workerSeries : workerSeries.map((s) => {
@@ -168,14 +167,11 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   }, [workerSeries, showAllData, showRawData]);
 
   // ──────── raw data availability ────────
-  // Checks whether the telemetry-worker provided raw (pre-calibration)
-  // values for any series in this panel. The "Valor raw" toggle is
-  // disabled when no raw data is available.
-  // TODO (raw/calibrated toggle – Phase 3): Once the telemetry-worker
-  // exposes raw_measurements as rawMeasurements in WorkerSeriesPayload,
-  // this memo will return true and the overlay rendering should inject
-  // additional uPlot series (point-only + semi-transparent) in the
-  // buildAlignedData call below.
+  // Checks whether the worker provided raw (pre-calibration) values
+  // for any series in this panel. The "Valor raw" toggle is enabled
+  // when raw data is available and disabled otherwise.
+  // The overlay rendering (point-only + semi-transparent) is injected
+  // in filteredWorkerSeries when showRawData is true.
   const hasRawData = useMemo(() => {
     return workerSeries.some((s) => (s as any).rawMeasurements != null);
   }, [workerSeries]);
@@ -238,7 +234,7 @@ export const PanelChart: React.FC<PanelChartProps> = ({
               fill: isRaw ? color + '44' : color,
               width: 1,
             },
-            paths: isRaw ? undefined : uPlot.paths.linear?.(),
+            paths: isRaw ? null : uPlot.paths.linear?.(),
             spanGaps: true,
           } as uPlot.Series;
         }),
