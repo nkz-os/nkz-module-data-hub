@@ -288,14 +288,14 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   return (
     <>
       <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%' }} />
-      <label className="absolute top-2 right-2 z-10 flex items-center gap-1.5 text-xs dh-text-secondary cursor-pointer select-none dh-bg-surface/80 px-2 py-1 rounded pointer-events-auto">
+      <label title="Muestra también los puntos marcados como fuera de rango o inválidos" className="absolute top-2 right-2 z-10 flex items-center gap-1.5 text-xs dh-text-secondary cursor-pointer select-none dh-bg-surface/80 px-2 py-1 rounded pointer-events-auto">
         <input
           type="checkbox"
           checked={showAllData}
           onChange={(e) => setShowAllData(e.target.checked)}
           className="rounded border-gray-300"
         />
-        Mostrar datos sin filtrar (raw)
+        Mostrar datos con mala calidad
       </label>
     </>
   );
