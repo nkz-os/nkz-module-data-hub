@@ -221,5 +221,50 @@
     "inspector_entitlement_required": "Entitlement required",
     "loading": "Loading…",
     "error": "Error: {{message}}"
+  },
+  "sensor": {
+    "healthLoading": "Loading health…",
+    "health": {
+      "optimal": "Optimal",
+      "degraded": "Degraded",
+      "error": "Error",
+      "maintenance": "Maintenance"
+    },
+    "silenced": "Silenced",
+    "activeAlerts": "Active alerts",
+    "silence": {
+      "silence": "Silence alerts",
+      "reactivate": "Reactivate alerts"
+    },
+    "alerts": {
+      "loading": "Loading alerts…",
+      "empty": "No active alerts",
+      "type_timeout": "No Communication",
+      "type_stagnation": "Stagnation",
+      "type_out_of_bounds": "Out of Range",
+      "resolve": "Resolve"
+    },
+    "calibration": {
+      "loading": "Loading…",
+      "title": "Sensor Calibration",
+      "history": "Calibration History",
+      "no_history": "No calibrations registered",
+      "active": "Active",
+      "slope": "Slope",
+      "offset": "Offset",
+      "hardware": "Hardware",
+      "from": "From",
+      "form": {
+        "title": "New Calibration",
+        "variable": "Variable (e.g. temperature)",
+        "slope": "Slope",
+        "offset": "Offset",
+        "hardware_id": "Hardware ID",
+        "valid_from": "Valid from",
+        "notes": "Notes (optional)",
+        "submit": "Add Period",
+        "saving": "Saving…"
+      }
+    }
   }
 }

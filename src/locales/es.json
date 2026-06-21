@@ -221,5 +221,50 @@
     "inspector_entitlement_required": "Permiso requerido",
     "loading": "Cargando…",
     "error": "Error: {{message}}"
+  },
+  "sensor": {
+    "healthLoading": "Cargando salud…",
+    "health": {
+      "optimal": "Óptimo",
+      "degraded": "Degradado",
+      "error": "Error",
+      "maintenance": "Mantenimiento"
+    },
+    "silenced": "Silenciado",
+    "activeAlerts": "Alertas activas",
+    "silence": {
+      "silence": "Silenciar Alertas",
+      "reactivate": "Reactivar Alertas"
+    },
+    "alerts": {
+      "loading": "Cargando alertas…",
+      "empty": "No hay alertas activas",
+      "type_timeout": "Sin Comunicación",
+      "type_stagnation": "Estancamiento",
+      "type_out_of_bounds": "Fuera de Rango",
+      "resolve": "Resolver"
+    },
+    "calibration": {
+      "loading": "Cargando…",
+      "title": "Calibración del Sensor",
+      "history": "Histórico de Calibraciones",
+      "no_history": "No hay calibraciones registradas",
+      "active": "Activo",
+      "slope": "Slope",
+      "offset": "Offset",
+      "hardware": "Hardware",
+      "from": "Desde",
+      "form": {
+        "title": "Nueva Calibración",
+        "variable": "Variable (ej. temperature)",
+        "slope": "Slope",
+        "offset": "Offset",
+        "hardware_id": "Hardware ID",
+        "valid_from": "Válido desde",
+        "notes": "Notas (opcional)",
+        "submit": "Añadir Período",
+        "saving": "Guardando…"
+      }
+    }
   }
 }

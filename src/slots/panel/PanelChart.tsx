@@ -129,12 +129,11 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   // overlays. Each raw series shares the same xs as its calibrated counterpart;
   // the extra columns go into buildAlignedData below.
   const filteredWorkerSeries = useMemo(() => {
-    if (showAllData) return workerSeries;
-    return workerSeries.map((s) => {
+    // Start with base series (quality filtered or not)
+    const base = showAllData ? workerSeries : workerSeries.map((s) => {
       const qf = (s as any).qualityFlags as Uint8Array | undefined | null;
       if (!qf) return s;
       if (s.xs.length === 0) return s;
-      // Check whether any flag is non-zero before allocating
       let hasInvalid = false;
       for (let i = 0; i < qf.length; i++) {
         if (qf[i] !== 0) { hasInvalid = true; break; }
@@ -146,7 +145,27 @@ export const PanelChart: React.FC<PanelChartProps> = ({
       }
       return { ...s, ys: newYs };
     });
-  }, [workerSeries, showAllData]);
+
+    // Inject raw overlay series when raw toggle is on
+    if (showRawData) {
+      const overlays: (WorkerSeriesPayload & { _isRawOverlay: true; _baseIndex: number })[] = [];
+      base.forEach((s, idx) => {
+        const raw = (s as any).rawMeasurements as Float64Array | undefined | null;
+        if (!raw || raw.length === 0) return;
+        overlays.push({
+          ...s,
+          key: s.key + '__raw',
+          attribute: s.attribute + '_raw',
+          ys: raw,
+          _isRawOverlay: true as const,
+          _baseIndex: idx,
+        });
+      });
+      return [...base, ...overlays];
+    }
+
+    return base;
+  }, [workerSeries, showAllData, showRawData]);
 
   // ──────── raw data availability ────────
   // Checks whether the telemetry-worker provided raw (pre-calibration)
@@ -162,11 +181,9 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   }, [workerSeries]);
 
   const data = useMemo(() => {
-    if (filteredWorkerSeries.length !== series.length ||
-        filteredWorkerSeries.length !== effectiveScales.length ||
-        filteredWorkerSeries.length !== colors.length) return null;
+    if (filteredWorkerSeries.length === 0) return null;
     return buildAlignedData(filteredWorkerSeries);
-  }, [filteredWorkerSeries, series.length, effectiveScales.length, colors.length]);
+  }, [filteredWorkerSeries]);
 
   const xDomain = useMemo<[number, number] | null>(() => {
     if (!data) return null;
@@ -204,21 +221,27 @@ export const PanelChart: React.FC<PanelChartProps> = ({
       },
       series: [
         {},
-        ...series.map((def, i) => ({
-          label: def.attribute,
-          scale: effectiveScales[i],
-          stroke: colors[i] ?? '#34d399',
-          width: appearance.mode === 'points' ? 0 : Math.max(1, appearance.lineWidth),
-          points: {
-            show: appearance.mode === 'points' || (appearance.pointRadius ?? 0) > 0,
-            size: Math.max(2, appearance.mode === 'points' ? Math.max(appearance.pointRadius || 4, 4) : appearance.pointRadius),
-            stroke: '#0f172a',
-            fill: colors[i] ?? '#34d399',
-            width: 1,
-          },
-          paths: uPlot.paths.linear?.(),
-          spanGaps: true,
-        } as uPlot.Series)),
+        ...filteredWorkerSeries.map((ws, i) => {
+          const isRaw = (ws as any)._isRawOverlay === true;
+          const baseIndex = isRaw ? (ws as any)._baseIndex : i;
+          const def = series[baseIndex];
+          const color = colors[baseIndex] ?? '#34d399';
+          return {
+            label: isRaw ? `${def?.attribute ?? ''} (raw)` : (def?.attribute ?? ''),
+            scale: effectiveScales[baseIndex] || 'y',
+            stroke: isRaw ? color + '66' : color,
+            width: isRaw ? 0 : Math.max(1, appearance.lineWidth),
+            points: {
+              show: true,
+              size: isRaw ? 3 : Math.max(2, appearance.mode === 'points' ? Math.max(appearance.pointRadius || 4, 4) : appearance.pointRadius),
+              stroke: '#0f172a',
+              fill: isRaw ? color + '44' : color,
+              width: 1,
+            },
+            paths: isRaw ? undefined : uPlot.paths.linear?.(),
+            spanGaps: true,
+          } as uPlot.Series;
+        }),
       ],
       axes: [
         { stroke: 'var(--dh-text-secondary)', grid: { stroke: GRID_RGBA, width: 1 }, ticks: { stroke: 'rgba(137,146,165,0.3)', size: 5 }, font: '14px ui-sans-serif, system-ui', gap: 10 },
@@ -284,7 +307,7 @@ export const PanelChart: React.FC<PanelChartProps> = ({
       if (plotInstanceRef) plotInstanceRef.current = null;
     };
     // Rebuild when data, series shape, or appearance changes
-  }, [data, series.length, appearance.mode, appearance.yScaleMode, appearance.lineWidth, appearance.pointRadius, effectiveScales.join(','), hasRightAxis, leftStep, rightStep]);
+  }, [data, series, filteredWorkerSeries, appearance.mode, appearance.lineWidth, appearance.pointRadius, effectiveScales.join(','), colors, hasRightAxis, leftStep, rightStep]);
 
   // Imperative scale updates
   useEffect(() => {

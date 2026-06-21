@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import { CalibrationPeriod } from '../../hooks/useCalibration';
 
 interface Props {
@@ -6,15 +7,16 @@ interface Props {
 }
 
 export function CalibrationTimeline({ periods }: Props) {
+  const { t } = useTranslation('datahub');
   const sorted = [...periods].sort(
     (a, b) => new Date(b.valid_from).getTime() - new Date(a.valid_from).getTime()
   );
 
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-gray-800">Histórico de Calibraciones</h4>
+      <h4 className="text-sm font-semibold dh-text-primary">{t('sensor.calibration.history')}</h4>
       {sorted.length === 0 ? (
-        <p className="text-xs text-gray-500">No hay calibraciones registradas</p>
+        <p className="text-xs dh-text-secondary">{t('sensor.calibration.no_history')}</p>
       ) : (
         <div className="space-y-2">
           {sorted.map(period => (
@@ -22,22 +24,22 @@ export function CalibrationTimeline({ periods }: Props) {
               key={period.id}
               className={`border rounded-lg p-3 text-sm ${
                 period.valid_to === null
-                  ? 'border-teal-300 bg-teal-50'
-                  : 'border-gray-200 bg-white'
+                  ? 'border-teal-300 bg-teal-50/30'
+                  : 'dh-border-default dh-bg-surface-alt'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="font-mono font-medium">{period.variable}</span>
+                <span className="font-mono font-medium dh-text-primary">{period.variable}</span>
                 {period.valid_to === null && (
-                  <span className="text-xs bg-teal-200 text-teal-800 px-2 py-0.5 rounded">
-                    Activo
+                  <span className="text-xs bg-teal-200/30 text-teal-700 px-2 py-0.5 rounded">
+                    {t('sensor.calibration.active')}
                   </span>
                 )}
               </div>
-              <div className="mt-1 text-xs text-gray-600 space-y-0.5">
-                <p>Slope: <span className="font-mono">{period.slope}</span> | Offset: <span className="font-mono">{period.offset_val}</span></p>
-                <p>Hardware: <span className="font-mono">{period.sensor_hardware_id}</span></p>
-                <p>Desde: {new Date(period.valid_from).toLocaleDateString()}
+              <div className="mt-1 text-xs dh-text-secondary space-y-0.5">
+                <p>{t('sensor.calibration.slope')}: <span className="font-mono">{period.slope}</span> | {t('sensor.calibration.offset')}: <span className="font-mono">{period.offset_val}</span></p>
+                <p>{t('sensor.calibration.hardware')}: <span className="font-mono">{period.sensor_hardware_id}</span></p>
+                <p>{t('sensor.calibration.from')}: {new Date(period.valid_from).toLocaleDateString()}
                   {period.valid_to ? ` — ${new Date(period.valid_to).toLocaleDateString()}` : ''}
                 </p>
                 {period.notes && <p className="italic">{period.notes}</p>}

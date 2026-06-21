@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 
 interface Props {
   entityId: string;
@@ -9,6 +10,7 @@ interface Props {
 const API_BASE = (import.meta as any).env?.VITE_API_URL || 'https://nkz.robotika.cloud';
 
 export function SilenceButton({ entityId, isSilenced, onToggle }: Props) {
+  const { t } = useTranslation('datahub');
   const [loading, setLoading] = useState(false);
 
   const handleToggle = async () => {
@@ -37,6 +39,7 @@ export function SilenceButton({ entityId, isSilenced, onToggle }: Props) {
 
   return (
     <button
+      type="button"
       onClick={handleToggle}
       disabled={loading}
       className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -45,7 +48,7 @@ export function SilenceButton({ entityId, isSilenced, onToggle }: Props) {
           : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
       } disabled:opacity-50 disabled:cursor-not-allowed`}
     >
-      {loading ? '...' : isSilenced ? 'Reactivar Alertas' : 'Silenciar Alertas'}
+      {loading ? '…' : isSilenced ? t('sensor.silence.reactivate') : t('sensor.silence.silence')}
     </button>
   );
 }

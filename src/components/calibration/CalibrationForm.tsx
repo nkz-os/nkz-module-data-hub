@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 
 interface Props {
   onAdd: (data: any) => Promise<boolean>;
 }
 
 export function CalibrationForm({ onAdd }: Props) {
+  const { t } = useTranslation('datahub');
   const [variable, setVariable] = useState('');
   const [slope, setSlope] = useState('1.0');
   const [offsetVal, setOffsetVal] = useState('0.0');
@@ -37,14 +39,15 @@ export function CalibrationForm({ onAdd }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h4 className="text-sm font-semibold text-gray-800">Nueva Calibración</h4>
+      <h4 className="text-sm font-semibold dh-text-primary">{t('sensor.calibration.form.title')}</h4>
       <div className="grid grid-cols-2 gap-2">
         <input
           type="text"
           value={variable}
           onChange={e => setVariable(e.target.value)}
-          placeholder="Variable (ej. temperature)"
-          className="col-span-2 px-3 py-1.5 text-sm border border-gray-300 rounded"
+          placeholder={t('sensor.calibration.form.variable')}
+          className="col-span-2 px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
+          aria-required="true"
           required
         />
         <input
@@ -52,8 +55,9 @@ export function CalibrationForm({ onAdd }: Props) {
           step="0.01"
           value={slope}
           onChange={e => setSlope(e.target.value)}
-          placeholder="Slope"
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded"
+          placeholder={t('sensor.calibration.form.slope')}
+          className="px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
+          aria-required="true"
           required
         />
         <input
@@ -61,39 +65,42 @@ export function CalibrationForm({ onAdd }: Props) {
           step="0.01"
           value={offsetVal}
           onChange={e => setOffsetVal(e.target.value)}
-          placeholder="Offset"
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded"
+          placeholder={t('sensor.calibration.form.offset')}
+          className="px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
+          aria-required="true"
           required
         />
         <input
           type="text"
           value={hardwareId}
           onChange={e => setHardwareId(e.target.value)}
-          placeholder="Hardware ID"
-          className="col-span-2 px-3 py-1.5 text-sm border border-gray-300 rounded"
+          placeholder={t('sensor.calibration.form.hardware_id')}
+          className="col-span-2 px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
+          aria-required="true"
           required
         />
         <input
           type="datetime-local"
           value={validFrom}
           onChange={e => setValidFrom(e.target.value)}
-          className="col-span-2 px-3 py-1.5 text-sm border border-gray-300 rounded"
+          className="col-span-2 px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
+          aria-label={t('sensor.calibration.form.valid_from')}
           required
         />
         <input
           type="text"
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="Notas (opcional)"
-          className="col-span-2 px-3 py-1.5 text-sm border border-gray-300 rounded"
+          placeholder={t('sensor.calibration.form.notes')}
+          className="col-span-2 px-3 py-1.5 text-sm border dh-border-light rounded dh-bg-surface-alt dh-text-primary placeholder-current opacity-70 focus:outline-none focus:ring-1 focus:dh-accent-border/50"
         />
       </div>
       <button
         type="submit"
         disabled={submitting}
-        className="w-full px-3 py-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded disabled:opacity-50"
+        className="w-full px-3 py-1.5 text-sm font-medium text-white dh-accent-bg hover:opacity-90 rounded disabled:opacity-50 transition-opacity"
       >
-        {submitting ? 'Guardando...' : 'Añadir Período'}
+        {submitting ? t('sensor.calibration.form.saving') : t('sensor.calibration.form.submit')}
       </button>
     </form>
   );

@@ -4,7 +4,7 @@
  * Layered responsibilities:
  *   - useWorkerSeries: fetch and cache via the worker (V2.1 per-series payloads)
  *   - panelUtils: pure functions for axis distribution, Y ranges, units, colors
- *   - PanelHeader/Toolbar/SeriesRail/Chart/Tooltip/Footer: presentational
+ *   - Presentational sub-components: Toolbar, SeriesRail, Chart, Tooltip, Footer
  *
  * The orchestrator stays thin: state for tooltip + railOpen, derived values
  * memo'd, callbacks pass-through.
