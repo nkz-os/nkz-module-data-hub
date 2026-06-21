@@ -1,7 +1,7 @@
 /**
  * PanelChart — uPlot mode-1, created manually in a plain div.
  */
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import uPlotCSS from 'uplot/dist/uPlot.min.css?inline';
 
@@ -113,12 +113,39 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   const onVisibleXChangeRef = useRef(onVisibleXChange);
   onVisibleXChangeRef.current = onVisibleXChange;
 
+  const [showAllData, setShowAllData] = useState(false);
+
+  // ──────── quality_flag filtering ────────
+  // When the telemetry-worker provides qualityFlags per data point (Phase 2),
+  // non-valid points (qualityFlags[i] !== 0) are replaced with NaN so uPlot
+  // does not render them. The toggle lets users see all raw data including
+  // flagged points. If qualityFlags is absent, pass through unchanged.
+  const filteredWorkerSeries = useMemo(() => {
+    if (showAllData) return workerSeries;
+    return workerSeries.map((s) => {
+      const qf = (s as any).qualityFlags as Uint8Array | undefined | null;
+      if (!qf) return s;
+      if (s.xs.length === 0) return s;
+      // Check whether any flag is non-zero before allocating
+      let hasInvalid = false;
+      for (let i = 0; i < qf.length; i++) {
+        if (qf[i] !== 0) { hasInvalid = true; break; }
+      }
+      if (!hasInvalid) return s;
+      const newYs = new Float64Array(s.ys.length);
+      for (let i = 0; i < s.ys.length; i++) {
+        newYs[i] = qf[i] !== 0 ? Number.NaN : s.ys[i];
+      }
+      return { ...s, ys: newYs };
+    });
+  }, [workerSeries, showAllData]);
+
   const data = useMemo(() => {
-    if (workerSeries.length !== series.length ||
-        workerSeries.length !== effectiveScales.length ||
-        workerSeries.length !== colors.length) return null;
-    return buildAlignedData(workerSeries);
-  }, [workerSeries, series.length, effectiveScales.length, colors.length]);
+    if (filteredWorkerSeries.length !== series.length ||
+        filteredWorkerSeries.length !== effectiveScales.length ||
+        filteredWorkerSeries.length !== colors.length) return null;
+    return buildAlignedData(filteredWorkerSeries);
+  }, [filteredWorkerSeries, series.length, effectiveScales.length, colors.length]);
 
   const xDomain = useMemo<[number, number] | null>(() => {
     if (!data) return null;
@@ -258,5 +285,18 @@ export const PanelChart: React.FC<PanelChartProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomCommand?.nonce]);
 
-  return <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%' }} />;
+  return (
+    <>
+      <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%' }} />
+      <label className="absolute top-2 right-2 z-10 flex items-center gap-1.5 text-xs dh-text-secondary cursor-pointer select-none dh-bg-surface/80 px-2 py-1 rounded pointer-events-auto">
+        <input
+          type="checkbox"
+          checked={showAllData}
+          onChange={(e) => setShowAllData(e.target.checked)}
+          className="rounded border-gray-300"
+        />
+        Mostrar datos sin filtrar (raw)
+      </label>
+    </>
+  );
 };

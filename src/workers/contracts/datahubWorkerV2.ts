@@ -93,6 +93,14 @@ export interface WorkerSeriesPayload {
   xs: Float64Array;
   /** Y values aligned with xs. NaN allowed only at injected gap bridges. */
   ys: Float64Array;
+  /**
+   * Quality flags per data point, one byte per index in xs/ys.
+   * 0 = valid (shown by default), non-zero = non-valid (hidden unless
+   * the user opts into raw/unfiltered view).
+   * Added by telemetry-worker (Phase 2). Optional — when absent or null
+   * all points are treated as valid.
+   */
+  qualityFlags?: Uint8Array | null;
   stats: PerSeriesStats;
 }
 
