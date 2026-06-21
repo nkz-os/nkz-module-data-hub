@@ -7,11 +7,17 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@nekazari/module-kit';
 import {
   fetchDataHubEntities,
   type DataHubEntity,
   type DataHubEntityAttribute,
 } from '../services/datahubApi';
+import { useSensorHealth, type ReliabilityStatus } from '../hooks/useSensorHealth';
+import { HealthIndicator } from './sensor-panel/HealthIndicator';
+import { SilenceButton } from './sensor-panel/SilenceButton';
+import { AlertList } from './alert-panel/AlertList';
+import { CalibrationPanel } from './calibration/CalibrationPanel';
 
 /** Attributes that are not numeric timeseries. */
 const NON_TIMESERIES_ATTRIBUTES = new Set([
@@ -47,6 +53,62 @@ export interface DataTreeProps {
   hasActivePanel?: boolean;
 }
 
+function isAgriSensor(type: string) {
+  return type === 'AgriSensor' || type === 'Device' || type === 'AgriDevice';
+}
+
+/** Health dot — fetches real status only when selected (avoid N+1). */
+function SensorHealthDot({ entityId }: { entityId: string }) {
+  const health = useSensorHealth(entityId);
+  if (health.loading) {
+    return <span className="inline-block w-2 h-2 rounded-full bg-gray-400 animate-pulse shrink-0" title="…" />;
+  }
+  const colorMap: Record<ReliabilityStatus, string> = {
+    optimal: 'bg-green-500',
+    degraded: 'bg-yellow-500',
+    error: 'bg-red-500',
+    maintenance: 'bg-blue-500',
+  };
+  return (
+    <span
+      className={`inline-block w-2 h-2 rounded-full ${colorMap[health.reliabilityStatus] ?? 'bg-gray-400'} shrink-0`}
+      title={health.reliabilityStatus}
+    />
+  );
+}
+
+/** Expanded health detail for the selected sensor entity. */
+function SensorHealthDetail({ entityId, tenantId }: { entityId: string; tenantId: string }) {
+  const health = useSensorHealth(entityId);
+  const { t } = useTranslation('datahub');
+
+  if (health.loading) {
+    return <div className="px-3 py-2 text-xs text-gray-500">{t('sensor.healthLoading', { defaultValue: 'Loading health…' })}</div>;
+  }
+
+  return (
+    <div className="px-3 py-2 space-y-3 border-t dh-border-default/50 mt-2">
+      <div className="flex items-center justify-between">
+        <HealthIndicator status={health.reliabilityStatus} isSilenced={health.isSilenced} />
+        <SilenceButton
+          entityId={entityId}
+          isSilenced={health.isSilenced}
+          onToggle={() => health.refetch()}
+        />
+      </div>
+      <details className="text-xs">
+        <summary className="cursor-pointer dh-text-secondary hover:dh-text-primary font-medium">
+          {t('sensor.activeAlerts', { defaultValue: 'Alertas activas' })}
+        </summary>
+        <div className="mt-2">
+          <AlertList tenantId={tenantId} sensorId={entityId} />
+        </div>
+      </details>
+      <CalibrationPanel sensorId={entityId} />
+    </div>
+  );
+}
+
 export const DataTree: React.FC<DataTreeProps> = ({
   selectedEntity,
   selectedAttribute,
@@ -55,6 +117,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
   hasActivePanel = false,
 }) => {
   const { t } = useTranslation('datahub');
+  const { tenantId } = useAuth();
   const [search, setSearch] = useState('');
   const { data, isLoading, error } = useQuery({
     queryKey: ['datahub', 'entities', search || null],
@@ -84,7 +147,7 @@ export const DataTree: React.FC<DataTreeProps> = ({
         {!isLoading && !error && entities.length > 0 && (
           <ul className="space-y-1.5 text-sm">
             {entities.map((e: DataHubEntity) => (
-              <li key={e.id} className="space-y-0.5">
+              <li key={e.id} className="space-y-0.5 group">
                 <div
                   role="button"
                   tabIndex={0}
@@ -109,6 +172,11 @@ export const DataTree: React.FC<DataTreeProps> = ({
                   }`}
                 >
                   <span className="font-medium dh-text-primary truncate">{e.name}</span>
+                  {isAgriSensor(e.type) && (
+                    selectedEntity?.id === e.id
+                      ? <SensorHealthDot entityId={e.id} />
+                      : <span className="inline-block w-2 h-2 rounded-full bg-gray-400 shrink-0" title="unknown" />
+                  )}
                   <span className="dh-text-muted shrink-0 text-xs">{e.type}</span>
                 </div>
                 {selectedEntity?.id === e.id && timeseriesAttributes(e.attributes).length > 0 && (
@@ -165,6 +233,10 @@ export const DataTree: React.FC<DataTreeProps> = ({
                       );
                     })}
                   </ul>
+                )}
+                {/* Sensor health detail — shown after attributes for the selected sensor */}
+                {selectedEntity?.id === e.id && isAgriSensor(e.type) && tenantId && (
+                  <SensorHealthDetail entityId={e.id} tenantId={tenantId} />
                 )}
               </li>
             ))}
