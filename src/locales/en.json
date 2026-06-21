@@ -145,7 +145,9 @@
     "oneDay": "1 day",
     "cancel": "Cancel",
     "export": "Export",
-    "exporting": "Exporting…"
+    "exporting": "Exporting…",
+    "includeRaw": "Include raw value",
+    "includeCalibration": "Include calibration period"
   },
   "loadWorkspace": {
     "title": "Load workspace",

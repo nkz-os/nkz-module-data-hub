@@ -205,6 +205,10 @@ export interface ExportRequest {
   format: 'csv' | 'parquet';
   /** Aggregation interval: raw (finest), 1 hour, 1 day. Default 1 hour. */
   aggregation: ExportAggregation;
+  /** When true, include raw_measurements column in CSV output. */
+  include_raw?: boolean;
+  /** When true, include calibration_period_id column in CSV output. */
+  include_calibration?: boolean;
 }
 
 export interface ExportParquetResponse {

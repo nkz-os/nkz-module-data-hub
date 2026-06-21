@@ -38,6 +38,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const { t } = useTranslation('datahub');
   const [format, setFormat] = useState<'csv' | 'parquet'>('csv');
   const [aggregation, setAggregation] = useState<ExportAggregation>('1 hour');
+  const [includeRaw, setIncludeRaw] = useState(false);
+  const [includeCalibration, setIncludeCalibration] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +59,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         })),
         format,
         aggregation,
+        ...(includeRaw && { include_raw: true }),
+        ...(includeCalibration && { include_calibration: true }),
       };
       const result = await requestExport(payload);
       if (result.format === 'csv') {
@@ -124,6 +128,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <option value="1 day">{t('exportModal.oneDay')}</option>
                 </select>
               </div>
+              {format === 'csv' && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer dh-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={includeRaw}
+                      onChange={(e) => setIncludeRaw(e.target.checked)}
+                      className="rounded dh-border-light"
+                    />
+                    {t('exportModal.includeRaw')}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer dh-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={includeCalibration}
+                      onChange={(e) => setIncludeCalibration(e.target.checked)}
+                      className="rounded dh-border-light"
+                    />
+                    {t('exportModal.includeCalibration')}
+                  </label>
+                </div>
+              )}
             </div>
             {error && (
               <p className="text-red-400 text-xs mb-4" role="alert">
