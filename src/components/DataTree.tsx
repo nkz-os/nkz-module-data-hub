@@ -83,7 +83,7 @@ function SensorHealthDetail({ entityId, tenantId }: { entityId: string; tenantId
   const { t } = useTranslation('datahub');
 
   if (health.loading) {
-    return <div className="px-3 py-2 text-xs text-gray-500">{t('sensor.healthLoading', { defaultValue: 'Loading health…' })}</div>;
+    return <div className="px-3 py-2 text-xs dh-text-muted">{t('sensor.healthLoading', { defaultValue: 'Loading health…' })}</div>;
   }
 
   return (

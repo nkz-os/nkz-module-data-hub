@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 
 interface Alert {
   id: string;
@@ -17,6 +18,7 @@ interface Props {
 const API_BASE = (import.meta as any).env?.VITE_API_URL || 'https://nkz.robotika.cloud';
 
 export function AlertList({ tenantId, sensorId }: Props) {
+  const { t } = useTranslation('datahub');
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,13 +45,21 @@ export function AlertList({ tenantId, sensorId }: Props) {
       .finally(() => setLoading(false));
   }, [tenantId, sensorId]);
 
-  if (loading) return <div className="text-sm text-gray-500">Cargando alertas...</div>;
+  if (loading) return <div className="text-sm dh-text-secondary">{t('sensor.alerts.loading')}</div>;
+
+  const alertTypeLabel = (type: string) => {
+    switch (type) {
+      case 'timeout': return t('sensor.alerts.type_timeout');
+      case 'stagnation': return t('sensor.alerts.type_stagnation');
+      case 'out_of_bounds': return t('sensor.alerts.type_out_of_bounds');
+      default: return type;
+    }
+  };
 
   return (
     <div className="space-y-2">
-      <h3 className="text-lg font-semibold text-gray-800">Alertas Activas</h3>
       {alerts.length === 0 ? (
-        <p className="text-sm text-gray-500">No hay alertas activas</p>
+        <p className="text-sm dh-text-secondary">{t('sensor.alerts.empty')}</p>
       ) : (
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {alerts.map(alert => (
@@ -59,16 +69,13 @@ export function AlertList({ tenantId, sensorId }: Props) {
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium capitalize text-red-800">
-                  {alert.alertType === 'timeout' ? 'Sin Comunicación'
-                    : alert.alertType === 'stagnation' ? 'Estancamiento'
-                    : alert.alertType === 'out_of_bounds' ? 'Fuera de Rango'
-                    : alert.alertType}
+                  {alertTypeLabel(alert.alertType)}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs dh-text-muted">
                   {new Date(alert.observedAt).toLocaleString()}
                 </span>
               </div>
-              <p className="text-sm text-gray-700 mt-1">{alert.description}</p>
+              <p className="text-sm dh-text-secondary mt-1">{alert.description}</p>
             </div>
           ))}
         </div>
