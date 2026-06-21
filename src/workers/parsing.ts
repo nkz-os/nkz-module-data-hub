@@ -68,6 +68,15 @@ function normalizeMonotonic(
   return { xs: new Float64Array(nx), ys: new Float64Array(ny) };
 }
 
+export interface ParsedSeries {
+  xs: Float64Array;
+  ys: Float64Array;
+  /** Raw (pre-calibration) measurements from the BFF, aligned with xs/ys.
+   *  Null when the BFF response contains no raw_values array or when its
+   *  length does not match timestamps. */
+  rawValues: Float64Array | null;
+}
+
 /**
  * Parse a single-series payload from the BFF JSON response.
  *
@@ -76,39 +85,68 @@ function normalizeMonotonic(
  *   2. { timestamps: [...], value_0: [...], ... }       — multi attr (align/export)
  *   3. { timestamps: [...], attributes: { attr: [...] } } — reader raw format (fallback)
  *
+ * The BFF may also include a raw_values array (positionally aligned with
+ * timestamps and values), which is returned as rawValues in the result.
+ *
  * This contract is what the worker depends on. Any BFF change that breaks it
  * will be caught by `parsing.test.ts`.
  */
-export function parseSingleSeriesPayload(data: unknown): { xs: Float64Array; ys: Float64Array } {
+export function parseSingleSeriesPayload(data: unknown): ParsedSeries {
   const payload = (data ?? {}) as Record<string, unknown>;
   const timestamps = Array.isArray(payload.timestamps) ? payload.timestamps : [];
 
   // Canonical shapes (BFF single-attr path or aligned multi-series path)
-  let rawValues: unknown[];
+  let seriesValues: unknown[];
   if (Array.isArray(payload.values)) {
-    rawValues = payload.values;
+    seriesValues = payload.values;
   } else if (Array.isArray(payload.value_0)) {
-    rawValues = payload.value_0;
+    seriesValues = payload.value_0;
   } else if (payload.attributes && typeof payload.attributes === 'object') {
     // Fallback: reader raw format { attributes: { attr_name: [...] } }
     const attrs = payload.attributes as Record<string, unknown>;
     const firstKey = Object.keys(attrs)[0];
-    rawValues = (firstKey && Array.isArray(attrs[firstKey])) ? attrs[firstKey] as unknown[] : [];
+    seriesValues = (firstKey && Array.isArray(attrs[firstKey])) ? attrs[firstKey] as unknown[] : [];
   } else {
-    rawValues = [];
+    seriesValues = [];
   }
 
-  const len = Math.min(timestamps.length, rawValues.length);
+  // Extract raw_input from payload.raw_values (if present and length matches)
+  const rawInput: unknown[] = Array.isArray(payload.raw_values) ? payload.raw_values : [];
+  const hasRaw = rawInput.length === timestamps.length;
+
+  const len = Math.min(timestamps.length, seriesValues.length);
   const tmpX = new Float64Array(len);
   const tmpY = new Float64Array(len);
+  const tmpRaw = hasRaw ? new Float64Array(len) : null;
+  const rawMap = new Map<number, number>();
   let w = 0;
   for (let i = 0; i < len; i++) {
     const x = timestampToEpochSeconds(timestamps[i]);
     if (x == null) continue;
     tmpX[w] = x;
-    const y = toFiniteNumber(rawValues[i]);
+    const y = toFiniteNumber(seriesValues[i]);
     tmpY[w] = y == null ? Number.NaN : y;
+    if (hasRaw && tmpRaw) {
+      const r = toFiniteNumber(rawInput[i]);
+      tmpRaw[w] = r == null ? Number.NaN : r;
+      rawMap.set(x, tmpRaw[w]);
+    }
     w += 1;
   }
-  return normalizeMonotonic(tmpX.slice(0, w), tmpY.slice(0, w));
+
+  const trimmedX = tmpX.slice(0, w);
+  const trimmedY = tmpY.slice(0, w);
+  const normalized = normalizeMonotonic(trimmedX, trimmedY);
+
+  // Realign raw values to the normalized (sorted + deduplicated) xs indices
+  let normalizedRaw: Float64Array | null = null;
+  if (hasRaw && rawMap.size > 0) {
+    normalizedRaw = new Float64Array(normalized.xs.length);
+    for (let i = 0; i < normalized.xs.length; i++) {
+      const rv = rawMap.get(normalized.xs[i]);
+      normalizedRaw[i] = rv !== undefined ? rv : Number.NaN;
+    }
+  }
+
+  return { xs: normalized.xs, ys: normalized.ys, rawValues: normalizedRaw };
 }

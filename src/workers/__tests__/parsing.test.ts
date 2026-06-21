@@ -155,4 +155,74 @@ describe('parseSingleSeriesPayload', () => {
     expect(result.xs.length).toBe(1);
     expect(result.ys[0]).toBe(21.0); // last finite wins
   });
+
+  // ── raw_values ────────────────────────────────────────────────────────────
+
+  it('parses raw_values when present', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459200, 1717459260, 1717459320],
+      values: [20.5, 21.0, 19.8],
+      raw_values: [1.0, 2.0, 3.0],
+    });
+    expect(result.xs.length).toBe(3);
+    expect(result.rawValues).toBeInstanceOf(Float64Array);
+    expect(result.rawValues!.length).toBe(3);
+    expect(result.rawValues![0]).toBe(1.0);
+    expect(result.rawValues![1]).toBe(2.0);
+    expect(result.rawValues![2]).toBe(3.0);
+  });
+
+  it('returns rawValues as null when raw_values absent', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459200, 1717459260, 1717459320],
+      values: [20.5, 21.0, 19.8],
+    });
+    expect(result.rawValues).toBeNull();
+  });
+
+  it('returns rawValues as null when raw_values length mismatches', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459200, 1717459260, 1717459320],
+      values: [20.5, 21.0, 19.8],
+      raw_values: [1.0], // wrong length
+    });
+    expect(result.rawValues).toBeNull();
+  });
+
+  it('handles null/NaN in raw_values', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459200, 1717459260, 1717459320],
+      values: [20.5, 21.0, 19.8],
+      raw_values: [1.0, null, 3.0],
+    });
+    expect(result.rawValues![0]).toBe(1.0);
+    expect(Number.isNaN(result.rawValues![1])).toBe(true);
+    expect(result.rawValues![2]).toBe(3.0);
+  });
+
+  it('aligns raw_values correctly after normalization (out-of-order ts)', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459320, 1717459200, 1717459260],
+      values: [19.8, 20.5, 21.0],
+      raw_values: [3.0, 1.0, 2.0],
+    });
+    // After sort: xs = [1717459200, 1717459260, 1717459320]
+    // raw should follow: [1.0, 2.0, 3.0]
+    expect(result.rawValues![0]).toBe(1.0);
+    expect(result.rawValues![1]).toBe(2.0);
+    expect(result.rawValues![2]).toBe(3.0);
+  });
+
+  it('aligns raw_values correctly after dedup of timestamps', () => {
+    const result = parseSingleSeriesPayload({
+      timestamps: [1717459200, 1717459200, 1717459260],
+      values: [20.5, 21.0, 19.8],
+      raw_values: [10.0, 11.0, 12.0],
+    });
+    // After dedup: xs = [1717459200, 1717459260]
+    // raw should be [11.0, 12.0] — last raw at duplicated ts wins
+    expect(result.xs.length).toBe(2);
+    expect(result.rawValues![0]).toBe(11.0);
+    expect(result.rawValues![1]).toBe(12.0);
+  });
 });
