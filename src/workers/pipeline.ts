@@ -136,6 +136,12 @@ export function minMaxIndicesPerBucket(ys: Float64Array, buckets: number): Set<n
   return idx;
 }
 
+/**
+ * Downsample ys using LTTB/MinMax, then subsample rawYs using the SAME indices.
+ * Downsampling decisions are based on calibrated (ys) values; rawYs just follows
+ * the same selected indices. This ensures raw overlay points align perfectly with
+ * the calibrated line's xs.
+ */
 export function downsampleAligned(
   xs: Float64Array,
   ys: Float64Array,

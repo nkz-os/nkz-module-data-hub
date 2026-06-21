@@ -148,5 +148,14 @@ export function parseSingleSeriesPayload(data: unknown): ParsedSeries {
     }
   }
 
+  // If rawValues is all-NaN, set to null to avoid unnecessary processing
+  if (normalizedRaw) {
+    let hasFinite = false;
+    for (let i = 0; i < normalizedRaw.length; i++) {
+      if (Number.isFinite(normalizedRaw[i])) { hasFinite = true; break; }
+    }
+    if (!hasFinite) normalizedRaw = null;
+  }
+
   return { xs: normalized.xs, ys: normalized.ys, rawValues: normalizedRaw };
 }

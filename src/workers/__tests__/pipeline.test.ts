@@ -4,6 +4,7 @@ import {
   cacheKey,
   computeDomains,
   countFinite,
+  downsampleAligned,
   downsampleSingle,
   injectGapsSingle,
   lttbIndices,
@@ -145,6 +146,81 @@ describe('downsampleSingle', () => {
   it('output xs strictly increasing', () => {
     const r = downsampleSingle(xs, ysFlat, 200, 60, true);
     for (let i = 1; i < r.xs.length; i++) expect(r.xs[i]).toBeGreaterThan(r.xs[i - 1]);
+  });
+});
+
+describe('downsampleAligned', () => {
+  const f64 = (a: number[]) => new Float64Array(a);
+
+  it('n <= threshold -> identity, rawYs preserved, ratio 1', () => {
+    const xs = f64([0, 10, 20]);
+    const ys = f64([1, 2, 3]);
+    const raw = f64([0.5, 1.5, 2.5]);
+    const r = downsampleAligned(xs, ys, raw, 100, 60, false);
+    expect(r.downsampleRatio).toBe(1);
+    expect(r.xs).toBe(xs);
+    expect(r.rawYs).toBe(raw);
+  });
+
+  it('rawYs subsampled with same indices as ys', () => {
+    const xs = f64(Array.from({ length: 1000 }, (_, i) => i));
+    const ys = f64(Array.from({ length: 1000 }, (_, i) => Math.sin(i / 20)));
+    const raw = f64(Array.from({ length: 1000 }, (_, i) => i));
+    const r = downsampleAligned(xs, ys, raw, 50, 60, false);
+    expect(r.xs.length).toBeLessThan(1000);
+    expect(r.xs.length).toBe(r.ys.length);
+    expect(r.ys.length).toBe(r.rawYs.length);
+    for (let i = 0; i < r.ys.length; i++) {
+      if (Number.isFinite(r.xs[i])) {
+        expect(r.rawYs[i]).toBe(r.xs[i]);
+      }
+    }
+  });
+
+  it('preserveExtrema keeps spike in both ys and rawYs', () => {
+    const xs = f64(Array.from({ length: 1000 }, (_, i) => i));
+    const ys = f64(Array.from({ length: 1000 }, (_, i) => i === 500 ? 999 : Math.sin(i / 50)));
+    const raw = f64(Array.from({ length: 1000 }, (_, i) => i === 500 ? 111 : i));
+    const withExt = downsampleAligned(xs, ys, raw, 50, 60, true);
+    expect(Math.max(...Array.from(withExt.ys).filter(Number.isFinite))).toBe(999);
+    for (let i = 0; i < withExt.ys.length; i++) {
+      if (withExt.ys[i] === 999) {
+        expect(withExt.rawYs[i]).toBe(111);
+      }
+    }
+  });
+
+  it('output xs strictly increasing; all arrays same length', () => {
+    const xs = f64(Array.from({ length: 1000 }, (_, i) => i * 10));
+    const ys = f64(Array.from({ length: 1000 }, () => 1));
+    const raw = f64(Array.from({ length: 1000 }, () => 0.5));
+    const r = downsampleAligned(xs, ys, raw, 100, 60, true);
+    expect(r.xs.length).toBe(r.ys.length);
+    expect(r.ys.length).toBe(r.rawYs.length);
+    for (let i = 1; i < r.xs.length; i++) {
+      expect(r.xs[i]).toBeGreaterThan(r.xs[i - 1]);
+    }
+  });
+
+  it('NaN indices preserved in rawYs at same positions as ys', () => {
+    const xs = f64([0, 10, 100, 200, 300]);
+    const ys = f64([1, 2, NaN, 4, 5]);
+    const raw = f64([0.5, 1.5, NaN, 3.5, 4.5]);
+    const r = downsampleAligned(xs, ys, raw, 3, 15, false);
+    for (let i = 0; i < r.ys.length; i++) {
+      if (Number.isNaN(r.ys[i])) {
+        expect(Number.isNaN(r.rawYs[i])).toBe(true);
+      }
+    }
+  });
+
+  it('fewer than 2 finite calibrated points -> identity', () => {
+    const xs = f64([0, 10, 20]);
+    const ys = f64([NaN, NaN, NaN]);
+    const raw = f64([1, 2, 3]);
+    const r = downsampleAligned(xs, ys, raw, 2, 60, false);
+    expect(r.downsampleRatio).toBe(1);
+    expect(r.rawYs.length).toBe(3);
   });
 });
 
