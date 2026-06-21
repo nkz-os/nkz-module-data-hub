@@ -136,6 +136,56 @@ export function minMaxIndicesPerBucket(ys: Float64Array, buckets: number): Set<n
   return idx;
 }
 
+export function downsampleAligned(
+  xs: Float64Array,
+  ys: Float64Array,
+  rawYs: Float64Array,
+  threshold: number,
+  maxGapSeconds: number,
+  preserveExtrema: boolean
+): { xs: Float64Array; ys: Float64Array; rawYs: Float64Array; downsampleRatio: number } {
+  if (xs.length === 0 || threshold <= 0 || xs.length <= threshold) {
+    return { xs, ys, rawYs, downsampleRatio: 1 };
+  }
+  let finite = 0;
+  for (let i = 0; i < ys.length; i++) if (Number.isFinite(ys[i])) finite += 1;
+  if (finite < 2) return { xs, ys, rawYs, downsampleRatio: 1 };
+
+  const segments = splitSegmentsByGap(xs, maxGapSeconds);
+  const pickGlobal = new Set<number>();
+  for (const seg of segments) {
+    const segLen = seg.end - seg.start + 1;
+    if (segLen <= threshold) {
+      for (let i = seg.start; i <= seg.end; i++) pickGlobal.add(i);
+      continue;
+    }
+    const segX = xs.slice(seg.start, seg.end + 1);
+    const segY = ys.slice(seg.start, seg.end + 1);
+    const lttb = lttbIndices(segX, segY, threshold);
+    const keep = new Set<number>(lttb.map((i) => seg.start + i));
+    if (preserveExtrema) {
+      const mm = minMaxIndicesPerBucket(segY, threshold);
+      for (const i of mm) keep.add(seg.start + i);
+    }
+    keep.add(seg.start);
+    keep.add(seg.end);
+    for (const i of keep) pickGlobal.add(i);
+  }
+  for (let i = 0; i < ys.length; i++) {
+    if (Number.isNaN(ys[i])) pickGlobal.add(i);
+  }
+  const pick = Array.from(pickGlobal.values()).sort((a, b) => a - b);
+  const outX = new Float64Array(pick.length);
+  const outY = new Float64Array(pick.length);
+  const outRaw = new Float64Array(pick.length);
+  for (let i = 0; i < pick.length; i++) {
+    outX[i] = xs[pick[i]];
+    outY[i] = ys[pick[i]];
+    outRaw[i] = rawYs[pick[i]];
+  }
+  return { xs: outX, ys: outY, rawYs: outRaw, downsampleRatio: pick.length / Math.max(1, xs.length) };
+}
+
 export function downsampleSingle(
   xs: Float64Array,
   ys: Float64Array,

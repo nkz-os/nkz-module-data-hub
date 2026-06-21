@@ -25,6 +25,7 @@ import {
   cacheKey,
   computeDomains,
   countFinite,
+  downsampleAligned,
   downsampleSingle,
   injectGapsSingle,
   selectEvictions,
@@ -38,6 +39,7 @@ interface CachedSeries {
   key: string;
   xs: Float64Array;
   ys: Float64Array;
+  rawMeasurements?: Float64Array;
   bytes: number;
   lastAccess: number;
   /** Cached per-series stats so we don't recompute on every cache hit. */
@@ -73,7 +75,7 @@ function releaseCacheKeys(keys: string[]): void {
 async function fetchSingleSeries(
   req: DatahubWorkerRequest,
   item: WorkerSeriesSpec
-): Promise<{ xs: Float64Array; ys: Float64Array }> {
+): Promise<{ xs: Float64Array; ys: Float64Array; rawValues?: Float64Array | null }> {
   const base = req.baseUrl || self.location.origin;
 
   // URN resolution is handled by the reader (Strangler Fig); BFF passes URNs directly.
@@ -107,7 +109,7 @@ async function fetchSingleSeries(
 async function fetchSingleSeriesWithRetry(
   req: DatahubWorkerRequest,
   item: WorkerSeriesSpec
-): Promise<{ xs: Float64Array; ys: Float64Array }> {
+): Promise<{ xs: Float64Array; ys: Float64Array; rawValues?: Float64Array | null }> {
   const first = await fetchSingleSeries(req, item);
   if (first.xs.length > 0) return first;
   // Single retry guards against rare empty responses for identical requests.
@@ -136,6 +138,7 @@ async function processOneSeries(
       source: item.source ?? 'timescale',
       xs: new Float64Array(cached.xs),
       ys: new Float64Array(cached.ys),
+      rawMeasurements: cached.rawMeasurements ? new Float64Array(cached.rawMeasurements) : undefined,
       stats: { ...cached.stats },
     };
   }
@@ -145,13 +148,43 @@ async function processOneSeries(
 
   const withGaps = injectGapsSingle(fetched.xs, fetched.ys, req.policy.maxGapSeconds);
 
-  const downsampled = downsampleSingle(
-    withGaps.xs,
-    withGaps.ys,
-    req.policy.downsampleThreshold,
-    req.policy.maxGapSeconds,
-    req.policy.preserveExtrema
-  );
+  // Apply the same gap injection to raw values (if present), using the same xs
+  // so NaN bridges appear at identical positions.
+  const hasRawValues = fetched.rawValues != null && fetched.rawValues.length > 0;
+  const rawGapped = hasRawValues
+    ? injectGapsSingle(fetched.xs, fetched.rawValues!, req.policy.maxGapSeconds)
+    : null;
+
+  // Use aligned downsampling when raw values exist and lengths match after gap injection
+  const useAligned = rawGapped != null && rawGapped.ys.length === withGaps.ys.length;
+
+  let downsampled: ReturnType<typeof downsampleSingle> & { rawYs?: Float64Array };
+  let rawDownsampled: Float64Array | undefined;
+
+  if (useAligned) {
+    const aligned = downsampleAligned(
+      withGaps.xs,
+      withGaps.ys,
+      rawGapped!.ys,
+      req.policy.downsampleThreshold,
+      req.policy.maxGapSeconds,
+      req.policy.preserveExtrema
+    );
+    downsampled = {
+      xs: aligned.xs,
+      ys: aligned.ys,
+      downsampleRatio: aligned.downsampleRatio,
+    };
+    rawDownsampled = aligned.rawYs;
+  } else {
+    downsampled = downsampleSingle(
+      withGaps.xs,
+      withGaps.ys,
+      req.policy.downsampleThreshold,
+      req.policy.maxGapSeconds,
+      req.policy.preserveExtrema
+    );
+  }
 
   const pointsPlotted = countFinite(downsampled.ys);
   const pointsDiscarded = Math.max(
@@ -178,7 +211,8 @@ async function processOneSeries(
       key,
       xs: new Float64Array(downsampled.xs),
       ys: new Float64Array(downsampled.ys),
-      bytes: downsampled.xs.byteLength + downsampled.ys.byteLength,
+      rawMeasurements: rawDownsampled ? new Float64Array(rawDownsampled) : undefined,
+      bytes: downsampled.xs.byteLength + downsampled.ys.byteLength + (rawDownsampled ? rawDownsampled.byteLength : 0),
       lastAccess: Date.now(),
       stats: { ...stats },
     };
@@ -193,6 +227,7 @@ async function processOneSeries(
     source: item.source ?? 'timescale',
     xs: downsampled.xs,
     ys: downsampled.ys,
+    rawMeasurements: rawDownsampled,
     stats,
   };
 }
@@ -299,6 +334,9 @@ self.onmessage = (event: MessageEvent<DatahubWorkerMessage>) => {
       for (const s of response.series) {
         transferList.push(s.xs.buffer as ArrayBuffer);
         transferList.push(s.ys.buffer as ArrayBuffer);
+        if (s.rawMeasurements) {
+          transferList.push(s.rawMeasurements.buffer as ArrayBuffer);
+        }
       }
       self.postMessage(response, transferList);
     } catch (error) {
