@@ -7,6 +7,7 @@ Timeseries BFF: proxy to platform reader v2 (single-source) and Polars merge (mu
 
 import asyncio
 import io
+import math
 import os
 from typing import Any, Optional
 from urllib.parse import quote
@@ -669,7 +670,15 @@ def _arrow_bytes_to_json(raw: bytes) -> dict:
     # Single value column
     if "value" in table.column_names:
         values = table.column("value").to_pylist()
-        return {"timestamps": timestamps, "values": values}
+        result = {"timestamps": timestamps, "values": values}
+        # raw_values column from Arrow (NaN → None for JSON)
+        if "value_raw" in table.column_names:
+            raw_vals = table.column("value_raw").to_pylist()
+            result["raw_values"] = [
+                None if v is not None and (isinstance(v, float) and math.isnan(v)) else v
+                for v in raw_vals
+            ]
+        return result
 
     # Multi-value: value_0, value_1, ...
     value_arrays: dict[str, list] = {}
@@ -681,7 +690,7 @@ def _arrow_bytes_to_json(raw: bytes) -> dict:
         # Fallback: take first non-timestamp column and normalize it to "values"
         # so the frontend doesn't need to know internal DB column names (temp_avg, etc.)
         for name in table.column_names:
-            if name != "timestamp":
+            if name != "timestamp" and name != "value_raw":  # exclude raw_values from single-attr fallback
                 return {"timestamps": timestamps, "values": table.column(name).to_pylist()}
     return {"timestamps": timestamps, **value_arrays}
 
@@ -689,14 +698,19 @@ def _arrow_bytes_to_json(raw: bytes) -> dict:
 def _reader_json_to_frontend_json(data: dict, single_attr: str | None = None) -> dict:
     """Convert timeseries-reader JSON to frontend format.
 
-    Reader returns:  {timestamps: [ISO...], attributes: {attr: [vals...]}}
-    Frontend wants:  {timestamps: [epoch_secs...], values: [...]}         (single)
-                     {timestamps: [epoch_secs...], value_0: [...], ...}   (multi)
+    Reader returns:
+        {timestamps: [ISO...], attributes: {attr: [vals...]}, raw_attributes: {...}, quality_flags: {...}}
+    Frontend wants:
+        {timestamps: [epoch_secs...], values: [...]}                     (single)
+        {timestamps: [epoch_secs...], values: [...], raw_values: [...]}  (single w/ raw)
+        {timestamps: [epoch_secs...], value_0: [...], ...}               (multi)
+        {timestamps: [epoch_secs...], value_0: [...], raw_value_0:...}   (multi w/ raw)
     """
     from datetime import datetime as _dt
 
     raw_ts = data.get("timestamps") or []
     attrs = data.get("attributes") or {}
+    raw_attrs = data.get("raw_attributes") or {}
 
     # If reader returned epoch floats already (Arrow JSON mode), keep them
     timestamps: list[float] = []
@@ -719,17 +733,37 @@ def _reader_json_to_frontend_json(data: dict, single_attr: str | None = None) ->
             for k, v in attrs.items():
                 vals = v
                 break
-        return {"timestamps": timestamps, "values": vals or []}
+        result = {"timestamps": timestamps, "values": vals or []}
+        # Include raw_values if available for this attr
+        raw_vals = raw_attrs.get(single_attr) if raw_attrs else None
+        if raw_vals is None and raw_attrs:
+            for k, v in raw_attrs.items():
+                raw_vals = v
+                break
+        if raw_vals and any(v is not None for v in raw_vals):
+            result["raw_values"] = raw_vals
+        return result
 
     attr_keys = list(attrs.keys())
     if len(attr_keys) == 1:
-        return {"timestamps": timestamps, "values": attrs[attr_keys[0]]}
+        result = {"timestamps": timestamps, "values": attrs[attr_keys[0]]}
+        # Include raw_values if available
+        raw_vals = raw_attrs.get(attr_keys[0]) if raw_attrs else None
+        if raw_vals and any(v is not None for v in raw_vals):
+            result["raw_values"] = raw_vals
+        return result
 
     # Multi-attr → value_0, value_1, ...
     result: dict = {"timestamps": timestamps}
     for i, key in enumerate(attr_keys):
         col_name = key if key.startswith("value_") else f"value_{i}"
         result[col_name] = attrs[key]
+    # Include raw values for multi-attr
+    if raw_attrs:
+        for i, key in enumerate(attr_keys):
+            raw_vals = raw_attrs.get(key)
+            if raw_vals and any(v is not None for v in raw_vals):
+                result[f"raw_value_{i}"] = raw_vals
     return result
 
 
