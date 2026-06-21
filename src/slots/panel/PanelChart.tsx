@@ -114,12 +114,20 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   onVisibleXChangeRef.current = onVisibleXChange;
 
   const [showAllData, setShowAllData] = useState(false);
+  /** Toggle raw (pre-calibration) values overlay. */
+  const [showRawData, setShowRawData] = useState(false);
 
   // ──────── quality_flag filtering ────────
   // When the telemetry-worker provides qualityFlags per data point (Phase 2),
   // non-valid points (qualityFlags[i] !== 0) are replaced with NaN so uPlot
   // does not render them. The toggle lets users see all raw data including
   // flagged points. If qualityFlags is absent, pass through unchanged.
+  //
+  // TODO (raw/calibrated toggle – Phase 3): When showRawData && rawMeasurements
+  // are available on the series, inject additional uPlot series (one per
+  // calibrated series) that render raw values as semi-transparent point
+  // overlays. Each raw series shares the same xs as its calibrated counterpart;
+  // the extra columns go into buildAlignedData below.
   const filteredWorkerSeries = useMemo(() => {
     if (showAllData) return workerSeries;
     return workerSeries.map((s) => {
@@ -139,6 +147,19 @@ export const PanelChart: React.FC<PanelChartProps> = ({
       return { ...s, ys: newYs };
     });
   }, [workerSeries, showAllData]);
+
+  // ──────── raw data availability ────────
+  // Checks whether the telemetry-worker provided raw (pre-calibration)
+  // values for any series in this panel. The "Valor raw" toggle is
+  // disabled when no raw data is available.
+  // TODO (raw/calibrated toggle – Phase 3): Once the telemetry-worker
+  // exposes raw_measurements as rawMeasurements in WorkerSeriesPayload,
+  // this memo will return true and the overlay rendering should inject
+  // additional uPlot series (point-only + semi-transparent) in the
+  // buildAlignedData call below.
+  const hasRawData = useMemo(() => {
+    return workerSeries.some((s) => (s as any).rawMeasurements != null);
+  }, [workerSeries]);
 
   const data = useMemo(() => {
     if (filteredWorkerSeries.length !== series.length ||
@@ -288,15 +309,31 @@ export const PanelChart: React.FC<PanelChartProps> = ({
   return (
     <>
       <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%' }} />
-      <label title="Muestra también los puntos marcados como fuera de rango o inválidos" className="absolute top-2 right-2 z-10 flex items-center gap-1.5 text-xs dh-text-secondary cursor-pointer select-none dh-bg-surface/80 px-2 py-1 rounded pointer-events-auto">
-        <input
-          type="checkbox"
-          checked={showAllData}
-          onChange={(e) => setShowAllData(e.target.checked)}
-          className="rounded border-gray-300"
-        />
-        Mostrar datos con mala calidad
-      </label>
+      <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 pointer-events-auto">
+        <label title="Muestra también los puntos marcados como fuera de rango o inválidos" className="flex items-center gap-1.5 text-xs dh-text-secondary cursor-pointer select-none dh-bg-surface/80 px-2 py-1 rounded">
+          <input
+            type="checkbox"
+            checked={showAllData}
+            onChange={(e) => setShowAllData(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Mostrar datos con mala calidad
+        </label>
+        <label
+          title={hasRawData ? 'Muestra los valores sin calibrar (pre-calibración) superpuestos como puntos semitransparentes' : 'Datos raw no disponibles — el worker de telemetría aún no expone valores pre-calibración'}
+          className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded cursor-pointer select-none dh-bg-surface/80 ${hasRawData ? 'dh-text-secondary' : 'opacity-50 cursor-not-allowed'}`}
+        >
+          <input
+            type="checkbox"
+            checked={showRawData}
+            disabled={!hasRawData}
+            onChange={(e) => setShowRawData(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Valor raw
+          {!hasRawData && <span className="opacity-60 ml-1">(no disponible)</span>}
+        </label>
+      </div>
     </>
   );
 };

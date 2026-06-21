@@ -101,6 +101,13 @@ export interface WorkerSeriesPayload {
    * all points are treated as valid.
    */
   qualityFlags?: Uint8Array | null;
+  /**
+   * Raw (pre-calibration) measurements per data point, aligned with xs/ys.
+   * When present, the chart can toggle between calibrated (ys) and raw
+   * (rawMeasurements) display. Added for Phase 3 raw/calibrated toggle.
+   * Optional — when absent or null only calibrated values are available.
+   */
+  rawMeasurements?: Float64Array | null;
   stats: PerSeriesStats;
 }
 
