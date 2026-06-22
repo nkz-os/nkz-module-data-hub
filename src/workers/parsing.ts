@@ -110,8 +110,10 @@ export function parseSingleSeriesPayload(data: unknown): ParsedSeries {
     seriesValues = [];
   }
 
-  // Extract raw_input from payload.raw_values (if present and length matches)
-  const rawInput: unknown[] = Array.isArray(payload.raw_values) ? payload.raw_values : [];
+  // Extract raw_input from payload.raw_values (single attr) or raw_value_0 (multi attr)
+  const rawInput: unknown[] = Array.isArray(payload.raw_values) ? payload.raw_values :
+    Array.isArray(payload.raw_value_0) ? payload.raw_value_0 as unknown[] :
+    [];
   const hasRaw = rawInput.length === timestamps.length;
 
   const len = Math.min(timestamps.length, seriesValues.length);
