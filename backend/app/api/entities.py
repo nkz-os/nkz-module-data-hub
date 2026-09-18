@@ -182,11 +182,20 @@ def _norm_entity(e: dict, etype: str) -> dict:
 
     # Entity-level default source (used when an attribute has no explicit source)
     entity_source_raw = _get_value(e.get("source")) or _get_value(e.get("provider"))
-    entity_source = (
+    entity_source_val = (
         str(entity_source_raw).strip().lower()
         if isinstance(entity_source_raw, str) and entity_source_raw.strip()
         else "timescale"
     )
+    
+    # ASSUMPTION: The 'source' property in NGSI-LD often denotes the external data 
+    # provider (e.g., "open-meteo", "aemet"). DataHub incorrectly assumes it's the 
+    # timeseries adapter name. We exclude known external providers to ensure they 
+    # correctly default to the "timescale" adapter.
+    if entity_source_val in ("open-meteo", "aemet", "davis", "sentinel", "manual", "user", "calculated", "sensor"):
+        entity_source = "timescale"
+    else:
+        entity_source = entity_source_val
 
     attributes: list[dict] = []
     seen_attrs: set[tuple[str, str]] = set()

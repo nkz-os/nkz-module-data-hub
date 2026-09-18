@@ -505,6 +505,8 @@ async def proxy_timeseries_align(
             source = str(source).strip().lower() or "timescale"
         else:
             source = "timescale"
+        if source in ("open-meteo", "aemet", "davis", "sentinel", "manual", "user", "calculated", "sensor"):
+            source = "timescale"
         series.append({"entity_id": str(eid), "attribute": str(attr), "source": source})
 
     sources = {s["source"] for s in series}
@@ -799,6 +801,8 @@ async def proxy_timeseries_data(
         qp["attrs"] = qp["attribute"]
     source = qp.pop("source", "timescale") or "timescale"
     source = source.strip().lower() or "timescale"
+    if source in ("open-meteo", "aemet", "davis", "sentinel", "manual", "user", "calculated", "sensor"):
+        source = "timescale"
     for redundant in ("start_time", "end_time", "attribute", "format"):
         qp.pop(redundant, None)
 
@@ -987,6 +991,8 @@ async def proxy_export(
         if hasattr(source, "strip"):
             source = str(source).strip().lower() or "timescale"
         else:
+            source = "timescale"
+        if source in ("open-meteo", "aemet", "davis", "sentinel", "manual", "user", "calculated", "sensor"):
             source = "timescale"
         series.append({"entity_id": str(eid), "attribute": str(attr), "source": source})
 
