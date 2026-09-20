@@ -17,7 +17,7 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import polars as pl
 from fastapi import APIRouter, Header, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.common.logging_setup import get_logger
 
@@ -549,8 +549,8 @@ async def proxy_timeseries_align(
         except Exception:
             return JSONResponse(content={"error": "Invalid JSON from timeseries reader"}, status_code=502)
         json_data = _reader_json_to_frontend_json(data)
-        if not json_data.get("timestamps"):
-            return Response(status_code=204)
+        # Empty result is a valid 200 JSON response (not 204): the api-gateway
+        # rejects non-JSON upstream bodies with a 502 "non-JSON response".
         return JSONResponse(content=json_data)
 
     # Route B: Scatter-Gather by source — group by source, one Arrow buffer per source, then merge with Polars
@@ -599,8 +599,6 @@ async def proxy_timeseries_align(
         json_data = await asyncio.to_thread(_arrow_bytes_to_json, result_bytes)
     except Exception as e:
         return JSONResponse(content={"error": f"Arrow decode failed: {e!s}"}, status_code=502)
-    if not json_data.get("timestamps"):
-        return Response(status_code=204)
     return JSONResponse(content=json_data)
 
 
@@ -860,8 +858,8 @@ async def proxy_timeseries_data(
                 content={"error": f"Error fetching from {source}: {exc!s}"},
                 status_code=502,
             )
-        if not json_data.get("timestamps"):
-            return Response(status_code=204)
+        # Empty result is a valid 200 JSON response (not 204): the api-gateway
+        # rejects non-JSON upstream bodies with a 502 "non-JSON response".
         return JSONResponse(content=json_data)
 
     # Route parcel weather queries to the corrected parcel API
@@ -926,11 +924,9 @@ async def proxy_timeseries_data(
                 "resolution": qp.get("resolution"),
                 "ts_len": len(ts),
                 "vals_len": len(vals),
-                "status": 204 if not ts else 200,
+                "status": 200,
             },
         )
-        if not ts:
-            return Response(status_code=204)
         return JSONResponse(content=json_data)
 
 
