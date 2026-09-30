@@ -50,43 +50,6 @@ _NGSI_SYSTEM_KEYS = frozenset({
     "dateObserved", "observedAt", "dateObservedFrom", "dateObservedTo",
 })
 
-# timeseries-reader compatibility maps for `source=timescale`.
-# Keep these in sync with nkz/services/timeseries-reader/app.py.
-_WEATHER_VALID_COLUMNS = frozenset({
-    "temp_avg", "temp_min", "temp_max",
-    "humidity_avg", "precip_mm",
-    "solar_rad_w_m2", "eto_mm",
-    "soil_moisture_0_10cm", "wind_speed_ms",
-    "pressure_hpa", "wind_direction_deg",
-})
-_WEATHER_ATTR_MAP = {
-    "temperature": "temp_avg",
-    "relativeHumidity": "humidity_avg",
-    "windSpeed": "wind_speed_ms",
-    "windDirection": "wind_direction_deg",
-    "atmosphericPressure": "pressure_hpa",
-    "precipitation": "precip_mm",
-    "et0": "eto_mm",
-    "solarRadiation": "solar_rad_w_m2",
-    "soilMoisture": "soil_moisture_0_10cm",
-    "deltaT": "delta_t",
-}
-_TELEMETRY_VALID_ATTRS = frozenset({
-    "soilMoisture", "soilTemperature", "airTemperature", "relativeHumidity",
-    "atmosphericPressure", "windSpeed", "windDirection", "solarRadiation",
-    "rainGauge", "illuminance", "depth", "conductance", "batteryLevel",
-    "humidity", "temperature",
-    "panelInclination",
-    # Crop Health Assessment attributes (via telemetry_events)
-    "cwsiValue", "mdsValue", "mdsRatio", "vpdKpa",
-    "waterBalanceDeficit", "vigorIndex", "compositeStressIndex",
-    "yieldUtilizationPct",
-})
-_TELEMETRY_UI_ALIASES = {
-    "sensorsinsolation": "solarRadiation",
-}
-
-
 def _attr_source(attr_val: Any) -> str | None:
     """Extract the nested source from an NGSI-LD attribute value, if present.
 
@@ -112,35 +75,16 @@ def _canonical_timescale_attr(entity_type: str, attr_name: str) -> str | None:
 
     Handles both short names (temperature) and SAREF/URI names
     (https://saref.etsi.org/core/Temperature) by extracting the last URI
-    segment.
-
-    Previously this function enforced a strict whitelist (_TELEMETRY_VALID_ATTRS
-    and _WEATHER_VALID_COLUMNS). That was too restrictive: most entities store
-    their timeseries data in TimescaleDB, not as Orion-LD property values, so
-    the whitelist check prevented newly-added attributes from appearing in the
-    DataHub tree. Now we accept any non-empty attribute name and let the
-    timeseries-reader validate availability at query time.
+    segment. The name is otherwise passed through unchanged: the
+    timeseries-reader is the single resolver of attribute names (NGSI-LD name
+    or legacy weather column) and validates availability at query time.
 
     Returns None only for truly empty/blank names.
     """
     name = (attr_name or "").strip()
     if not name:
         return None
-
-    # Extract short name from full URI (e.g. https://saref.etsi.org/core/Temperature → Temperature)
-    short_name = name.rsplit("/", 1)[-1] if "/" in name else name
-
-    # Still apply the attribute mapping for well-known NGSI-LD → timescale column
-    # aliases (e.g. temperature → temp_avg, relativeHumidity → humidity_avg).
-    # This ensures the timeseries-reader receives the column name it expects.
-    attr_lower = short_name.lower()
-    _weather_attr_map_lower = {k.lower(): v for k, v in _WEATHER_ATTR_MAP.items()}
-    if attr_lower in _weather_attr_map_lower:
-        return _weather_attr_map_lower[attr_lower]
-
-    # For all other attributes, return the short name as-is.
-    # The timeseries-reader will return empty data if the attribute doesn't exist.
-    return short_name
+    return name.rsplit("/", 1)[-1] if "/" in name else name
 
 
 def _norm_entity(e: dict, etype: str) -> dict:

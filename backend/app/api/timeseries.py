@@ -43,7 +43,7 @@ _WEATHER_COLUMNS = frozenset({
     "soilMoisture",
 })
 
-# NGSI-LD → weather_observations DB column mapping (inverse of entities.py _WEATHER_ATTR_MAP).
+# NGSI-LD → weather_observations DB column mapping for the parcel weather API.
 # The parcel weather API returns DB column names; the frontend may request NGSI-LD names.
 _NGSI_LD_TO_DB_COLUMN = {
     "temperature": "temp_avg",
