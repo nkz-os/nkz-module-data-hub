@@ -1,14 +1,7 @@
-import DataHubQuickChart from './DataHubQuickChart';
-
 export { DataCanvasPanel, DataCanvasPanelMemo } from './panel/DataCanvasPanel';
 export { DataHubDashboard, type DataHubDashboardHandle } from './DataHubDashboard';
 
-export const moduleSlots = {
-  'bottom-panel': [
-    {
-      id: 'datahub-canvas',
-      component: DataHubQuickChart,
-      priority: 50,
-    },
-  ],
-};
+// No unified-viewer widgets: the viewer's bottom panel is the time axis of the
+// selected entity, and the DataHub workbench lives on the module page.
+// DataHubQuickChart is kept for a future timeline track.
+export const moduleSlots = {};
