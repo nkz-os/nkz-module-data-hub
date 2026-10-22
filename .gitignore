@@ -1,0 +1,38 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
+.vscode/
+.idea/
+
+# Exclude all .md from repo (public); allow README and public-facing specs
+*.md
+!README.md
+!ADAPTER_SPEC.md
+!docs/API_EXTERNAL_ACCESS.md
+
+# Repo docs (internal specs, reviews, API notes)
+
+docs/superpowers/
+docs/internal/
+internal-docs/
+docs/plans/
+docs/specs/
+docs/audits/
+*_PLAN.md
+*_SPEC.md
+*HANDOVER*.md
+HANDOFF.md
+CURRENT_STATE.md
+.ai/
+.worktrees
+
+# Security: sensitive files
+*.pem
+*.key
+apikey_*.txt
+*.apikey
+*-secret*
+*_api_key.txt

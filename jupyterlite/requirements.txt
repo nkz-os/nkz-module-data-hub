@@ -1,0 +1,4 @@
+# Pre-bundled wheels (included in the JupyterLite distribution at build time).
+# Keep this lean — heavy ML libraries load on-demand via micropip.install().
+pandas
+pyarrow

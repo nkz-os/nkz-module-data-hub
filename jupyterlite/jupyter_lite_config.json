@@ -1,0 +1,12 @@
+{
+  "LiteBuildConfig": {
+    "contents": ["notebooks"],
+    "output_dir": "dist",
+    "piplite_urls": [],
+    "ignore_sys_prefix": true,
+    "federated_extensions": []
+  },
+  "PyodideAddon": {
+    "pyodide_url": "https://github.com/pyodide/pyodide/releases/download/0.26.4/pyodide-0.26.4.tar.bz2"
+  }
+}
