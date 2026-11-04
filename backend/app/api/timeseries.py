@@ -9,6 +9,7 @@ import asyncio
 import io
 import math
 import os
+from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import quote
 
@@ -148,6 +149,65 @@ def _auth_headers(authorization: Optional[str], x_tenant_id: Optional[str]) -> d
     if x_tenant_id:
         h["X-Tenant-ID"] = x_tenant_id
     return h
+
+
+_PLANT_PREFIX = "urn:ngsi-ld:AgriPlant:"
+_PLANT_SAMPLE_TYPE = "AgriPlantSample"
+
+
+class _UpstreamError(RuntimeError):
+    def __init__(self, status: int, detail: str):
+        super().__init__(f"Reader returned {status}: {detail}")
+        self.status = status
+        self.detail = detail
+
+
+def _is_plant(entity_id: str) -> bool:
+    return str(entity_id or "").strip().startswith(_PLANT_PREFIX)
+
+
+async def _fetch_plant_series(
+    client: httpx.AsyncClient,
+    base_url: str,
+    plant_id: str,
+    attrs: str,
+    time_from: Optional[str],
+    time_to: Optional[str],
+    headers: dict,
+) -> dict:
+    """One tree's leaf-analysis results as reader JSON {timestamps, attributes}.
+
+    The results live on the AgriPlantSample entities taken from this tree; the
+    reader's per-plant route returns rows {entity_id, observed_at, <attr>...}.
+    Only leaf samples count (the attributes are leaf-analysis results); replicates
+    of one day are averaged so each instant has one value. An instant without
+    the attribute becomes a gap (None).
+    """
+    path = quote(str(plant_id).strip(), safe="")
+    url = f"{base_url}/api/timeseries/type/{_PLANT_SAMPLE_TYPE}/plant/{path}/data"
+    params: dict = {"attrs": attrs or "", "tissue": "leaf"}
+    if time_from:
+        params["from"] = time_from
+    if time_to:
+        params["to"] = time_to
+    r = await client.get(url, params=params, headers={**headers, "Accept": "application/json"})
+    if r.status_code >= 400:
+        raise _UpstreamError(r.status_code, r.text[:500])
+    rows = (r.json() or {}).get("data") or []
+    names = [a.strip() for a in (attrs or "").split(",") if a.strip()]
+    by_instant: dict[str, list[dict]] = {}
+    for row in rows:
+        by_instant.setdefault(row.get("observed_at"), []).append(row)
+
+    def _mean(group: list[dict], name: str):
+        vals = [v for v in (g.get(name) for g in group)
+                if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        return sum(vals) / len(vals) if vals else None
+
+    return {
+        "timestamps": list(by_instant),
+        "attributes": {n: [_mean(g, n) for g in by_instant.values()] for n in names},
+    }
 
 
 def _get_adapter_base_url(source: str) -> Optional[str]:
@@ -321,6 +381,10 @@ async def _fetch_entity_data_raw(
     Requests JSON from the reader (api-gateway strips non-standard Accept headers,
     so Arrow negotiation fails) and converts to Arrow IPC locally.
     """
+    if _is_plant(entity_id):
+        data = await _fetch_plant_series(
+            client, base_url, entity_id, attribute, start_time, end_time, headers)
+        return _df_to_arrow_ipc(_json_to_dataframe(data, attribute))
     path = quote(str(entity_id).strip(), safe="")
     url = f"{base_url}/api/timeseries/v2/entities/{path}/data"
     params = {
@@ -362,6 +426,17 @@ async def _fetch_from_timescale(
                 client, base, s["entity_id"], s["attribute"],
                 start_time, end_time, resolution, headers,
             )
+        if any(_is_plant(s["entity_id"]) for s in series_group):
+            # The reader's /v2/query does not know trees: fetch each series alone
+            # and align here, keeping one value column per requested series.
+            bodies = [
+                await _fetch_entity_data_raw(
+                    client, base, s["entity_id"], s["attribute"],
+                    start_time, end_time, resolution, headers,
+                )
+                for s in series_group
+            ]
+            return _df_to_arrow_ipc(_align_series_in_order(bodies))
         url = f"{base}/api/timeseries/v2/query"
         body = {
             "time_from": start_time,
@@ -382,6 +457,19 @@ async def _fetch_from_timescale(
             raise RuntimeError(f"Reader /v2/query returned {r.status_code}: {detail}")
         data = r.json()
         return _df_to_arrow_ipc(_json_to_dataframe(data))
+
+
+def _align_series_in_order(arrow_bodies: list[bytes]) -> pl.DataFrame:
+    """Outer-join single-value series on timestamp as value_0..value_N, in input
+    order; an empty series keeps its column (all gaps)."""
+    frames = [pl.read_ipc(io.BytesIO(raw)) for raw in arrow_bodies]
+    ts_type = next((f["timestamp"].dtype for f in frames if f.height), pl.Datetime("us"))
+    out: pl.DataFrame | None = None
+    for i, f in enumerate(frames):
+        col = "value" if "value" in f.columns else next(c for c in f.columns if c != "timestamp")
+        f = f.select(pl.col("timestamp").cast(ts_type), pl.col(col).cast(pl.Float64).alias(f"value_{i}"))
+        out = f if out is None else out.join(f, on="timestamp", how="full", coalesce=True)
+    return out.sort("timestamp")
 
 
 async def _fetch_from_external_module(
@@ -513,7 +601,7 @@ async def proxy_timeseries_align(
     single_timescale = sources == {"timescale"} and len(sources) == 1
 
     # Route A: all series from Timescale — single passthrough POST to reader v2/query (no Polars).
-    if single_timescale and PLATFORM_API_URL:
+    if single_timescale and PLATFORM_API_URL and not any(_is_plant(s["entity_id"]) for s in series):
         headers = _auth_headers(authorization, x_tenant_id)
         res = min(max(resolution, 100), 10000)
         url = f"{PLATFORM_API_URL}/api/timeseries/v2/query"
@@ -665,7 +753,12 @@ def _arrow_bytes_to_json(raw: bytes) -> dict:
     """Convert Arrow IPC bytes to lightweight JSON {timestamps: [...], values: [...]}."""
     table = _parse_arrow_stream(raw)
     ts_col = table.column("timestamp")
-    timestamps = ts_col.to_pylist()
+    # Datetime columns (series converted from reader JSON) go out as epoch seconds,
+    # the unit the browser expects; naive values are UTC.
+    timestamps = [
+        (t if t.tzinfo else t.replace(tzinfo=timezone.utc)).timestamp() if isinstance(t, datetime) else t
+        for t in ts_col.to_pylist()
+    ]
 
     # Single value column
     if "value" in table.column_names:
@@ -875,6 +968,19 @@ async def proxy_timeseries_data(
                 extra={"entity_id": entity_id, "error": str(exc)},
             )
             # Fall through to generic timeseries-reader
+
+    if _is_plant(entity_id):
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                data = await _fetch_plant_series(
+                    client, PLATFORM_API_URL, entity_id, attrs_param, time_from, time_to, headers)
+        except _UpstreamError as exc:
+            logger.warning(
+                "plant_series_upstream_error",
+                extra={"entity_id": entity_id, "attribute": attrs_param, "upstream_status": exc.status},
+            )
+            return JSONResponse(content={"error": exc.detail}, status_code=exc.status)
+        return JSONResponse(content=_reader_json_to_frontend_json(data, attrs_param or None))
 
     path = quote(str(entity_id).strip(), safe="")
     url = f"{PLATFORM_API_URL}/api/timeseries/v2/entities/{path}/data"

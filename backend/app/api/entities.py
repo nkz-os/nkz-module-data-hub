@@ -24,12 +24,22 @@ _ENTITY_TYPES_DEFAULT = [
     "AgriParcel", "AgriSensor", "WeatherObserved", "WeatherStation",
     "ManufacturingMachine", "AutonomousMobileRobot",
     "LivestockAnimal", "Device", "CropHealthAssessment", "VegetationIndex",
+    "AgriPlant",
 ]
+# A tree's series are its leaf-analysis results, stored on the AgriPlantSample
+# entities that point at it (hasAgriPlant), not on the tree itself.
+_PLANT_RESULT_ATTRS = (
+    "nitrogen", "phosphorus", "potassium", "calcium", "magnesium", "sulphur", "chloride",
+    "iron", "manganese", "zinc", "copper", "boron", "sodium",
+)
 _ENTITY_TYPES = [
     t.strip()
     for t in os.getenv("DATAHUB_ENTITY_TYPES", "").split(",")
     if t.strip()
 ] or _ENTITY_TYPES_DEFAULT
+
+_ORION_PAGE = 1000
+
 
 def _get_value(obj: Any) -> Any:
     """Extract value from NGSI-LD property (normalized or simplified)."""
@@ -141,6 +151,15 @@ def _norm_entity(e: dict, etype: str) -> dict:
     else:
         entity_source = entity_source_val
 
+    if etype == "AgriPlant":
+        return {
+            "id": entity_id,
+            "type": etype,
+            "name": name,
+            "source": "timescale",
+            "attributes": [{"name": a, "source": "timescale"} for a in _PLANT_RESULT_ATTRS],
+        }
+
     attributes: list[dict] = []
     seen_attrs: set[tuple[str, str]] = set()
     for key, val in e.items():
@@ -197,11 +216,22 @@ async def _fetch_ngsi_entities(
     if x_tenant_id:
         headers["X-Tenant-ID"] = x_tenant_id
         headers["NGSILD-Tenant"] = x_tenant_id
+    # Orion-LD returns 20 entities when no limit is given; page through all.
+    out: list[dict] = []
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(url, params={"type": etype}, headers=headers)
-        r.raise_for_status()
-        data = r.json()
-    return data if isinstance(data, list) else []
+        offset = 0
+        while True:
+            r = await client.get(
+                url, params={"type": etype, "limit": _ORION_PAGE, "offset": offset}, headers=headers)
+            r.raise_for_status()
+            page = r.json()
+            if not isinstance(page, list) or not page:
+                break
+            out.extend(page)
+            if len(page) < _ORION_PAGE:
+                break
+            offset += _ORION_PAGE
+    return out
 
 
 @router.get("/entities")
