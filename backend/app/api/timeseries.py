@@ -179,11 +179,13 @@ async def _fetch_plant_series(
 
     The results live on the AgriPlantSample entities taken from this tree; the
     reader's per-plant route returns rows {entity_id, observed_at, <attr>...}.
-    A row without a requested attribute becomes a gap (None).
+    Only leaf samples count (the attributes are leaf-analysis results); replicates
+    of one day are averaged so each instant has one value. An instant without
+    the attribute becomes a gap (None).
     """
     path = quote(str(plant_id).strip(), safe="")
     url = f"{base_url}/api/timeseries/type/{_PLANT_SAMPLE_TYPE}/plant/{path}/data"
-    params: dict = {"attrs": attrs or ""}
+    params: dict = {"attrs": attrs or "", "tissue": "leaf"}
     if time_from:
         params["from"] = time_from
     if time_to:
@@ -193,9 +195,18 @@ async def _fetch_plant_series(
         raise _UpstreamError(r.status_code, r.text[:500])
     rows = (r.json() or {}).get("data") or []
     names = [a.strip() for a in (attrs or "").split(",") if a.strip()]
+    by_instant: dict[str, list[dict]] = {}
+    for row in rows:
+        by_instant.setdefault(row.get("observed_at"), []).append(row)
+
+    def _mean(group: list[dict], name: str):
+        vals = [v for v in (g.get(name) for g in group)
+                if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        return sum(vals) / len(vals) if vals else None
+
     return {
-        "timestamps": [row.get("observed_at") for row in rows],
-        "attributes": {n: [row.get(n) for row in rows] for n in names},
+        "timestamps": list(by_instant),
+        "attributes": {n: [_mean(g, n) for g in by_instant.values()] for n in names},
     }
 
 

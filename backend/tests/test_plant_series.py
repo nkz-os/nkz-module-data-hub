@@ -109,7 +109,7 @@ def test_plant_id_routes_to_plant_series(fake, client):
     assert call["url"].startswith(f"{BASE}/api/timeseries/type/AgriPlantSample/plant/")
     assert call["url"].endswith("/data") and "/v2/entities/" not in call["url"]
     assert call["params"] == {"from": "2025-01-01T00:00:00Z", "to": "2026-12-31T00:00:00Z",
-                              "attrs": "nitrogen"}
+                              "attrs": "nitrogen", "tissue": "leaf"}
 
 
 def test_plant_rows_converted_to_series_shape(fake, client):
@@ -169,3 +169,38 @@ def test_plant_upstream_error_keeps_status(fake, client):
     with patch.object(_FakeClient, "_send", _send):
         r = _get(client, PLANT)
     assert r.status_code == 502 and "unavailable" in r.json()["error"]
+
+
+def test_same_day_replicates_averaged(fake, client):
+    day = "2026-07-15T12:00:00+00:00"
+    fake.reply = {"data": [
+        {"entity_id": "s1", "observed_at": day, "plantTissue": "leaf", "nitrogen": 0.018},
+        {"entity_id": "s2", "observed_at": day, "plantTissue": "leaf", "nitrogen": 0.020},
+        {"entity_id": "s3", "observed_at": day, "plantTissue": "leaf"},
+    ]}
+    body = _get(client, PLANT).json()
+    assert body["timestamps"] == [_epoch(day)]
+    assert body["values"] == [pytest.approx(0.019)]
+
+
+@pytest.mark.asyncio
+async def test_entities_listing_pages_orion():
+    from app.api import entities
+
+    pages = [[{"id": f"urn:ngsi-ld:AgriPlant:tenant-a:p:{i}"} for i in range(1000)],
+             [{"id": "urn:ngsi-ld:AgriPlant:tenant-a:p:last"}]]
+    seen = []
+
+    class _Client(_FakeClient):
+        async def get(self, url, params=None, headers=None):
+            seen.append(dict(params))
+            r = MagicMock()
+            r.status_code = 200
+            r.raise_for_status = MagicMock()
+            r.json.return_value = pages[len(seen) - 1]
+            return r
+
+    with patch.object(entities.httpx, "AsyncClient", _Client):
+        out = await entities._fetch_ngsi_entities(BASE, "AgriPlant", None, "tenant-a")
+    assert len(out) == 1001
+    assert [(p["limit"], p["offset"]) for p in seen] == [(1000, 0), (1000, 1000)]

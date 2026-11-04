@@ -38,6 +38,9 @@ _ENTITY_TYPES = [
     if t.strip()
 ] or _ENTITY_TYPES_DEFAULT
 
+_ORION_PAGE = 1000
+
+
 def _get_value(obj: Any) -> Any:
     """Extract value from NGSI-LD property (normalized or simplified)."""
     if obj is None:
@@ -213,11 +216,22 @@ async def _fetch_ngsi_entities(
     if x_tenant_id:
         headers["X-Tenant-ID"] = x_tenant_id
         headers["NGSILD-Tenant"] = x_tenant_id
+    # Orion-LD returns 20 entities when no limit is given; page through all.
+    out: list[dict] = []
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(url, params={"type": etype}, headers=headers)
-        r.raise_for_status()
-        data = r.json()
-    return data if isinstance(data, list) else []
+        offset = 0
+        while True:
+            r = await client.get(
+                url, params={"type": etype, "limit": _ORION_PAGE, "offset": offset}, headers=headers)
+            r.raise_for_status()
+            page = r.json()
+            if not isinstance(page, list) or not page:
+                break
+            out.extend(page)
+            if len(page) < _ORION_PAGE:
+                break
+            offset += _ORION_PAGE
+    return out
 
 
 @router.get("/entities")
