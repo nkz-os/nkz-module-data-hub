@@ -24,7 +24,14 @@ _ENTITY_TYPES_DEFAULT = [
     "AgriParcel", "AgriSensor", "WeatherObserved", "WeatherStation",
     "ManufacturingMachine", "AutonomousMobileRobot",
     "LivestockAnimal", "Device", "CropHealthAssessment", "VegetationIndex",
+    "AgriPlant",
 ]
+# A tree's series are its leaf-analysis results, stored on the AgriPlantSample
+# entities that point at it (hasAgriPlant), not on the tree itself.
+_PLANT_RESULT_ATTRS = (
+    "nitrogen", "phosphorus", "potassium", "calcium", "magnesium", "sulphur", "chloride",
+    "iron", "manganese", "zinc", "copper", "boron", "sodium",
+)
 _ENTITY_TYPES = [
     t.strip()
     for t in os.getenv("DATAHUB_ENTITY_TYPES", "").split(",")
@@ -140,6 +147,15 @@ def _norm_entity(e: dict, etype: str) -> dict:
         entity_source = "timescale"
     else:
         entity_source = entity_source_val
+
+    if etype == "AgriPlant":
+        return {
+            "id": entity_id,
+            "type": etype,
+            "name": name,
+            "source": "timescale",
+            "attributes": [{"name": a, "source": "timescale"} for a in _PLANT_RESULT_ATTRS],
+        }
 
     attributes: list[dict] = []
     seen_attrs: set[tuple[str, str]] = set()
