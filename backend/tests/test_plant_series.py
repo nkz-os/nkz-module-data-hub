@@ -115,7 +115,7 @@ def test_plant_id_routes_to_plant_series(fake, client):
 def test_plant_rows_converted_to_series_shape(fake, client):
     body = _get(client, PLANT).json()
     assert body["timestamps"] == [_epoch("2025-07-15T12:00:00+00:00"), _epoch("2026-07-15T12:00:00+00:00")]
-    assert body["values"] == [0.018, None]
+    assert body["values"] == [1.8, None]  # lab unit: %
 
 
 def test_other_ids_unchanged(fake, client):
@@ -131,7 +131,7 @@ async def test_export_reads_plant_series(fake):
     raw = await timeseries._fetch_entity_data_raw(
         _FakeClient(), BASE, PLANT, "nitrogen", "2025-01-01T00:00:00Z", "2026-12-31T00:00:00Z", 1000, {})
     df = pl.read_ipc(io.BytesIO(raw))
-    assert df["value"].to_list() == [0.018, None]
+    assert df["value"].to_list() == [1.8, None]
     assert "/plant/" in fake.calls[0]["url"]
 
 
@@ -156,7 +156,7 @@ def test_align_with_plant_fetches_each_series(fake, client):
     assert r.status_code == 200, r.text
     assert not any(c["url"].endswith("/v2/query") for c in fake.calls)
     body = r.json()
-    assert body["value_0"] == [0.018, None] and body["value_1"] == [0.31, None]
+    assert body["value_0"] == [1.8, None] and body["value_1"] == [0.31, None]
 
 
 def test_plant_upstream_error_keeps_status(fake, client):
@@ -180,7 +180,7 @@ def test_same_day_replicates_averaged(fake, client):
     ]}
     body = _get(client, PLANT).json()
     assert body["timestamps"] == [_epoch(day)]
-    assert body["values"] == [pytest.approx(0.019)]
+    assert body["values"] == [pytest.approx(1.9)]
 
 
 @pytest.mark.asyncio
@@ -204,3 +204,8 @@ async def test_entities_listing_pages_orion():
         out = await entities._fetch_ngsi_entities(BASE, "AgriPlant", None, "tenant-a")
     assert len(out) == 1001
     assert [(p["limit"], p["offset"]) for p in seen] == [(1000, 0), (1000, 1000)]
+
+
+def test_micronutrients_stay_in_mg_per_kg(fake, client):
+    fake.reply = {"data": [{"entity_id": "s1", "observed_at": "2026-07-15T12:00:00+00:00", "iron": 85}]}
+    assert _get(client, PLANT, "iron").json()["values"] == [85]

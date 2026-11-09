@@ -17,6 +17,13 @@ export const SERIES_PALETTE = [
   '#22d3ee', // cyan-400
 ];
 
+/** Tree leaf-analysis results, as the backend returns them (lab units). */
+export const PLANT_RESULT_UNITS: Record<string, string> = {
+  nitrogen: '%', phosphorus: '%', potassium: '%', calcium: '%', magnesium: '%',
+  sulphur: '%', chloride: '%',
+  iron: 'mg/kg', manganese: 'mg/kg', zinc: 'mg/kg', copper: 'mg/kg', boron: 'mg/kg', sodium: 'mg/kg',
+};
+
 /** Unit-by-attribute display table. Keep in sync with src/components/DataTree.tsx. */
 const ATTRIBUTE_UNIT: Record<string, string> = {
   temperature: '°C', temp_avg: '°C', temp_min: '°C', temp_max: '°C',
@@ -32,6 +39,7 @@ const ATTRIBUTE_UNIT: Record<string, string> = {
   atmosphericPressure: 'hPa',
   panelInclination: '°',
   gdd_accumulated: 'GDD',
+  ...PLANT_RESULT_UNITS,
 };
 
 export function unitFor(attribute: string): string {
