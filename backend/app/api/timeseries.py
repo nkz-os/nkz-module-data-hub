@@ -153,6 +153,11 @@ def _auth_headers(authorization: Optional[str], x_tenant_id: Optional[str]) -> d
 
 _PLANT_PREFIX = "urn:ngsi-ld:AgriPlant:"
 _PLANT_SAMPLE_TYPE = "AgriPlantSample"
+# The broker stores macronutrients as 0-1 fractions (Smart Data Models); a
+# technician reads them in % as on the lab report. Micronutrients are mg/kg.
+_PLANT_FRACTION_ATTRS = frozenset({
+    "nitrogen", "phosphorus", "potassium", "calcium", "magnesium", "sulphur", "chloride",
+})
 
 
 class _UpstreamError(RuntimeError):
@@ -180,8 +185,9 @@ async def _fetch_plant_series(
     The results live on the AgriPlantSample entities taken from this tree; the
     reader's per-plant route returns rows {entity_id, observed_at, <attr>...}.
     Only leaf samples count (the attributes are leaf-analysis results); replicates
-    of one day are averaged so each instant has one value. An instant without
-    the attribute becomes a gap (None).
+    of one day are averaged so each instant has one value. Macronutrients are
+    returned in % (lab units), micronutrients in mg/kg. An instant without the
+    attribute becomes a gap (None).
     """
     path = quote(str(plant_id).strip(), safe="")
     url = f"{base_url}/api/timeseries/type/{_PLANT_SAMPLE_TYPE}/plant/{path}/data"
@@ -202,7 +208,10 @@ async def _fetch_plant_series(
     def _mean(group: list[dict], name: str):
         vals = [v for v in (g.get(name) for g in group)
                 if isinstance(v, (int, float)) and not isinstance(v, bool)]
-        return sum(vals) / len(vals) if vals else None
+        if not vals:
+            return None
+        mean = sum(vals) / len(vals)
+        return round(mean * 100, 9) if name in _PLANT_FRACTION_ATTRS else mean
 
     return {
         "timestamps": list(by_instant),

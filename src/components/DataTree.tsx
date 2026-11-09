@@ -17,6 +17,7 @@ import { useSensorHealth, type ReliabilityStatus } from '../hooks/useSensorHealt
 import { HealthIndicator } from './sensor-panel/HealthIndicator';
 import { SilenceButton } from './sensor-panel/SilenceButton';
 import { AlertList } from './alert-panel/AlertList';
+import { PLANT_RESULT_UNITS } from '../slots/panel/panelUtils';
 import { CalibrationPanel } from './calibration/CalibrationPanel';
 
 /** Attributes that are not numeric timeseries. */
@@ -41,6 +42,7 @@ const ATTRIBUTE_UNIT: Record<string, string> = {
   pressure_hpa: 'hPa', pressure_avg: 'hPa', pressure: 'hPa',
   ndvi: '', ndviMean: '', evi: '', savi: '', gndvi: '', ndre: '', ndwi: '',
   delta_t: '°C', gdd_accumulated: 'GDD',
+  ...PLANT_RESULT_UNITS,
 };
 
 export interface DataTreeProps {
